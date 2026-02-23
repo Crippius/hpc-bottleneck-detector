@@ -1,0 +1,95 @@
+classDiagram
+    %% ============================================
+    %% HYBRID STRATEGY VIEW
+    %% Focus: ML + Heuristic Combined Approach
+    %% ============================================
+    
+    class HybridStrategy {
+        -ml_detector: MLDetector
+        -strategy_trees: list~StrategyTree~
+        -significance_threshold: float
+        -model_path: str
+        -required_metrics: list~str~
+        +__init__(model_path: str, strategy_trees: list~StrategyTree~, significance_threshold: float)
+        +diagnose(data_mgr: DataManager) list~Diagnosis~
+        +analyze_job(data_mgr: DataManager) list~WindowDiagnosis~
+        +get_required_metrics() list~str~
+        -apply_ml(data_mgr: DataManager) list~Diagnosis~
+        -apply_heuristic(ml_diagnoses: list~Diagnosis~, data_mgr: DataManager) list~Diagnosis~
+        +load_model(model_path: str)
+    }
+
+    class MLDetector {
+        -trained_model: object
+        +__init__(trained_model: object)
+        +predict_probabilities(features: FeatureVector) dict~str, float~
+        +predict_all_bottlenecks(features: FeatureVector, threshold: float) list~Diagnosis~
+        +get_statistically_significant(probabilities: dict, threshold: float) dict
+    }
+
+    class StrategyTree {
+        -root_node: PropertyNode
+        -tree_name: str
+        +__init__(config_path: str, tree_name: str)
+        +load_from_yaml(path: str)
+        +traverse(data_mgr: DataManager) Diagnosis
+        +evaluate(data_mgr: DataManager) Diagnosis
+    }
+
+    class PropertyNode {
+        -node_id: str
+        -metric_id: str
+        -threshold: float
+        -children: list~PropertyNode~
+        +__init__(node_id: str, metric_id: str, threshold: float)
+        +evaluate(data_mgr: DataManager) bool
+        +calculate_severity(data_mgr: DataManager) float
+        +is_leaf() bool
+    }
+
+    class DataManager {
+        +get_metric(metric_id: str) float
+        +get_metrics(metric_ids: list~str~) dict
+        +get_feature_vector(metrics: list~str~) FeatureVector
+    }
+
+    class FeatureVector {
+        -features: dict~str, float~
+        +get_feature(name: str) float
+        +to_array() ndarray
+    }
+
+    class Diagnosis {
+        <<dataclass>>
+        +bottleneck_type: BottleneckType
+        +severity_score: float
+        +confidence: float
+        +triggered_properties: list~str~
+        +recommendation: str
+        +source: str
+    }
+
+    class WindowDiagnosis {
+        <<dataclass>>
+        +window_index: int
+        +diagnoses: list~Diagnosis~
+        +get_primary_diagnosis() Diagnosis
+        +has_bottlenecks() bool
+    }
+
+    %% Relationships
+    HybridStrategy *-- MLDetector : ml_detector
+    HybridStrategy o-- StrategyTree : strategy_trees
+    HybridStrategy --> DataManager : uses
+    HybridStrategy --> Diagnosis : produces
+    HybridStrategy --> WindowDiagnosis : produces
+
+    MLDetector --> FeatureVector : consumes
+    MLDetector --> Diagnosis : produces
+
+    StrategyTree *-- PropertyNode : root_node
+    StrategyTree --> Diagnosis : produces
+
+    DataManager --> FeatureVector : provides
+
+    WindowDiagnosis *-- Diagnosis : contains

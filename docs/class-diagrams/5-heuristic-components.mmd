@@ -1,0 +1,97 @@
+classDiagram
+    %% ============================================
+    %% HEURISTIC COMPONENTS VIEW
+    %% Focus: Decision Tree-Based Diagnosis
+    %% ============================================
+    
+    class HeuristicStrategy {
+        -strategy_trees: list~StrategyTree~
+        -model_path: str
+        -required_metrics: list~str~
+        +__init__(strategy_trees: list~StrategyTree~, model_path: str)
+        +diagnose(data_mgr: DataManager) list~Diagnosis~
+        +analyze_job(data_mgr: DataManager) list~WindowDiagnosis~
+        +get_required_metrics() list~str~
+        -run_all_trees(data_mgr: DataManager) list~Diagnosis~
+        +load_model(model_path: str)
+    }
+
+    class StrategyTree {
+        -root_node: PropertyNode
+        -config_path: str
+        -tree_name: str
+        +__init__(config_path: str, tree_name: str)
+        +load_from_yaml(path: str)
+        +traverse(data_mgr: DataManager) Diagnosis
+        +evaluate(data_mgr: DataManager) Diagnosis
+        +get_required_metrics() list~str~
+    }
+
+    class PropertyNode {
+        -node_id: str
+        -metric_id: str
+        -threshold: float
+        -severity_formula: str
+        -diagnosis: Diagnosis
+        -children: list~PropertyNode~
+        +__init__(node_id: str, metric_id: str, threshold: float)
+        +evaluate(data_mgr: DataManager) bool
+        +calculate_severity(data_mgr: DataManager) float
+        +get_child() PropertyNode
+        +is_leaf() bool
+        +get_diagnosis() Diagnosis
+    }
+
+    class DataManager {
+        +get_metric(metric_id: str) float
+        +get_metric_series(metric_id: str) Series
+        +get_metrics(metric_ids: list~str~) dict
+        +has_metric(metric_id: str) bool
+    }
+
+    class Diagnosis {
+        <<dataclass>>
+        +bottleneck_type: BottleneckType
+        +severity_score: float
+        +confidence: float
+        +triggered_properties: list~str~
+        +recommendation: str
+        +source: str
+        +__init__(bottleneck_type: BottleneckType, severity_score: float, confidence: float, source: str)
+    }
+
+    class BottleneckType {
+        <<enumeration>>
+        DATA_LOCALITY
+        DATA_LEVEL_PARALLELISM
+        BRANCH_MISPREDICTION
+        INTER_NODE_LOAD_IMBALANCE
+        NONE
+        +get_recommendation() str
+        +get_macro_category() MacroCategoryType
+    }
+
+    class MacroCategoryType {
+        <<enumeration>>
+        COMPUTE_BOUND
+        MEMORY_BOUND
+        IO_BOUND
+        OTHER
+        NONE
+    }
+
+    %% Relationships
+    HeuristicStrategy o-- StrategyTree : uses
+    HeuristicStrategy --> DataManager : uses
+    HeuristicStrategy --> Diagnosis : produces
+
+    StrategyTree *-- PropertyNode : root_node
+    StrategyTree --> DataManager : uses
+    StrategyTree --> Diagnosis : produces
+
+    PropertyNode --> PropertyNode : children
+    PropertyNode *-- Diagnosis : diagnosis
+    PropertyNode --> DataManager : queries
+
+    Diagnosis --> BottleneckType : has
+    BottleneckType --> MacroCategoryType : belongs to

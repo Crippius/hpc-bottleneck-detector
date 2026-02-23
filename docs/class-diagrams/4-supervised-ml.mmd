@@ -1,0 +1,92 @@
+classDiagram
+    %% ============================================
+    %% ML COMPONENTS VIEW
+    %% Focus: Machine Learning Detection Pipeline
+    %% ============================================
+    
+    class SupervisedMLStrategy {
+        -ml_model: MLDetector
+        -model_path: str
+        -significance_threshold: float
+        -required_features: list~str~
+        +__init__(model_path: str, significance_threshold: float)
+        +diagnose(data_mgr: DataManager) list~Diagnosis~
+        +analyze_job(data_mgr: DataManager) list~WindowDiagnosis~
+        +get_required_metrics() list~str~
+        +load_model(model_path: str)
+    }
+
+    class MLDetector {
+        -trained_model: object
+        +__init__(trained_model: object)
+        +predict_probabilities(features: FeatureVector) dict~str, float~
+        +predict_all_bottlenecks(features: FeatureVector, threshold: float) list~Diagnosis~
+        +get_statistically_significant(probabilities: dict, threshold: float) dict
+    }
+
+    class FeatureExtractor {
+        +__init__()
+        +calculate_statistics(df: DataFrame) FeatureVector
+        +extract_features(metrics: list~str~, window: DataFrame) FeatureVector
+        -compute_mean(values: Series) float
+        -compute_std_dev(values: Series) float
+        -compute_skewness(values: Series) float
+        -compute_kurtosis(values: Series) float
+        -compute_quantiles(values: Series) list~float~
+    }
+
+    class FeatureVector {
+        -features: dict~str, float~
+        -timestamp: datetime
+        +__init__(features: dict, timestamp: datetime)
+        +get_feature(name: str) float
+        +to_array() ndarray
+        +to_dict() dict
+    }
+
+    class FeatureService {
+        -feature_extractor: FeatureExtractor
+        +__init__(feature_extractor: FeatureExtractor)
+        +extract_features(window: DataFrame, metrics: list~str~) FeatureVector
+        +get_feature_vector(window: DataFrame) FeatureVector
+        +calculate_statistics(window: DataFrame) dict
+    }
+
+    class DataManager {
+        -current_window: DataFrame
+        +get_metric(metric_id: str) float
+        +get_metrics(metric_ids: list~str~) dict
+        +get_feature_vector(metrics: list~str~) FeatureVector
+    }
+
+    class Diagnosis {
+        <<dataclass>>
+        +bottleneck_type: BottleneckType
+        +severity_score: float
+        +confidence: float
+        +source: str
+        +__init__(bottleneck_type: BottleneckType, severity_score: float, confidence: float, source: str)
+    }
+
+    class BottleneckType {
+        <<enumeration>>
+        DATA_LOCALITY
+        DATA_LEVEL_PARALLELISM
+        BRANCH_MISPREDICTION
+        INTER_NODE_LOAD_IMBALANCE
+        NONE
+    }
+
+    %% Relationships
+    SupervisedMLStrategy *-- MLDetector : uses
+    SupervisedMLStrategy --> DataManager : uses
+    SupervisedMLStrategy --> Diagnosis : produces
+
+    DataManager --> FeatureService : uses
+    FeatureService *-- FeatureExtractor : uses
+    FeatureExtractor --> FeatureVector : produces
+
+    MLDetector --> FeatureVector : consumes
+    MLDetector --> Diagnosis : produces
+
+    Diagnosis --> BottleneckType : has

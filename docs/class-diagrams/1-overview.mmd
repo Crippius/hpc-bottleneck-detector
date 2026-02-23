@@ -1,0 +1,73 @@
+classDiagram
+    %% ============================================
+    %% HIGH-LEVEL OVERVIEW
+    %% Focus: Main Components & Flow
+    %% ============================================
+    
+    class AnalysisOrchestrator {
+        +run_pipeline(job_id: str) list~WindowDiagnosis~
+        +load_from_config(config_path: str)
+    }
+
+    class IDataSource {
+        <<interface>>
+        +fetch_job_data(job_id: str) DataManager
+    }
+
+    class DataManager {
+        +get_metric(metric_id: str) float
+        +get_feature_vector(metrics: list~str~) FeatureVector
+        +iterate_windows() Generator~DataManager~
+    }
+
+    class IAnalysisStrategy {
+        <<interface>>
+        +diagnose(data_mgr: DataManager) list~Diagnosis~
+        +analyze_job(data_mgr: DataManager) list~WindowDiagnosis~
+    }
+
+    class HeuristicStrategy {
+        +diagnose(data_mgr: DataManager) list~Diagnosis~
+    }
+
+    class SupervisedMLStrategy {
+        +diagnose(data_mgr: DataManager) list~Diagnosis~
+    }
+
+    class HybridStrategy {
+        +diagnose(data_mgr: DataManager) list~Diagnosis~
+        -apply_ml(data_mgr: DataManager) list~Diagnosis~
+        -apply_heuristic(ml_diagnoses: list~Diagnosis~, data_mgr: DataManager) list~Diagnosis~
+    }
+
+    class WindowDiagnosis {
+        <<dataclass>>
+        +window_index: int
+        +diagnoses: list~Diagnosis~
+        +has_bottlenecks() bool
+    }
+
+    class Diagnosis {
+        <<dataclass>>
+        +bottleneck_type: BottleneckType
+        +severity_score: float
+        +confidence: float
+        +recommendation: str
+    }
+
+
+    %% Relationships
+    AnalysisOrchestrator --> IDataSource : uses
+    AnalysisOrchestrator o-- IAnalysisStrategy : strategy
+    AnalysisOrchestrator --> WindowDiagnosis : produces
+
+    IDataSource --> DataManager : creates
+
+    IAnalysisStrategy <|.. HeuristicStrategy
+    IAnalysisStrategy <|.. SupervisedMLStrategy
+    IAnalysisStrategy <|.. HybridStrategy
+
+    IAnalysisStrategy --> DataManager : uses
+    IAnalysisStrategy --> WindowDiagnosis : produces
+
+    WindowDiagnosis *-- Diagnosis : contains

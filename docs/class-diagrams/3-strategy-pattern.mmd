@@ -1,0 +1,103 @@
+classDiagram
+    %% ============================================
+    %% STRATEGY PATTERN VIEW
+    %% Focus: Analysis Strategies & Implementations
+    %% ============================================
+    
+    class IAnalysisStrategy {
+        <<interface>>
+        +diagnose(data_mgr: DataManager) list~Diagnosis~
+        +analyze_job(data_mgr: DataManager) list~WindowDiagnosis~
+        +get_required_metrics() list~str~
+        +load_model(model_path: str)
+    }
+
+    class HeuristicStrategy {
+        -strategy_trees: list~StrategyTree~
+        -required_metrics: list~str~
+        +__init__(strategy_trees: list~StrategyTree~, model_path: str)
+        +diagnose(data_mgr: DataManager) list~Diagnosis~
+        +analyze_job(data_mgr: DataManager) list~WindowDiagnosis~
+        +get_required_metrics() list~str~
+    }
+
+    class SupervisedMLStrategy {
+        -ml_model: MLDetector
+        -significance_threshold: float
+        +__init__(model_path: str, significance_threshold: float)
+        +diagnose(data_mgr: DataManager) list~Diagnosis~
+        +analyze_job(data_mgr: DataManager) list~WindowDiagnosis~
+        +load_model(model_path: str)
+    }
+
+    class HybridStrategy {
+        -ml_detector: MLDetector
+        -strategy_trees: list~StrategyTree~
+        -significance_threshold: float
+        +__init__(model_path: str, strategy_trees: list~StrategyTree~, significance_threshold: float)
+        +diagnose(data_mgr: DataManager) list~Diagnosis~
+        +analyze_job(data_mgr: DataManager) list~WindowDiagnosis~
+        -apply_ml(data_mgr: DataManager) list~Diagnosis~
+        -apply_heuristic(ml_diagnoses: list~Diagnosis~, data_mgr: DataManager) list~Diagnosis~
+    }
+
+    class MLDetector {
+        -trained_model: object
+        +__init__(trained_model: object)
+        +predict_probabilities(features: FeatureVector) dict~str, float~
+        +predict_all_bottlenecks(features: FeatureVector, threshold: float) list~Diagnosis~
+    }
+
+    class StrategyTree {
+        -root_node: PropertyNode
+        -tree_name: str
+        +__init__(config_path: str, tree_name: str)
+        +load_from_yaml(path: str)
+        +traverse(data_mgr: DataManager) Diagnosis
+        +evaluate(data_mgr: DataManager) Diagnosis
+    }
+
+    class PropertyNode {
+        -node_id: str
+        -metric_id: str
+        -threshold: float
+        -diagnosis: Diagnosis
+        -children: list~PropertyNode~
+        +__init__(node_id: str, metric_id: str, threshold: float)
+        +evaluate(data_mgr: DataManager) bool
+        +calculate_severity(data_mgr: DataManager) float
+        +is_leaf() bool
+    }
+
+    class DataManager {
+        +get_metric(metric_id: str) float
+        +get_feature_vector(metrics: list~str~) FeatureVector
+    }
+
+    class Diagnosis {
+        <<dataclass>>
+        +bottleneck_type: BottleneckType
+        +severity_score: float
+        +confidence: float
+        +source: str
+        +__init__(bottleneck_type: BottleneckType, severity_score: float, confidence: float, source: str)
+    }
+
+    %% Relationships
+    IAnalysisStrategy <|.. HeuristicStrategy : implements
+    IAnalysisStrategy <|.. SupervisedMLStrategy : implements
+    IAnalysisStrategy <|.. HybridStrategy : implements
+
+    IAnalysisStrategy --> DataManager : uses
+    IAnalysisStrategy --> Diagnosis : produces
+
+    HeuristicStrategy o-- StrategyTree : uses
+    SupervisedMLStrategy *-- MLDetector : uses
+    HybridStrategy *-- MLDetector : uses
+    HybridStrategy o-- StrategyTree : uses
+
+    StrategyTree *-- PropertyNode : root_node
+    PropertyNode --> PropertyNode : children
+    PropertyNode *-- Diagnosis : diagnosis
+
+    MLDetector --> Diagnosis : produces

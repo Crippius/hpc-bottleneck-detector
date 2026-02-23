@@ -1,0 +1,323 @@
+classDiagram
+    %% ============================================
+    %% 1. DATA SOURCE ABSTRACTION
+    %% ============================================
+    
+    class IDataSource {
+        <<interface>>
+        +fetch_job_data(job_id: str) DataManager
+    }
+
+    class CSVDataSource {
+        -file_path: str
+        -delimiter: str
+        +__init__(file_path: str, delimiter: str)
+        +fetch_job_data(job_id: str) DataManager
+        -parse_csv() DataFrame
+        -parse_metadata() dict
+    }
+
+    class RestAPIDataSource {
+        -api_endpoint: str
+        -auth_token: str
+        +__init__(api_endpoint: str, auth_token: str)
+        +fetch_job_data(job_id: str) DataManager
+        -make_request(job_id: str) dict
+    }
+
+    class DatabaseDataSource {
+        -connection_string: str
+        +__init__(connection_string: str)
+        +fetch_job_data(job_id: str) DataManager
+        -execute_query(job_id: str) DataFrame
+        -query_metadata(job_id: str) dict
+    }
+
+    IDataSource <|.. CSVDataSource : implements
+    IDataSource <|.. RestAPIDataSource : implements
+    IDataSource <|.. DatabaseDataSource : implements
+    IDataSource --> DataManager : creates
+
+    %% ============================================
+    %% 2. CONFIGURATION AND ORCHESTRATION
+    %% ============================================
+    
+    class ConfigLoader {
+        -config_path: str
+        +__init__(config_path: str)
+        +load_config() dict
+        +get_strategy_type() str
+        +get_strategy_config() dict
+        +get_data_source_config() dict
+        +validate_config(config: dict) bool
+    }
+
+    class AnalysisOrchestrator {
+        -strategy: IAnalysisStrategy
+        -data_source: IDataSource
+        -config: dict
+        +__init__(strategy: IAnalysisStrategy, data_source: IDataSource, config: dict)
+        +run_pipeline(job_id: str) list~WindowDiagnosis~
+        +load_from_config(config_path: str)
+        +set_data_source(source: IDataSource)
+        +show_diagnoses(diagnoses: list~WindowDiagnosis~) list~WindowDiagnosis~
+    }
+
+    AnalysisOrchestrator --> ConfigLoader : uses
+    AnalysisOrchestrator --> IDataSource : uses
+    AnalysisOrchestrator o-- IAnalysisStrategy : strategy
+    AnalysisOrchestrator --> DataManager : uses
+
+    %% ============================================
+    %% 3. DATA MANAGEMENT (Refactored)
+    %% ============================================
+    
+    class WindowProvider {
+        -full_job_data: DataFrame
+        -window_size: int
+        -step_size: int
+        -current_index: int
+        +__init__(full_job_data: DataFrame, window_size: int, step_size: int)
+        +generate_windows() Generator~DataFrame~
+        +get_window_at(index: int) DataFrame
+        +get_total_windows() int
+        -validate_window(window: DataFrame) bool
+    }
+
+    class FeatureService {
+        -feature_extractor: FeatureExtractor
+        +__init__(feature_extractor: FeatureExtractor)
+        +extract_features(window: DataFrame, metrics: list~str~) FeatureVector
+        +get_feature_vector(window: DataFrame) FeatureVector
+        +calculate_statistics(window: DataFrame) dict
+    }
+
+    class JobContext {
+        -job_metadata: dict
+        -job_id: str
+        -config: dict
+        +__init__(job_id: str, job_metadata: dict, config: dict)
+        +get_metadata(key: str) any
+        +get_job_id() str
+        +get_config(key: str) any
+        +has_metadata(key: str) bool
+    }
+
+    class DataManager {
+        -current_window: DataFrame
+        -window_provider: WindowProvider
+        -feature_service: FeatureService
+        -job_context: JobContext
+        +__init__(window_provider: WindowProvider, feature_service: FeatureService, job_context: JobContext)
+        +set_current_window(window: DataFrame)
+        +get_window_metadata() dict
+        +get_metric(metric_id: str) float
+        +get_metric_series(metric_id: str) Series
+        +get_metrics(metric_ids: list~str~) dict
+        +get_metadata(key: str) any
+        +get_feature_vector(metrics: list~str~) FeatureVector
+        +has_metric(metric_id: str) bool
+        +iterate_windows() Generator~DataManager~
+    }
+
+    DataManager o-- WindowProvider : uses
+    DataManager o-- FeatureService : uses
+    DataManager o-- JobContext : uses
+    FeatureService *-- FeatureExtractor : uses
+
+    %% ============================================
+    %% 4. STRATEGY PATTERN (Analysis Strategies)
+    %% ============================================
+    
+    class IAnalysisStrategy {
+        <<interface>>
+        +diagnose(data_mgr: DataManager) list~Diagnosis~
+        +analyze_job(data_mgr: DataManager) list~WindowDiagnosis~
+        +get_required_metrics() list~str~
+        +load_model(model_path: str)
+    }
+
+    class HeuristicStrategy {
+        -strategy_trees: list~StrategyTree~
+        -model_path: str
+        -required_metrics: list~str~
+        +__init__(strategy_trees: list~StrategyTree~, model_path: str)
+        +diagnose(data_mgr: DataManager) list~Diagnosis~
+        +analyze_job(data_mgr: DataManager) list~WindowDiagnosis~
+        +get_required_metrics() list~str~
+        -run_all_trees(data_mgr: DataManager) list~Diagnosis~
+        +load_model(model_path: str)
+    }
+
+    class SupervisedMLStrategy {
+        -ml_model: MLDetector
+        -model_path: str
+        -significance_threshold: float
+        -required_features: list~str~
+        +__init__(model_path: str, significance_threshold: float)
+        +diagnose(data_mgr: DataManager) list~Diagnosis~
+        -analyze_job(data_mgr: DataManager) list~WindowDiagnosis~
+        +get_required_metrics() list~str~
+        +load_model(model_path: str)
+    }
+
+    class HybridStrategy {
+        -ml_detector: MLDetector
+        -strategy_trees: list~StrategyTree~
+        -significance_threshold: float
+        -model_path: str
+        -required_metrics: list~str~
+        +__init__(model_path: str, strategy_trees: list~StrategyTree~, significance_threshold: float)
+        +diagnose(data_mgr: DataManager) list~Diagnosis~
+        +analyze_job(data_mgr: DataManager) list~WindowDiagnosis~
+        +get_required_metrics() list~str~
+        -apply_ml(data_mgr: DataManager) list~Diagnosis~
+        -apply_heuristic(ml_diagnoses: list~Diagnosis~, data_mgr: DataManager) list~Diagnosis~
+        +load_model(model_path: str)
+    }
+
+    IAnalysisStrategy <|.. HeuristicStrategy : implements
+    IAnalysisStrategy <|.. SupervisedMLStrategy : implements
+    IAnalysisStrategy <|.. HybridStrategy : implements
+
+    IAnalysisStrategy --> DataManager : uses
+    IAnalysisStrategy --> Diagnosis : produces
+    HeuristicStrategy o-- StrategyTree : uses
+    HeuristicStrategy --> Diagnosis : produces
+    SupervisedMLStrategy *-- MLDetector : uses
+    SupervisedMLStrategy --> Diagnosis : produces
+    HybridStrategy *-- MLDetector : ml_detector
+    HybridStrategy o-- StrategyTree : uses
+    HybridStrategy --> Diagnosis : produces
+
+    %% ============================================
+    %% 5. STRATEGY TREE (Heuristic Decision Tree)
+    %% ============================================
+
+    class StrategyTree {
+        -root_node: PropertyNode
+        -config_path: str
+        -tree_name: str
+        +__init__(config_path: str, tree_name: str)
+        +load_from_yaml(path: str)
+        +traverse(data_mgr: DataManager) Diagnosis
+        +evaluate(data_mgr: DataManager) Diagnosis
+        +get_required_metrics() list~str~
+    }
+
+
+    class PropertyNode {
+        -node_id: str
+        -metric_id: str
+        -threshold: float
+        -severity_formula: str
+        -diagnosis: Diagnosis
+        -children: list~PropertyNode~
+        +__init__(node_id: str, metric_id: str, threshold: float)
+        +evaluate(data_mgr: DataManager) bool
+        +calculate_severity(data_mgr: DataManager) float
+        +get_child() PropertyNode
+        +is_leaf() bool
+        +get_diagnosis() Diagnosis
+    }
+
+    StrategyTree *-- PropertyNode : root_node
+    StrategyTree --> DataManager : uses
+    PropertyNode --> PropertyNode : children
+    PropertyNode *-- Diagnosis : diagnosis
+    PropertyNode --> DataManager : queries
+
+    %% ============================================
+    %% 6. ML COMPONENTS
+    %% ============================================
+
+    class MLDetector {
+        -trained_model: object
+        +__init__(trained_model: object)
+        +predict_probabilities(features: FeatureVector) dict~str, float~
+        +predict_all_bottlenecks(features: FeatureVector, threshold: float) list~Diagnosis~
+        +get_statistically_significant(probabilities: dict, threshold: float) dict
+    }
+
+
+
+    %% ============================================
+    %% 7. FEATURE EXTRACTION LAYER
+    %% ============================================
+
+    class FeatureExtractor {
+        +__init__()
+        +calculate_statistics(df: DataFrame) FeatureVector
+        +extract_features(metrics: list~str~, window: DataFrame) FeatureVector
+        -compute_mean(values: Series) float
+        -compute_std_dev(values: Series) float
+        -compute_skewness(values: Series) float
+        -compute_kurtosis(values: Series) float
+        -compute_quantiles(values: Series) list~float~
+        ...
+    }
+
+    class FeatureVector {
+        -features: dict~str, float~
+        -timestamp: datetime
+        +__init__(features: dict, timestamp: datetime)
+        +get_feature(name: str) float
+        +to_array() ndarray
+        +to_dict() dict
+    }
+
+    FeatureExtractor --> FeatureVector : produces
+    MLDetector --> FeatureVector : consumes
+    MLDetector --> Diagnosis : produces
+
+    %% ============================================
+    %% 8. OUTPUT LAYER
+    %% ============================================
+
+    class WindowDiagnosis {
+        <<dataclass>>
+        +window_index: int
+        +window_start: int
+        +window_end: int
+        +diagnoses: list~Diagnosis~
+        +timestamp: datetime
+        +__init__(window_index: int, window_start: int, window_end: int, diagnoses: list~Diagnosis~)
+        +get_primary_diagnosis() Diagnosis
+        +has_bottlenecks() bool
+    }
+
+    class Diagnosis {
+        <<dataclass>>
+        +bottleneck_type: BottleneckType
+        +severity_score: float
+        +confidence: float
+        +triggered_properties: list~str~
+        +recommendation: str
+        +source: str
+        +__init__(bottleneck_type: BottleneckType, severity_score: float, confidence: float, source: str)
+    }
+
+    class BottleneckType {
+        <<enumeration>>
+        DATA_LOCALITY
+        DATA_LEVEL_PARALLELISM
+        BRANCH_MISPREDICTION
+        INTER_NODE_LOAD_IMBALANCE
+        ...
+        NONE
+        +get_recommendation() str
+        +get_macro_category() MacroCategoryType
+    }
+
+    class MacroCategoryType {
+        <<enumeration>>
+        COMPUTE_BOUND
+        MEMORY_BOUND
+        IO_BOUND
+        OTHER
+        NONE
+    }
+
+    WindowDiagnosis *-- Diagnosis : contains
+    Diagnosis --> BottleneckType : has
+    BottleneckType --> MacroCategoryType : belongs to
