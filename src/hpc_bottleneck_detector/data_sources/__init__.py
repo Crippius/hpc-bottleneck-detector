@@ -7,5 +7,6 @@ that supply HPC job metrics.
 
 from .interface import IDataSource
 from .csv_source import CSVDataSource
+from .xbat_source import XBATDataSource
 
-__all__ = ['IDataSource', 'CSVDataSource']
+__all__ = ['IDataSource', 'CSVDataSource', 'XBATDataSource']

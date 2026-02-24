@@ -14,8 +14,6 @@ class DataManager:
     """
     DataManager for accessing job metrics.
     
-    TODO: description of class
-    
     Attributes:
         job_data: DataFrame containing all job metrics
         job_id: The job identifier

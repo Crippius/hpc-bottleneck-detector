@@ -2,7 +2,7 @@
 CSV Data Source Implementation
 
 This module provides a CSV-based data source for reading HPC job metrics
-from CSV files.
+from CSV files (e.g., exported from XBAT).
 """
 
 import pandas as pd
@@ -16,7 +16,7 @@ class CSVDataSource(IDataSource):
     """
     Data source implementation that reads job metrics from CSV files.
     
-    This is designed to work with CSV files exported from xbat that have
+    This is designed to work with CSV files exported from XBAT that have
     the format:
         jobId, group, metric, trace, interval 0, interval 1, ..., interval N
     
@@ -57,6 +57,7 @@ class CSVDataSource(IDataSource):
             IOError: If the CSV cannot be read
         """
         try:
+            # Read the CSV file
             df = pd.read_csv(self.file_path, delimiter=self.delimiter)
             
             # Filter by job ID
