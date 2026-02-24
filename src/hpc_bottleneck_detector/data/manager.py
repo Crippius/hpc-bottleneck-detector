@@ -9,25 +9,33 @@ import pandas as pd
 import numpy as np
 from typing import Dict, List, Optional, Union
 
+from .job_context import JobContext
+
 
 class DataManager:
     """
     DataManager for accessing job metrics.
-    
+
     Attributes:
-        job_data: DataFrame containing all job metrics
-        job_id: The job identifier
+        job_data:    DataFrame containing all job metrics (time-series rows).
+        job_id:      The job identifier extracted from the data.
+        job_context: Optional :class:`JobContext` carrying static hardware
+                     metadata (benchmarks, CPU/memory specs, job runtime …).
+                     ``None`` when the data source cannot provide it.
     """
-    
-    def __init__(self, job_data: pd.DataFrame):
+
+    def __init__(self, job_data: pd.DataFrame, job_context: Optional[JobContext] = None):
         """
         Initialize the DataManager with job data.
-        
+
         Args:
-            job_data: DataFrame with columns: jobId, group, metric, trace, interval 0, ...
+            job_data:    DataFrame with columns: jobId, group, metric, trace,
+                         interval 0, interval 1, …
+            job_context: Optional static job / hardware context.
         """
         self.job_data = job_data
-        
+        self.job_context = job_context
+
         # Extract job ID from the data
         if not job_data.empty:
             self.job_id = str(job_data['jobId'].iloc[0])

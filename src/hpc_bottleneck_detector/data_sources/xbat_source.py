@@ -30,6 +30,7 @@ import requests
 
 from .interface import IDataSource
 from ..data.manager import DataManager
+from ..data.job_context import JobContext
 
 
 # ---------------------------------------------------------------------------
@@ -152,7 +153,85 @@ class XBATDataSource(IDataSource):
         except Exception as exc:
             raise IOError(f"Failed to parse CSV response from XBAT: {exc}") from exc
 
-        return DataManager(df.reset_index(drop=True))
+        job_context = self._fetch_job_context(job_id)
+        return DataManager(df.reset_index(drop=True), job_context=job_context)
+
+    # ------------------------------------------------------------------
+    # Job context
+    # ------------------------------------------------------------------
+
+    def _fetch_job_context(self, job_id: str) -> Optional[JobContext]:
+        """
+        Build a :class:`~hpc_bottleneck_detector.data.job_context.JobContext`
+        for *job_id* by calling the XBAT metadata endpoints.
+
+        Flow:
+            1. ``GET /api/v1/jobs?short=true`` - find the entry for *job_id*
+               and collect the node hashes used by that job.
+            2. ``GET /api/v1/nodes?node_hashes=<h1>,<h2>,…`` - fetch the
+               hardware description for each unique hash.
+            3. Extract relevant fields (benchmarks, CPU, memory, OS) and
+               return a populated :class:`JobContext`.
+
+        Returns:
+            :class:`JobContext` on success, ``None`` if the job cannot be
+            found or the metadata endpoints are unavailable.
+        """
+        try:
+            job_entry = self._find_job_entry(job_id)
+            if job_entry is None:
+                return None
+
+            node_hashes = list({
+                meta.get("hash")
+                for meta in job_entry.get("nodes", {}).values()
+                if meta.get("hash")
+            })
+            if not node_hashes:
+                return None
+
+            node_hardware_raw = self._fetch_node_hardware(node_hashes)
+            return JobContext.from_xbat(job_id, job_entry, node_hardware_raw)
+
+        except Exception:  # pragma: no cover – best-effort, never fatal
+            return None
+
+    def _find_job_entry(self, job_id: str) -> Optional[dict]:
+        """
+        Return the job dict from ``GET /api/v1/jobs?short=true`` for *job_id*.
+
+        Returns ``None`` if the job is not present in the listing.
+        """
+        resp = self.session.get(
+            f"{self.api_base}/api/v1/jobs",
+            params={"short": "true"},
+            headers={"Authorization": f"Bearer {self._access_token}"},
+            timeout=30,
+        )
+        if resp.status_code != 200:
+            return None
+
+        jobs: list = resp.json().get("data", [])
+        for entry in jobs:
+            if str(entry.get("jobId")) == str(job_id):
+                return entry
+        return None
+
+    def _fetch_node_hardware(self, node_hashes: list) -> dict:
+        """
+        Call ``GET /api/v1/nodes?node_hashes=<h1>,<h2>,…`` and return the
+        raw response dict (keyed by hash).
+        """
+        hashes_param = ",".join(node_hashes)
+        resp = self.session.get(
+            f"{self.api_base}/api/v1/nodes",
+            params={"node_hashes": hashes_param},
+            headers={"Authorization": f"Bearer {self._access_token}"},
+            timeout=30,
+        )
+        if resp.status_code != 200:
+            return {}
+        return resp.json()
 
     # ------------------------------------------------------------------
     # Token management
