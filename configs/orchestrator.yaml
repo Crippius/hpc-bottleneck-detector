@@ -1,0 +1,85 @@
+# =============================================================================
+# AnalysisOrchestrator configuration
+# =============================================================================
+#
+# Top-level keys
+#   pipeline    – windowing / runtime settings
+#   data_source – where to read job data from
+#   strategy    – which detection strategy (and its parameters) to use
+#   output      – how results are formatted / saved
+#
+# Uncomment the block that matches your use-case and comment the others.
+
+# ---------------------------------------------------------------------------
+# Pipeline settings
+# ---------------------------------------------------------------------------
+pipeline:
+  window_size: 10 # number of intervals per analysis window
+  step_size:
+    10 # intervals to advance between successive windows
+    # (!= window_size -> tumbling window)
+
+# ---------------------------------------------------------------------------
+# Data source
+# ---------------------------------------------------------------------------
+data_source:
+  # ── CSV (offline / archived runs) ────────────────────────────
+  # type: csv
+  # file_path: data/234650_all_job.csv
+  # delimiter: ","
+
+  # ── XBAT REST API ─────────────────────────────────────────────────────────
+  type: xbat
+  api_base: https://demo.xbat.dev
+  username: demo
+  password: demo
+  client_id: demo
+  group: "" # empty -> fetch all groups at job level
+  metric: ""
+  level: job # job | node | core
+  token_file: .env.xbat # path to cached OAuth token
+
+  # ── Database (NOT IMPLEMENTED YET) ─────────────────────────────────────
+  # type:              database
+  # connection_string: ...
+
+# ---------------------------------------------------------------------------
+# Strategy: HEURISTIC
+# Rule-based decision trees loaded from a folder.
+# Every *.yaml file in the folder is loaded automatically.
+# ---------------------------------------------------------------------------
+strategy:
+  type: heuristic
+  # PerSyst strategy maps
+  strategy_folder: configs/strategies/persyst_strategy
+
+# ---------------------------------------------------------------------------
+# Strategy: SUPERVISED ML
+# Path to classifier
+# Optionally override the significance threshold.
+# ---------------------------------------------------------------------------
+# strategy:
+#   type:                  supervised_ml
+#   model_path:            models/xgboost_best.pkl
+#   significance_threshold: 0.5
+
+# ---------------------------------------------------------------------------
+# Strategy: HYBRID
+# Intervals flagged as anomalous by the ML model are passed to the heuristic
+# trees for a finer-grained root-cause classification.
+# ---------------------------------------------------------------------------
+# strategy:
+#   type:                  hybrid
+#   model_path:            models/hybrid.pkl
+#   significance_threshold: 0.5
+#   strategy_folder:       configs/strategies/persyst_strategy
+
+# ---------------------------------------------------------------------------
+# Output
+# ---------------------------------------------------------------------------
+output:
+  show_healthy_windows: true # whether to include NONE-only WindowDiagnoses
+  min_severity: 0.5 # suppress diagnoses below this severity score
+  min_confidence: 0.5 # suppress diagnoses below this confidence score
+  format: print # print | json | csv
+  # save_path: results/diagnoses.json   # omit to print to stdout only
