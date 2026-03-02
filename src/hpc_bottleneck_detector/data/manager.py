@@ -7,7 +7,7 @@ for accessing job metrics data.
 
 import pandas as pd
 import numpy as np
-from typing import Dict, List, Optional, Union
+from typing import Dict, Generator, List, Optional, Tuple, Union
 
 from .job_context import JobContext
 
@@ -137,3 +137,75 @@ class DataManager:
                 - interval 0, interval 1, ... (time series values)
         """
         return self.job_data.copy()
+
+    # ------------------------------------------------------------------
+    # Windowing helpers
+    # ------------------------------------------------------------------
+
+    def _interval_columns(self) -> List[str]:
+        """Return the ordered list of interval column names."""
+        return [col for col in self.job_data.columns if col.startswith("interval ")]
+
+    def slice_window(self, start: int, end: int) -> "DataManager":
+        """
+        Return a new DataManager containing only intervals [start, end).
+
+        The interval columns in the returned instance are **renumbered**
+        starting from 0 so that strategies can treat every window
+        uniformly.
+
+        Args:
+            start: Inclusive start index (0-based over interval columns).
+            end:   Exclusive end index.
+
+        Returns:
+            A new :class:`DataManager` scoped to the requested interval slice.
+        """
+        all_interval_cols = self._interval_columns()
+        slice_cols = all_interval_cols[start:end]
+
+        id_cols = [c for c in self.job_data.columns if not c.startswith("interval ")]
+        sliced = self.job_data[id_cols + slice_cols].copy()
+
+        # Renumber interval columns: interval 0, interval 1, …
+        rename_map = {
+            old: f"interval {i}" for i, old in enumerate(slice_cols)
+        }
+        sliced.rename(columns=rename_map, inplace=True)
+
+        return DataManager(sliced, job_context=self.job_context)
+
+    def iterate_windows(
+        self,
+        window_size: int,
+        step_size: int,
+    ) -> Generator[Tuple[int, int, "DataManager"], None, None]:
+        """
+        Slide a window over the time series and yield sub-DataManagers.
+
+        Args:
+            window_size: Number of intervals per window.
+            step_size:   Number of intervals to advance between windows.
+                         Setting ``step_size == window_size`` gives
+                         tumbling (non-overlapping) windows; smaller
+                         values give sliding (overlapping) windows.
+
+        Yields:
+            Tuples of ``(start_interval, end_interval, window_data_manager)``
+            where *end_interval* is the **inclusive** last interval index in
+            the original time series.
+        """
+        n_intervals = self.get_time_series_length()
+
+        if window_size <= 0:
+            raise ValueError(f"window_size must be > 0, got {window_size}")
+        if step_size <= 0:
+            raise ValueError(f"step_size must be > 0, got {step_size}")
+
+        start = 0
+        while start < n_intervals:
+            end = min(start + window_size, n_intervals)
+            yield start, end - 1, self.slice_window(start, end)
+            if end == n_intervals:
+                break
+            start += step_size
