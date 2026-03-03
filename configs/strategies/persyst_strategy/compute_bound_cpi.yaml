@@ -1,0 +1,113 @@
+# =============================================================================
+# Strategy Tree — Compute-Bound: CPI & FLOP Rate
+# =============================================================================
+
+tree_name: compute_bound_cpi
+description: >
+  Evaluates CPI vs total FLOP rate: high CPI → pipeline bottleneck;
+  low CPI + low FLOP rate → object instantiation overhead (3.1.23 / 3.1.24).
+
+required_metrics:
+  - group: cpu
+    metric: CPI
+    trace: CPI
+  - group: cpu
+    metric: FLOPS
+    trace: SP
+  - group: cpu
+    metric: FLOPS
+    trace: DP
+
+thresholds:
+  # Benchmark-derived:
+  flop_rate_peak_fraction: 0.15 # flag if (SP + DP) FLOPS < 15 % of peakflops
+  # Hardware-independent ratios:
+  cpi: 1.6 # high CPI
+
+root:
+  # 3.1.23 — Is CPI high?
+  node_id: check_cpi
+  description: "Is CPI above 1.6 (pipeline not being fed efficiently)?"
+  metric:
+    group: cpu
+    metric: CPI
+    trace: CPI
+  aggregation: mean
+  operator: ">"
+  threshold: 1.6
+
+  if_true:
+    node_id: high_cpi
+    diagnosis:
+      bottleneck_type: PIPELINE_BOUND
+      severity_formula: FORMULA1
+      threshold: 1.6
+      confidence: 1.0
+      recommendation: >
+        CPI is above 1.6: the processor is stalling frequently or the
+        instruction stream is inefficient. In-depth analysis required.
+        Recommended actions:
+          • Use Top-Down Microarchitecture Analysis (TMA) with Intel VTune
+            or perf to identify whether the bottleneck is front-end bound,
+            back-end bound, bad speculation, or retiring.
+          • Cross-reference with compute_bound_cache: high L3 BW and L2
+            miss rate would confirm a memory-latency root cause.
+          • Check for serialising instructions (CPUID, memory fences,
+            atomic ops, lock prefixes) in hot loops.
+          • Evaluate if Simultaneous Multi-Threading (SMT / Hyper-Threading)
+            could fill idle pipeline slots (typically +10–25 % throughput).
+
+  if_false:
+    node_id: check_flop_rate_for_cpi
+    description: "With CPI normal, is the total FLOP rate also above threshold?"
+    metric:
+      type: sum
+      operands:
+        - group: cpu
+          metric: FLOPS
+          trace: SP
+        - group: cpu
+          metric: FLOPS
+          trace: DP
+    aggregation: mean
+    operator: ">"
+    threshold:
+      benchmark: peakflops
+      fraction: 0.15
+      aggregate: mean
+      fallback: 10.0
+
+    if_true:
+      node_id: good_cpi_and_flops
+      diagnosis:
+        bottleneck_type: NONE
+        severity_formula: "0.0"
+        confidence: 1.0
+        recommendation: null
+
+    if_false:
+      node_id: object_instantiation_overhead
+      diagnosis:
+        bottleneck_type: OBJECT_INSTANTIATION_OVERHEAD
+        severity_formula: FORMULA2
+        threshold: 0.15
+        confidence: 1.0
+        recommendation: >
+          CPI is within normal range but the total FLOP rate is below 15 %
+          of peak. The processor is executing instructions efficiently but
+          doing very little floating-point work — a common symptom of
+          excessive non-computational overhead.
+          Typical causes (3.1.24):
+            - Heavy C++ object construction/destruction in hot paths
+              (constructor chains, std::vector reallocations, move semantics).
+            - Frequent virtual function dispatch or RTTI in inner loops.
+            - Excessive dynamic memory allocation (malloc/free/new/delete)
+              triggering allocator overhead and cache misses.
+          Recommended actions:
+            - Profile with perf or VTune focusing on instruction mix: a
+              high fraction of integer/control instructions vs FP points
+              to non-computational hot paths.
+            - Use object pools or arena allocators to eliminate allocator
+              overhead in performance-critical sections.
+            - Replace virtual dispatch with CRTP or policy-based templates
+              in inner loops to allow inlining.

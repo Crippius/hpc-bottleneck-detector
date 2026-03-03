@@ -1,0 +1,116 @@
+# =============================================================================
+# Strategy Tree — Compute-Bound: L3 Cache Pressure & Data Locality
+# =============================================================================
+
+tree_name: compute_bound_cache
+description: >
+  Detects L3 cache pressure and poor data locality in compute-bound code.
+
+required_metrics:
+  - group: cache
+    metric: Bandwidth
+    trace: L3 bandwidth
+  - group: cache
+    metric: Miss Rate
+    trace: L2 miss rate
+  - group: cache
+    metric: Miss Ratio
+    trace: L2 miss ratio
+
+thresholds:
+  # Benchmark-derived:
+  l3_bandwidth_fraction: 0.40 # flag if L3 BW > 40 % of bandwidth_l3 peak
+  # Hardware-independent ratios:
+  l2_miss_rate: 0.003 # misses per instruction — 0.3 % is significant
+  l2_miss_ratio: 0.30 # 30 % of L2 requests miss = severe thrashing
+
+root:
+  node_id: check_l3_bandwidth
+  description: "Is L3 bandwidth elevated relative to measured peak?"
+  metric:
+    group: cache
+    metric: Bandwidth
+    trace: L3 bandwidth
+  aggregation: mean
+  operator: ">"
+  threshold:
+    benchmark: bandwidth_l3
+    fraction: 0.40
+    aggregate: mean
+    fallback: 20.0
+
+  if_false:
+    node_id: low_l3_activity
+    diagnosis:
+      bottleneck_type: NONE
+      severity_formula: "0.0"
+      confidence: 1.0
+      recommendation: null
+
+  if_true:
+    node_id: check_l2_miss_rate
+    description: "Is the L2 miss rate high relative to instructions?"
+    metric:
+      group: cache
+      metric: Miss Rate
+      trace: L2 miss rate
+    aggregation: mean
+    operator: ">"
+    threshold: 0.003
+
+    if_false:
+      node_id: l3_bw_no_miss_pressure
+      diagnosis:
+        bottleneck_type: NONE
+        severity_formula: "0.0"
+        confidence: 1.0
+        recommendation: >
+          L3 bandwidth is elevated but L2 miss rate is low.
+          Hardware prefetching is likely masking latency effectively.
+          No immediate action required; monitor for sustained increases.
+
+    if_true:
+      node_id: check_l2_miss_ratio
+      description: "Is L2 miss ratio high (poor cache reuse)?"
+      metric:
+        group: cache
+        metric: Miss Ratio
+        trace: L2 miss ratio
+      aggregation: mean
+      operator: ">"
+      threshold: 0.30
+
+      if_true:
+        node_id: severe_cache_locality
+        diagnosis:
+          bottleneck_type: DATA_LOCALITY
+          severity_formula: FORMULA1
+          threshold: 0.30
+          confidence: 1.0
+          recommendation: >
+            L3 bandwidth is high, L2 miss rate is elevated, and the L2
+            miss ratio exceeds 30 %: the cache hierarchy is suffering from
+            severe locality problems.
+            Actions:
+              - Tiling/blocking: restructure loops so each tile's working
+                set fits in L2 or L3 (e.g. cache-oblivious matrix multiply).
+              - Replace gather/scatter patterns with sequential access
+                using AoS → SoA data layout transformations.
+              - Fuse loops that access the same data to avoid re-loading
+                it from memory.
+              - In multi-socket codes, ensure first-touch allocation places
+                data on the socket that will process it (NUMA affinity).
+
+      if_false:
+        node_id: moderate_cache_pressure
+        diagnosis:
+          bottleneck_type: DATA_LOCALITY
+          severity_formula: FORMULA1
+          threshold: 0.15
+          confidence: 1.0
+          recommendation: >
+            L3 bandwidth and L2 miss rate are elevated but the miss ratio
+            is still below 30 %. Hardware prefetching may be partially
+            hiding the latency. Profile with VTune or perf to identify
+            the specific functions driving L3 traffic, then apply loop
+            tiling to the hottest data-access kernels.

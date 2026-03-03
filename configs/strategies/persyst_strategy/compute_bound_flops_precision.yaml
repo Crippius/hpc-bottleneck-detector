@@ -1,0 +1,95 @@
+# =============================================================================
+# Strategy Tree — Compute-Bound: FLOPs Precision Path
+# =============================================================================
+
+tree_name: compute_bound_flops_precision
+description: >
+  When total FP rate is below 15 % of peak, checks the SP-to-DP ratio.
+  If the code is predominantly DP, recommends switching to single precision
+  to double SIMD throughput (3.1.16 → 3.1.17).
+
+required_metrics:
+  - group: cpu
+    metric: FLOPS
+    trace: SP
+  - group: cpu
+    metric: FLOPS
+    trace: DP
+
+thresholds:
+  # Benchmark-derived:
+  flop_rate_peak_fraction: 0.15 # flag if (SP + DP) FLOPS < 15 % of peakflops
+  # Hardware-independent:
+  sp_to_dp_ratio: 0.10 # SP FLOPS / DP FLOPS; < 0.10 = predominantly DP
+
+root:
+  node_id: check_total_flop_rate_prec
+  description: "Is total FLOP rate (SP + DP) below 15 % of measured peak?"
+  metric:
+    type: sum
+    operands:
+      - group: cpu
+        metric: FLOPS
+        trace: SP
+      - group: cpu
+        metric: FLOPS
+        trace: DP
+  aggregation: mean
+  operator: "<"
+  threshold:
+    benchmark: peakflops
+    fraction: 0.15
+    aggregate: mean
+    fallback: 10.0
+
+  if_false:
+    node_id: good_flop_rate_prec
+    diagnosis:
+      bottleneck_type: NONE
+      severity_formula: "0.0"
+      confidence: 1.0
+      recommendation: null
+
+  if_true:
+    node_id: check_sp_to_dp_ratio
+    description: "Is the SP/DP FLOPS ratio low (code is predominantly DP)?"
+    metric:
+      type: ratio
+      numerator:
+        group: cpu
+        metric: FLOPS
+        trace: SP
+      denominator:
+        group: cpu
+        metric: FLOPS
+        trace: DP
+    aggregation: mean
+    operator: "<"
+    threshold: 0.10
+
+    if_false:
+      node_id: good_precision_balance
+      diagnosis:
+        bottleneck_type: NONE
+        severity_formula: "0.0"
+        confidence: 1.0
+        recommendation: null
+
+    if_true:
+      node_id: dp_only_code
+      diagnosis:
+        bottleneck_type: PRECISION_INEFFICIENCY
+        severity_formula: FORMULA2
+        threshold: 0.10
+        confidence: 1.0
+        recommendation: >
+          Total FP rate is below 15 % of peak and the code is predominantly
+          double-precision. If the application's accuracy requirements allow:
+            • Migrate hot kernels to single precision to halve the register
+              and memory footprint, and double the SIMD lane count
+              (e.g. AVX: 8 SP lanes vs 4 DP lanes per cycle).
+            • Mixed-precision strategies: use FP32 for intermediate results
+              and FP64 only for accumulation where precision matters.
+            • In memory-bound sub-problems, SP also halves memory bandwidth
+              consumption, potentially shifting those paths to compute-bound.
+          Verify numerical accuracy requirements before applying this change.
