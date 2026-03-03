@@ -1,0 +1,1032 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Strategy Tree Viewer</title>
+<script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
+<style>
+  /* ---- reset & layout ---- */
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%;background:#1e1e2e;color:#cdd6f4;font-family:'Segoe UI',system-ui,sans-serif;overflow:hidden}
+
+  /* ---- tabs ---- */
+  #tab-bar{display:flex;gap:4px;padding:8px 12px 0;background:#181825;border-bottom:1px solid #313244;flex-shrink:0;overflow-x:auto;min-height:44px}
+  .tab{padding:6px 14px;border-radius:6px 6px 0 0;cursor:pointer;font-size:13px;white-space:nowrap;background:#313244;color:#a6adc8;border:1px solid transparent;border-bottom:none;transition:background .15s}
+  .tab:hover{background:#45475a}
+  .tab.active{background:#1e1e2e;color:#cdd6f4;border-color:#313244}
+
+  /* ---- main split ---- */
+  #main{display:flex;height:calc(100% - 44px)}
+  #canvas-wrap{flex:1;position:relative;overflow:hidden}
+  svg#tree-svg{width:100%;height:100%;display:block}
+
+  /* ---- detail panel ---- */
+  #detail{width:360px;min-width:280px;background:#181825;border-left:1px solid #313244;overflow-y:auto;padding:18px 16px;flex-shrink:0;transition:width .2s}
+  #detail.collapsed{width:0;padding:0;overflow:hidden}
+  #detail h2{font-size:15px;font-weight:600;margin-bottom:12px;color:#89b4fa;word-break:break-all}
+  .detail-section{margin-bottom:14px}
+  .detail-section h3{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:#6c7086;margin-bottom:5px}
+  .detail-section p{font-size:12.5px;line-height:1.6;color:#cdd6f4}
+  .detail-section pre{font-size:11.5px;line-height:1.55;color:#cdd6f4;white-space:pre-wrap;word-break:break-word;background:#1e1e2e;padding:8px 10px;border-radius:6px;border:1px solid #313244}
+  .metric-expr{font-size:11.5px;line-height:1.6;color:#cba6f7;font-family:'Cascadia Code','Fira Mono',monospace;background:#1e1e2e;padding:8px 10px;border-radius:6px;border:1px solid #313244;white-space:pre-wrap;word-break:break-word}
+  .badge{display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;margin-bottom:6px}
+  .badge-none{background:#a6e3a1;color:#1e1e2e}
+  .badge-bottleneck{background:#f38ba8;color:#1e1e2e}
+  .badge-decision{background:#89b4fa;color:#1e1e2e}
+  .badge-type{background:#313244;color:#cba6f7;font-weight:400;font-size:10px;padding:1px 6px;border-radius:3px;vertical-align:middle;margin-left:4px}
+  #close-btn{float:right;cursor:pointer;font-size:18px;line-height:1;color:#6c7086}
+  #close-btn:hover{color:#cdd6f4}
+  .kv{display:flex;gap:6px;margin-bottom:3px}
+  .kv-key{color:#6c7086;font-size:12px;min-width:80px;flex-shrink:0}
+  .kv-val{color:#cdd6f4;font-size:12px;word-break:break-all}
+
+  /* ---- hint overlay ---- */
+  #hint{position:absolute;bottom:14px;left:14px;font-size:11px;color:#45475a;pointer-events:none;line-height:1.7}
+
+  /* ---- SVG node styles ---- */
+  .node-decision rect{fill:#313244;stroke:#89b4fa;stroke-width:1.5px}
+  .node-leaf-none rect{fill:#1e3a2f;stroke:#a6e3a1;stroke-width:1.5px}
+  .node-leaf-bottleneck rect{fill:#3b1f2b;stroke:#f38ba8;stroke-width:1.5px}
+  .node-highlight rect{stroke:#f9e2af !important;stroke-width:2.5px;filter:drop-shadow(0 0 6px #f9e2af)}
+  .node text{fill:#cdd6f4;font-size:11px;font-family:'Segoe UI',system-ui,sans-serif;pointer-events:none}
+  .link{fill:none;stroke:#45475a;stroke-width:1.5px}
+  .link-label{fill:#6c7086;font-size:10px;font-family:'Segoe UI',system-ui,sans-serif}
+</style>
+</head>
+<body>
+
+<div id="tab-bar"></div>
+<div id="main">
+  <div id="canvas-wrap">
+    <svg id="tree-svg"></svg>
+    <div id="hint">scroll/pinch → zoom &nbsp;|&nbsp; drag canvas → pan &nbsp;|&nbsp; drag node → move &nbsp;|&nbsp; click node → details</div>
+  </div>
+  <div id="detail" class="collapsed">
+    <span id="close-btn" title="Close">&#x2715;</span>
+    <h2 id="detail-title">Node info</h2>
+    <div id="detail-body"></div>
+  </div>
+</div>
+
+<script>
+// ============================================================
+// DATA (injected by Python)
+// ============================================================
+const TREES = /*TREES_JSON*/[
+  {
+    "tree_name": "compute_bound_cache",
+    "description": "Detects L3 cache pressure and poor data locality in compute-bound code.\n",
+    "required_metrics": [
+      {
+        "group": "cache",
+        "metric": "Bandwidth",
+        "trace": "L3 bandwidth"
+      },
+      {
+        "group": "cache",
+        "metric": "Miss Rate",
+        "trace": "L2 miss rate"
+      },
+      {
+        "group": "cache",
+        "metric": "Miss Ratio",
+        "trace": "L2 miss ratio"
+      }
+    ],
+    "thresholds": {
+      "l3_bandwidth_fraction": 0.4,
+      "l2_miss_rate": 0.003,
+      "l2_miss_ratio": 0.3
+    },
+    "nodes": [
+      {
+        "id": "check_l3_bandwidth",
+        "kind": "decision",
+        "description": "Is L3 bandwidth elevated relative to measured peak?",
+        "metric_type": "simple",
+        "metric_description": "cache / Bandwidth / L3 bandwidth",
+        "aggregation": "mean",
+        "operator": ">",
+        "threshold": "40% of benchmark(bandwidth_l3)  [fallback 20.0]",
+        "label": "L3 bandwidth"
+      },
+      {
+        "id": "check_l2_miss_rate",
+        "kind": "decision",
+        "description": "Is the L2 miss rate high relative to instructions?",
+        "metric_type": "simple",
+        "metric_description": "cache / Miss Rate / L2 miss rate",
+        "aggregation": "mean",
+        "operator": ">",
+        "threshold": "0.003",
+        "label": "L2 miss rate"
+      },
+      {
+        "id": "check_l2_miss_ratio",
+        "kind": "decision",
+        "description": "Is L2 miss ratio high (poor cache reuse)?",
+        "metric_type": "simple",
+        "metric_description": "cache / Miss Ratio / L2 miss ratio",
+        "aggregation": "mean",
+        "operator": ">",
+        "threshold": "0.3",
+        "label": "L2 miss ratio"
+      },
+      {
+        "id": "severe_cache_locality",
+        "kind": "leaf",
+        "bottleneck_type": "DATA_LOCALITY",
+        "severity_formula": "FORMULA1",
+        "threshold": "0.3",
+        "confidence": 1.0,
+        "recommendation": "L3 bandwidth is high, L2 miss rate is elevated, and the L2 miss ratio exceeds 30 %: the cache hierarchy is suffering from severe locality problems. Actions:\n  - Tiling/blocking: restructure loops so each tile's working\n    set fits in L2 or L3 (e.g. cache-oblivious matrix multiply).\n  - Replace gather/scatter patterns with sequential access\n    using AoS → SoA data layout transformations.\n  - Fuse loops that access the same data to avoid re-loading\n    it from memory.\n  - In multi-socket codes, ensure first-touch allocation places\n    data on the socket that will process it (NUMA affinity).",
+        "label": "DATA_LOCALITY",
+        "description": ""
+      },
+      {
+        "id": "moderate_cache_pressure",
+        "kind": "leaf",
+        "bottleneck_type": "DATA_LOCALITY",
+        "severity_formula": "FORMULA1",
+        "threshold": "0.15",
+        "confidence": 1.0,
+        "recommendation": "L3 bandwidth and L2 miss rate are elevated but the miss ratio is still below 30 %. Hardware prefetching may be partially hiding the latency. Profile with VTune or perf to identify the specific functions driving L3 traffic, then apply loop tiling to the hottest data-access kernels.",
+        "label": "DATA_LOCALITY",
+        "description": ""
+      },
+      {
+        "id": "l3_bw_no_miss_pressure",
+        "kind": "leaf",
+        "bottleneck_type": "NONE",
+        "severity_formula": "0.0",
+        "threshold": "",
+        "confidence": 1.0,
+        "recommendation": "L3 bandwidth is elevated but L2 miss rate is low. Hardware prefetching is likely masking latency effectively. No immediate action required; monitor for sustained increases.",
+        "label": "✓  OK",
+        "description": ""
+      },
+      {
+        "id": "low_l3_activity",
+        "kind": "leaf",
+        "bottleneck_type": "NONE",
+        "severity_formula": "0.0",
+        "threshold": "",
+        "confidence": 1.0,
+        "recommendation": "",
+        "label": "✓  OK",
+        "description": ""
+      }
+    ],
+    "edges": [
+      {
+        "source": "check_l3_bandwidth",
+        "target": "check_l2_miss_rate",
+        "label": "> 40% of benchmark(bandwidth_l3)  [fallback 20.0]"
+      },
+      {
+        "source": "check_l2_miss_rate",
+        "target": "check_l2_miss_ratio",
+        "label": "> 0.003"
+      },
+      {
+        "source": "check_l2_miss_ratio",
+        "target": "severe_cache_locality",
+        "label": "> 0.3"
+      },
+      {
+        "source": "check_l2_miss_ratio",
+        "target": "moderate_cache_pressure",
+        "label": "≤ 0.3"
+      },
+      {
+        "source": "check_l2_miss_rate",
+        "target": "l3_bw_no_miss_pressure",
+        "label": "≤ 0.003"
+      },
+      {
+        "source": "check_l3_bandwidth",
+        "target": "low_l3_activity",
+        "label": "≤ 40% of benchmark(bandwidth_l3)  [fallback 20.0]"
+      }
+    ]
+  },
+  {
+    "tree_name": "compute_bound_cpi",
+    "description": "Evaluates CPI vs total FLOP rate: high CPI → pipeline bottleneck; low CPI + low FLOP rate → object instantiation overhead (3.1.23 / 3.1.24).\n",
+    "required_metrics": [
+      {
+        "group": "cpu",
+        "metric": "CPI",
+        "trace": "CPI"
+      },
+      {
+        "group": "cpu",
+        "metric": "FLOPS",
+        "trace": "SP"
+      },
+      {
+        "group": "cpu",
+        "metric": "FLOPS",
+        "trace": "DP"
+      }
+    ],
+    "thresholds": {
+      "flop_rate_peak_fraction": 0.15,
+      "cpi": 1.6
+    },
+    "nodes": [
+      {
+        "id": "check_cpi",
+        "kind": "decision",
+        "description": "Is CPI above 1.6 (pipeline not being fed efficiently)?",
+        "metric_type": "simple",
+        "metric_description": "cpu / CPI / CPI",
+        "aggregation": "mean",
+        "operator": ">",
+        "threshold": "1.6",
+        "label": "CPI"
+      },
+      {
+        "id": "high_cpi",
+        "kind": "leaf",
+        "bottleneck_type": "PIPELINE_BOUND",
+        "severity_formula": "FORMULA1",
+        "threshold": "1.6",
+        "confidence": 1.0,
+        "recommendation": "CPI is above 1.6: the processor is stalling frequently or the instruction stream is inefficient. In-depth analysis required. Recommended actions:\n  • Use Top-Down Microarchitecture Analysis (TMA) with Intel VTune\n    or perf to identify whether the bottleneck is front-end bound,\n    back-end bound, bad speculation, or retiring.\n  • Cross-reference with compute_bound_cache: high L3 BW and L2\n    miss rate would confirm a memory-latency root cause.\n  • Check for serialising instructions (CPUID, memory fences,\n    atomic ops, lock prefixes) in hot loops.\n  • Evaluate if Simultaneous Multi-Threading (SMT / Hyper-Threading)\n    could fill idle pipeline slots (typically +10–25 % throughput).",
+        "label": "PIPELINE_BOUND",
+        "description": ""
+      },
+      {
+        "id": "check_flop_rate_for_cpi",
+        "kind": "decision",
+        "description": "With CPI normal, is the total FLOP rate also above threshold?",
+        "metric_type": "sum",
+        "metric_description": "SUM(\n  cpu / FLOPS / SP,\n  cpu / FLOPS / DP\n)",
+        "aggregation": "mean",
+        "operator": ">",
+        "threshold": "15% of benchmark(peakflops)  [fallback 10.0]",
+        "label": "SP + DP"
+      },
+      {
+        "id": "good_cpi_and_flops",
+        "kind": "leaf",
+        "bottleneck_type": "NONE",
+        "severity_formula": "0.0",
+        "threshold": "",
+        "confidence": 1.0,
+        "recommendation": "",
+        "label": "✓  OK",
+        "description": ""
+      },
+      {
+        "id": "object_instantiation_overhead",
+        "kind": "leaf",
+        "bottleneck_type": "OBJECT_INSTANTIATION_OVERHEAD",
+        "severity_formula": "FORMULA2",
+        "threshold": "0.15",
+        "confidence": 1.0,
+        "recommendation": "CPI is within normal range but the total FLOP rate is below 15 % of peak. The processor is executing instructions efficiently but doing very little floating-point work — a common symptom of excessive non-computational overhead. Typical causes (3.1.24):\n  - Heavy C++ object construction/destruction in hot paths\n    (constructor chains, std::vector reallocations, move semantics).\n  - Frequent virtual function dispatch or RTTI in inner loops.\n  - Excessive dynamic memory allocation (malloc/free/new/delete)\n    triggering allocator overhead and cache misses.\nRecommended actions:\n  - Profile with perf or VTune focusing on instruction mix: a\n    high fraction of integer/control instructions vs FP points\n    to non-computational hot paths.\n  - Use object pools or arena allocators to eliminate allocator\n    overhead in performance-critical sections.\n  - Replace virtual dispatch with CRTP or policy-based templates\n    in inner loops to allow inlining.",
+        "label": "OBJECT_INSTANTIATION_OVERHEAD",
+        "description": ""
+      }
+    ],
+    "edges": [
+      {
+        "source": "check_cpi",
+        "target": "high_cpi",
+        "label": "> 1.6"
+      },
+      {
+        "source": "check_cpi",
+        "target": "check_flop_rate_for_cpi",
+        "label": "≤ 1.6"
+      },
+      {
+        "source": "check_flop_rate_for_cpi",
+        "target": "good_cpi_and_flops",
+        "label": "> 15% of benchmark(peakflops)  [fallback 10.0]"
+      },
+      {
+        "source": "check_flop_rate_for_cpi",
+        "target": "object_instantiation_overhead",
+        "label": "≤ 15% of benchmark(peakflops)  [fallback 10.0]"
+      }
+    ]
+  },
+  {
+    "tree_name": "compute_bound_flops_precision",
+    "description": "When total FP rate is below 15 % of peak, checks the SP-to-DP ratio. If the code is predominantly DP, recommends switching to single precision to double SIMD throughput (3.1.16 → 3.1.17).\n",
+    "required_metrics": [
+      {
+        "group": "cpu",
+        "metric": "FLOPS",
+        "trace": "SP"
+      },
+      {
+        "group": "cpu",
+        "metric": "FLOPS",
+        "trace": "DP"
+      }
+    ],
+    "thresholds": {
+      "flop_rate_peak_fraction": 0.15,
+      "sp_to_dp_ratio": 0.1
+    },
+    "nodes": [
+      {
+        "id": "check_total_flop_rate_prec",
+        "kind": "decision",
+        "description": "Is total FLOP rate (SP + DP) below 15 % of measured peak?",
+        "metric_type": "sum",
+        "metric_description": "SUM(\n  cpu / FLOPS / SP,\n  cpu / FLOPS / DP\n)",
+        "aggregation": "mean",
+        "operator": "<",
+        "threshold": "15% of benchmark(peakflops)  [fallback 10.0]",
+        "label": "SP + DP"
+      },
+      {
+        "id": "check_sp_to_dp_ratio",
+        "kind": "decision",
+        "description": "Is the SP/DP FLOPS ratio low (code is predominantly DP)?",
+        "metric_type": "ratio",
+        "metric_description": "RATIO(\n  numerator:\n  cpu / FLOPS / SP\n  denominator:\n  cpu / FLOPS / DP\n)",
+        "aggregation": "mean",
+        "operator": "<",
+        "threshold": "0.1",
+        "label": "(SP) / (DP)"
+      },
+      {
+        "id": "dp_only_code",
+        "kind": "leaf",
+        "bottleneck_type": "PRECISION_INEFFICIENCY",
+        "severity_formula": "FORMULA2",
+        "threshold": "0.1",
+        "confidence": 1.0,
+        "recommendation": "Total FP rate is below 15 % of peak and the code is predominantly double-precision. If the application's accuracy requirements allow:\n  • Migrate hot kernels to single precision to halve the register\n    and memory footprint, and double the SIMD lane count\n    (e.g. AVX: 8 SP lanes vs 4 DP lanes per cycle).\n  • Mixed-precision strategies: use FP32 for intermediate results\n    and FP64 only for accumulation where precision matters.\n  • In memory-bound sub-problems, SP also halves memory bandwidth\n    consumption, potentially shifting those paths to compute-bound.\nVerify numerical accuracy requirements before applying this change.",
+        "label": "PRECISION_INEFFICIENCY",
+        "description": ""
+      },
+      {
+        "id": "good_precision_balance",
+        "kind": "leaf",
+        "bottleneck_type": "NONE",
+        "severity_formula": "0.0",
+        "threshold": "",
+        "confidence": 1.0,
+        "recommendation": "",
+        "label": "✓  OK",
+        "description": ""
+      },
+      {
+        "id": "good_flop_rate_prec",
+        "kind": "leaf",
+        "bottleneck_type": "NONE",
+        "severity_formula": "0.0",
+        "threshold": "",
+        "confidence": 1.0,
+        "recommendation": "",
+        "label": "✓  OK",
+        "description": ""
+      }
+    ],
+    "edges": [
+      {
+        "source": "check_total_flop_rate_prec",
+        "target": "check_sp_to_dp_ratio",
+        "label": "< 15% of benchmark(peakflops)  [fallback 10.0]"
+      },
+      {
+        "source": "check_sp_to_dp_ratio",
+        "target": "dp_only_code",
+        "label": "< 0.1"
+      },
+      {
+        "source": "check_sp_to_dp_ratio",
+        "target": "good_precision_balance",
+        "label": "≥ 0.1"
+      },
+      {
+        "source": "check_total_flop_rate_prec",
+        "target": "good_flop_rate_prec",
+        "label": "≥ 15% of benchmark(peakflops)  [fallback 10.0]"
+      }
+    ]
+  },
+  {
+    "tree_name": "compute_bound_flops_vectorization",
+    "description": "When total FP rate is below 15 % of peak, investigates vectorisation quality: scalar vs vector split (3.1.11), then AVX vs SSE split (3.1.13).\n",
+    "required_metrics": [
+      {
+        "group": "cpu",
+        "metric": "FLOPS",
+        "trace": "SP"
+      },
+      {
+        "group": "cpu",
+        "metric": "FLOPS",
+        "trace": "DP"
+      },
+      {
+        "group": "cpu",
+        "metric": "FLOPS",
+        "trace": "AVX SP"
+      },
+      {
+        "group": "cpu",
+        "metric": "FLOPS",
+        "trace": "AVX DP"
+      },
+      {
+        "group": "cpu",
+        "metric": "SSE Operations",
+        "trace": "packed SP"
+      },
+      {
+        "group": "cpu",
+        "metric": "SSE Operations",
+        "trace": "packed DP"
+      }
+    ],
+    "thresholds": {
+      "flop_rate_peak_fraction": 0.15,
+      "vec_to_scalar": 0.5,
+      "avx_sse_ratio": 0.013
+    },
+    "nodes": [
+      {
+        "id": "check_total_flop_rate",
+        "kind": "decision",
+        "description": "Is total FLOP rate (SP + DP) below 15 % of measured peak?",
+        "metric_type": "sum",
+        "metric_description": "SUM(\n  cpu / FLOPS / SP,\n  cpu / FLOPS / DP\n)",
+        "aggregation": "mean",
+        "operator": "<",
+        "threshold": "15% of benchmark(peakflops)  [fallback 10.0]",
+        "label": "SP + DP"
+      },
+      {
+        "id": "check_vec_to_scalar",
+        "kind": "decision",
+        "description": "Is the fraction of FLOPS executed as vector operations low?",
+        "metric_type": "ratio",
+        "metric_description": "RATIO(\n  numerator:\n  SUM(\n    cpu / FLOPS / AVX DP,\n    cpu / FLOPS / AVX SP\n  )\n  denominator:\n  SUM(\n    cpu / FLOPS / DP,\n    cpu / FLOPS / SP\n  )\n)",
+        "aggregation": "mean",
+        "operator": "<",
+        "threshold": "0.5",
+        "label": "(AVX DP + AVX SP) / (DP + SP)"
+      },
+      {
+        "id": "no_vectorization",
+        "kind": "leaf",
+        "bottleneck_type": "DATA_LEVEL_PARALLELISM",
+        "severity_formula": "FORMULA2",
+        "threshold": "0.5",
+        "confidence": 1.0,
+        "recommendation": "Total FP rate is low and less than 50 % of FLOPS are vectorised. The code is largely scalar — no data-level parallelism exploited. Actions:\n  - Identify data-parallel loops and enable auto-vectorisation:\n    -O2 -ftree-vectorize (GCC), or use Intel compiler -qopt-report.\n  - Remove loop-carried dependencies that block vectorisation.\n  - Restructure data from AoS to SoA for better SIMD alignment.\n  - AVX-512 (recent Xeon): up to 16 SP or 8 DP ops per cycle.",
+        "label": "DATA_LEVEL_PARALLELISM",
+        "description": ""
+      },
+      {
+        "id": "check_avx_sse_ratio",
+        "kind": "decision",
+        "description": "Is the AVX-to-SSE ratio below threshold (SSE dominates)?",
+        "metric_type": "ratio",
+        "metric_description": "RATIO(\n  numerator:\n  SUM(\n    cpu / FLOPS / AVX SP,\n    cpu / FLOPS / AVX DP\n  )\n  denominator:\n  SUM(\n    cpu / SSE Operations / packed SP,\n    cpu / SSE Operations / packed DP\n  )\n)",
+        "aggregation": "mean",
+        "operator": "<",
+        "threshold": "0.013",
+        "label": "(AVX SP + AVX DP) / (packed SP + packed DP)"
+      },
+      {
+        "id": "avx_flag_missing",
+        "kind": "leaf",
+        "bottleneck_type": "DATA_LEVEL_PARALLELISM",
+        "severity_formula": "FORMULA2",
+        "threshold": "0.013",
+        "confidence": 1.0,
+        "recommendation": "Vectorisation is present (SSE) but AVX operations are nearly absent. The hardware supports AVX but the code is not compiled to use it. Actions:\n  - Recompile with -mavx2 (GCC/Clang) or -xAVX (Intel compiler).\n  - Check for struct padding or memory alignment issues that\n    disable 256-bit load/store paths.\n  - Profile loops with Intel Advisor to identify AVX blockers.\nAVX doubles SIMD width (256-bit vs 128-bit), potentially doubling throughput for compute-limited kernels.",
+        "label": "DATA_LEVEL_PARALLELISM",
+        "description": ""
+      },
+      {
+        "id": "vectorised_but_low_rate",
+        "kind": "leaf",
+        "bottleneck_type": "COMPUTE_BOUND_INEFFICIENCY",
+        "severity_formula": "FORMULA2",
+        "threshold": "0.15",
+        "confidence": 1.0,
+        "recommendation": "FP rate is below 15 % of peak despite good AVX vectorisation. A micro-architectural bottleneck is limiting throughput. Recommended in-depth analysis:\n  - Check execution port utilisation with Intel VTune (TMA).\n  - Look for serialising instructions (CPUID, RDTSC, fences)\n    in hot loops preventing out-of-order execution.\n  - Check for register pressure causing spills.\n  - Cross-reference with compute_bound_cache and\n    compute_bound_cpi trees for memory and pipeline signals.",
+        "label": "COMPUTE_BOUND_INEFFICIENCY",
+        "description": ""
+      },
+      {
+        "id": "good_flop_rate_vec",
+        "kind": "leaf",
+        "bottleneck_type": "NONE",
+        "severity_formula": "0.0",
+        "threshold": "",
+        "confidence": 1.0,
+        "recommendation": "",
+        "label": "✓  OK",
+        "description": ""
+      }
+    ],
+    "edges": [
+      {
+        "source": "check_total_flop_rate",
+        "target": "check_vec_to_scalar",
+        "label": "< 15% of benchmark(peakflops)  [fallback 10.0]"
+      },
+      {
+        "source": "check_vec_to_scalar",
+        "target": "no_vectorization",
+        "label": "< 0.5"
+      },
+      {
+        "source": "check_vec_to_scalar",
+        "target": "check_avx_sse_ratio",
+        "label": "≥ 0.5"
+      },
+      {
+        "source": "check_avx_sse_ratio",
+        "target": "avx_flag_missing",
+        "label": "< 0.013"
+      },
+      {
+        "source": "check_avx_sse_ratio",
+        "target": "vectorised_but_low_rate",
+        "label": "≥ 0.013"
+      },
+      {
+        "source": "check_total_flop_rate",
+        "target": "good_flop_rate_vec",
+        "label": "≥ 15% of benchmark(peakflops)  [fallback 10.0]"
+      }
+    ]
+  },
+  {
+    "tree_name": "memory_bound",
+    "description": "Root memory-bandwidth gate. If memory-bound, analyses data-locality indicators: loads/stores ratio, L2 miss ratio, and SP/DP precision use.\n",
+    "required_metrics": [
+      {
+        "group": "memory",
+        "metric": "Bandwidth",
+        "trace": "total"
+      },
+      {
+        "group": "memory",
+        "metric": "Load To Store Ratio",
+        "trace": "load to store"
+      },
+      {
+        "group": "cache",
+        "metric": "Miss Ratio",
+        "trace": "L2 miss ratio"
+      },
+      {
+        "group": "cpu",
+        "metric": "Vectorization",
+        "trace": "vectorization ratio SP"
+      }
+    ],
+    "thresholds": {},
+    "nodes": [
+      {
+        "id": "check_memory_bound",
+        "kind": "decision",
+        "description": "Is total DRAM bandwidth above the saturation threshold?",
+        "metric_type": "simple",
+        "metric_description": "memory / Bandwidth / total",
+        "aggregation": "mean",
+        "operator": ">",
+        "threshold": "85% of benchmark(bandwidth_mem)  [fallback 40.0]",
+        "label": "total"
+      },
+      {
+        "id": "check_loads_to_stores",
+        "kind": "decision",
+        "description": "High loads-to-stores ratio: is loaded data being underused?",
+        "metric_type": "simple",
+        "metric_description": "memory / Load To Store Ratio / load to store",
+        "aggregation": "mean",
+        "operator": ">",
+        "threshold": "4.0",
+        "label": "load to store"
+      },
+      {
+        "id": "loads_stores_bottleneck",
+        "kind": "leaf",
+        "bottleneck_type": "DATA_LOCALITY",
+        "severity_formula": "FORMULA1",
+        "threshold": "4.0",
+        "confidence": 1.0,
+        "recommendation": "High loads-to-stores ratio: data is loaded but not efficiently used. Actions:\n  - Improve temporal reuse: tile/block loops so the same data is\n    consumed before it is evicted from cache.\n  - Check for strided or irregular access patterns; restructure to\n    sequential (AoS → SoA).\n  - In OpenMP codes, verify first-touch allocation so threads work\n    on the same NUMA domain where data was initialised.",
+        "label": "DATA_LOCALITY",
+        "description": ""
+      },
+      {
+        "id": "check_l2_miss_ratio",
+        "kind": "decision",
+        "description": "High L2 miss ratio: is there poor spatial/temporal locality?",
+        "metric_type": "simple",
+        "metric_description": "cache / Miss Ratio / L2 miss ratio",
+        "aggregation": "mean",
+        "operator": ">",
+        "threshold": "0.2",
+        "label": "L2 miss ratio"
+      },
+      {
+        "id": "cache_locality_bottleneck",
+        "kind": "leaf",
+        "bottleneck_type": "DATA_LOCALITY",
+        "severity_formula": "FORMULA1",
+        "threshold": "0.2",
+        "confidence": 1.0,
+        "recommendation": "High L2 miss ratio with elevated memory bandwidth: data is frequently missing the cache hierarchy. Actions:\n  - Improve spatial locality: prefer sequential access; restructure\n    data (AoS → SoA where beneficial).\n  - Improve temporal locality: use loop tiling/blocking to keep\n    working sets in L2/L3.\n  - Review first-touch NUMA policy in multi-socket codes.",
+        "label": "DATA_LOCALITY",
+        "description": ""
+      },
+      {
+        "id": "check_sp_dp_ratio",
+        "kind": "decision",
+        "description": "Low SP vectorisation ratio: is the code predominantly using double precision when single precision would suffice?\n",
+        "metric_type": "simple",
+        "metric_description": "cpu / Vectorization / vectorization ratio SP",
+        "aggregation": "mean",
+        "operator": "<",
+        "threshold": "0.5",
+        "label": "vectorization ratio SP"
+      },
+      {
+        "id": "sp_dp_recommendation",
+        "kind": "leaf",
+        "bottleneck_type": "DATA_LOCALITY",
+        "severity_formula": "FORMULA2",
+        "threshold": "0.5",
+        "confidence": 1.0,
+        "recommendation": "The job is memory-bound and predominantly uses double precision. If numerical stability allows, migrating to single precision halves the memory footprint and memory traffic, potentially shifting the code from memory-bound to compute-bound. Verify accuracy requirements before applying this change.",
+        "label": "DATA_LOCALITY",
+        "description": ""
+      },
+      {
+        "id": "memory_bound_generic",
+        "kind": "leaf",
+        "bottleneck_type": "DATA_LOCALITY",
+        "severity_formula": "FORMULA1",
+        "threshold": "0.5",
+        "confidence": 1.0,
+        "recommendation": "Job is memory-bound but no specific data-locality indicator triggered. Memory bandwidth is near saturation and the code may already be well-optimised for data movement. Use hardware-counter profiling (VTune, Likwid, perf) for a finer-grained diagnosis.",
+        "label": "DATA_LOCALITY",
+        "description": ""
+      },
+      {
+        "id": "compute_bound_gate",
+        "kind": "leaf",
+        "bottleneck_type": "NONE",
+        "severity_formula": "0.0",
+        "threshold": "",
+        "confidence": 1.0,
+        "recommendation": "Memory bandwidth is below the saturation threshold - the job is COMPUTE BOUND.",
+        "label": "✓  OK",
+        "description": ""
+      }
+    ],
+    "edges": [
+      {
+        "source": "check_memory_bound",
+        "target": "check_loads_to_stores",
+        "label": "> 85% of benchmark(bandwidth_mem)  [fallback 40.0]"
+      },
+      {
+        "source": "check_loads_to_stores",
+        "target": "loads_stores_bottleneck",
+        "label": "> 4.0"
+      },
+      {
+        "source": "check_loads_to_stores",
+        "target": "check_l2_miss_ratio",
+        "label": "≤ 4.0"
+      },
+      {
+        "source": "check_l2_miss_ratio",
+        "target": "cache_locality_bottleneck",
+        "label": "> 0.2"
+      },
+      {
+        "source": "check_l2_miss_ratio",
+        "target": "check_sp_dp_ratio",
+        "label": "≤ 0.2"
+      },
+      {
+        "source": "check_sp_dp_ratio",
+        "target": "sp_dp_recommendation",
+        "label": "< 0.5"
+      },
+      {
+        "source": "check_sp_dp_ratio",
+        "target": "memory_bound_generic",
+        "label": "≥ 0.5"
+      },
+      {
+        "source": "check_memory_bound",
+        "target": "compute_bound_gate",
+        "label": "≤ 85% of benchmark(bandwidth_mem)  [fallback 40.0]"
+      }
+    ]
+  }
+]/*END*/;
+
+// ============================================================
+// Constants
+// ============================================================
+const NODE_W   = 148;
+const NODE_H   = 48;
+const H_GAP    = 220;
+const V_GAP    = 60;
+const CORNER   = 7;
+
+// ============================================================
+// State
+// ============================================================
+let currentTree = 0;
+let selectedNode = null;
+
+// ============================================================
+// Tab bar
+// ============================================================
+const tabBar = document.getElementById('tab-bar');
+TREES.forEach((tree, i) => {
+  const tab = document.createElement('div');
+  tab.className = 'tab' + (i === 0 ? ' active' : '');
+  tab.textContent = tree.tree_name;
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    currentTree = i;
+    renderTree(i);
+  });
+  tabBar.appendChild(tab);
+});
+
+// ============================================================
+// Detail panel
+// ============================================================
+const detail     = document.getElementById('detail');
+const detailBody = document.getElementById('detail-body');
+const detailTitle = document.getElementById('detail-title');
+
+document.getElementById('close-btn').addEventListener('click', () => {
+  detail.classList.add('collapsed');
+  if (selectedNode) { selectedNode.classed('node-highlight', false); selectedNode = null; }
+});
+
+function kv(key, val) {
+  if (val === '' || val === null || val === undefined) return '';
+  return `<div class="kv"><span class="kv-key">${escHtml(key)}</span><span class="kv-val">${escHtml(String(val))}</span></div>`;
+}
+
+function showDetail(node) {
+  detail.classList.remove('collapsed');
+  detailTitle.textContent = node.id;
+
+  let html = '';
+
+  if (node.kind === 'decision') {
+    html += `<div class="detail-section">
+      <span class="badge badge-decision">DECISION</span>
+      ${node.description ? `<p style="margin-top:6px">${escHtml(node.description)}</p>` : ''}
+    </div>`;
+
+    // Metric — rendered differently for simple vs composite types
+    const mtypeBadge = node.metric_type !== 'simple'
+      ? `<span class="badge-type">${escHtml(node.metric_type)}</span>`
+      : '';
+    html += `<div class="detail-section">
+      <h3>Metric ${mtypeBadge}</h3>
+      <div class="metric-expr">${escHtml(node.metric_description)}</div>
+      <div style="margin-top:6px">${kv('Aggregation', node.aggregation)}</div>
+    </div>`;
+
+    html += `<div class="detail-section">
+      <h3>Condition</h3>
+      <p>value &nbsp;<b>${escHtml(node.operator)}</b>&nbsp; ${escHtml(node.threshold)}</p>
+    </div>`;
+
+  } else {
+    const isNone = node.bottleneck_type === 'NONE';
+    const badgeClass = isNone ? 'badge-none' : 'badge-bottleneck';
+    html += `<div class="detail-section">
+      <span class="badge ${badgeClass}">${escHtml(node.bottleneck_type)}</span>
+      ${node.description ? `<p style="margin-top:6px">${escHtml(node.description)}</p>` : ''}
+    </div>`;
+
+    html += `<div class="detail-section">
+      <h3>Diagnosis</h3>
+      ${kv('Severity formula', node.severity_formula)}
+      ${kv('Threshold', node.threshold)}
+      ${kv('Confidence', node.confidence)}
+    </div>`;
+
+    if (node.recommendation) {
+      html += `<div class="detail-section">
+        <h3>Recommendation</h3>
+        <pre>${escHtml(node.recommendation)}</pre>
+      </div>`;
+    }
+  }
+
+  detailBody.innerHTML = html;
+}
+
+function escHtml(s) {
+  return String(s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ============================================================
+// Build D3 hierarchy
+// ============================================================
+function buildHierarchy(tree) {
+  const nodeMap = {};
+  tree.nodes.forEach(n => { nodeMap[n.id] = { ...n, children: [] }; });
+
+  tree.edges.forEach(e => {
+    if (nodeMap[e.source] && nodeMap[e.target]) {
+      nodeMap[e.source].children.push({ ...nodeMap[e.target], edgeLabel: e.label });
+    }
+  });
+
+  const targets = new Set(tree.edges.map(e => e.target));
+  const rootId  = tree.nodes.find(n => !targets.has(n.id))?.id;
+  if (!rootId) return null;
+
+  function build(id, edgeLabel) {
+    const n = nodeMap[id];
+    const out = { ...n, edgeLabel };
+    out.children = n.children.map(c => build(c.id, c.edgeLabel));
+    return out;
+  }
+
+  return build(rootId, '');
+}
+
+// ============================================================
+// Render
+// ============================================================
+function renderTree(idx) {
+  const tree = TREES[idx];
+  const svg  = d3.select('#tree-svg');
+  svg.selectAll('*').remove();
+
+  detail.classList.add('collapsed');
+  selectedNode = null;
+
+  const hier = buildHierarchy(tree);
+  if (!hier) {
+    svg.append('text').attr('x',40).attr('y',40).text('Empty tree').attr('fill','#f38ba8');
+    return;
+  }
+
+  const root = d3.hierarchy(hier);
+
+  const treeLayout = d3.tree()
+    .nodeSize([NODE_H + V_GAP, NODE_W + H_GAP])
+    .separation((a, b) => a.parent === b.parent ? 1 : 1.3);
+
+  treeLayout(root);
+
+  // Swap x/y: make the tree grow left → right
+  root.each(d => { const tmp = d.x; d.x = d.y; d.y = tmp; });
+
+  // Canvas group (zoom target)
+  const g = svg.append('g').attr('class', 'canvas');
+
+  const zoom = d3.zoom()
+    .scaleExtent([0.08, 4])
+    .on('zoom', e => g.attr('transform', e.transform));
+  svg.call(zoom);
+
+  // Initial centering
+  const svgEl = document.getElementById('tree-svg');
+  const W = svgEl.clientWidth  || window.innerWidth  - 360;
+  const H = svgEl.clientHeight || window.innerHeight - 44;
+
+  const xs = root.descendants().map(d => d.x);
+  const ys = root.descendants().map(d => d.y);
+  const minX = Math.min(...xs), maxX = Math.max(...xs);
+  const minY = Math.min(...ys), maxY = Math.max(...ys);
+  const treeW = maxX - minX + NODE_W;
+  const treeH = maxY - minY + NODE_H;
+  const scale = Math.min(0.9, Math.min(W / (treeW + 80), H / (treeH + 80)));
+  const tx = (W - treeW * scale) / 2 - minX * scale;
+  const ty = (H - treeH * scale) / 2 - minY * scale;
+  svg.call(zoom.transform, d3.zoomIdentity.translate(tx, ty).scale(scale));
+
+  // ---- links ----
+  const linkGroup = g.append('g');
+
+  const linkGen = d3.linkHorizontal()
+    .x(d => d.x + NODE_W / 2)
+    .y(d => d.y + NODE_H / 2);
+
+  linkGroup.selectAll('path.link')
+    .data(root.links())
+    .join('path')
+    .attr('class', 'link')
+    .attr('d', linkGen);
+
+  linkGroup.selectAll('text.link-label')
+    .data(root.links())
+    .join('text')
+    .attr('class', 'link-label')
+    .attr('x', d => (d.source.x + NODE_W/2 + d.target.x + NODE_W/2) / 2)
+    .attr('y', d => (d.source.y + NODE_H/2 + d.target.y + NODE_H/2) / 2 - 4)
+    .attr('text-anchor', 'middle')
+    .text(d => d.target.data.edgeLabel || '');
+
+  // ---- nodes ----
+  const nodeGroup = g.append('g');
+
+  const nodeEnter = nodeGroup.selectAll('g.node')
+    .data(root.descendants())
+    .join('g')
+    .attr('class', d => {
+      if (d.data.kind === 'decision')         return 'node node-decision';
+      if (d.data.bottleneck_type === 'NONE')  return 'node node-leaf-none';
+      return 'node node-leaf-bottleneck';
+    })
+    .attr('transform', d => `translate(${d.x},${d.y})`)
+    .style('cursor', 'pointer')
+    .call(d3.drag()
+      .on('start', function() { d3.select(this).raise(); })
+      .on('drag', function(event, d) {
+        d.x += event.dx;
+        d.y += event.dy;
+        d3.select(this).attr('transform', `translate(${d.x},${d.y})`);
+        linkGroup.selectAll('path.link').attr('d', linkGen);
+        linkGroup.selectAll('text.link-label')
+          .attr('x', d2 => (d2.source.x + NODE_W/2 + d2.target.x + NODE_W/2)/2)
+          .attr('y', d2 => (d2.source.y + NODE_H/2 + d2.target.y + NODE_H/2)/2 - 4);
+      })
+    )
+    .on('click', function(event, d) {
+      event.stopPropagation();
+      if (selectedNode) selectedNode.classed('node-highlight', false);
+      selectedNode = d3.select(this);
+      selectedNode.classed('node-highlight', true);
+      showDetail(d.data);
+    });
+
+  nodeEnter.append('rect')
+    .attr('width', NODE_W)
+    .attr('height', NODE_H)
+    .attr('rx', d => d.data.kind === 'decision' ? CORNER : NODE_H / 2);
+
+  // Word-wrapped text labels
+  nodeEnter.each(function(d) {
+    const g2    = d3.select(this);
+    const label = d.data.label || d.data.id;
+    const words = label.split(/\s+/);
+    const maxCharsPerLine = 18;
+
+    const lines = [];
+    let cur = '';
+    for (const w of words) {
+      if ((cur + ' ' + w).trim().length > maxCharsPerLine && cur) {
+        lines.push(cur.trim()); cur = w;
+      } else {
+        cur = (cur + ' ' + w).trim();
+      }
+    }
+    if (cur) lines.push(cur.trim());
+
+    const lineH  = 14;
+    const totalH = lines.length * lineH;
+    const startY = (NODE_H - totalH) / 2 + lineH * 0.8;
+
+    lines.forEach((line, i) => {
+      g2.append('text')
+        .attr('x', NODE_W / 2)
+        .attr('y', startY + i * lineH)
+        .attr('text-anchor', 'middle')
+        .text(line);
+    });
+  });
+
+  // Click on blank canvas → deselect
+  svg.on('click', () => {
+    if (selectedNode) { selectedNode.classed('node-highlight', false); selectedNode = null; }
+    detail.classList.add('collapsed');
+  });
+}
+
+// ============================================================
+// Boot
+// ============================================================
+renderTree(0);
+</script>
+</body>
+</html>

@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Strategy Tree Viewer</title>
+<script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
+<style>
+  /* ---- reset & layout ---- */
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%;background:#1e1e2e;color:#cdd6f4;font-family:'Segoe UI',system-ui,sans-serif;overflow:hidden}
+
+  /* ---- tabs ---- */
+  #tab-bar{display:flex;gap:4px;padding:8px 12px 0;background:#181825;border-bottom:1px solid #313244;flex-shrink:0;overflow-x:auto;min-height:44px}
+  .tab{padding:6px 14px;border-radius:6px 6px 0 0;cursor:pointer;font-size:13px;white-space:nowrap;background:#313244;color:#a6adc8;border:1px solid transparent;border-bottom:none;transition:background .15s}
+  .tab:hover{background:#45475a}
+  .tab.active{background:#1e1e2e;color:#cdd6f4;border-color:#313244}
+
+  /* ---- main split ---- */
+  #main{display:flex;height:calc(100% - 44px)}
+  #canvas-wrap{flex:1;position:relative;overflow:hidden}
+  svg#tree-svg{width:100%;height:100%;display:block}
+
+  /* ---- detail panel ---- */
+  #detail{width:360px;min-width:280px;background:#181825;border-left:1px solid #313244;overflow-y:auto;padding:18px 16px;flex-shrink:0;transition:width .2s}
+  #detail.collapsed{width:0;padding:0;overflow:hidden}
+  #detail h2{font-size:15px;font-weight:600;margin-bottom:12px;color:#89b4fa;word-break:break-all}
+  .detail-section{margin-bottom:14px}
+  .detail-section h3{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:#6c7086;margin-bottom:5px}
+  .detail-section p{font-size:12.5px;line-height:1.6;color:#cdd6f4}
+  .detail-section pre{font-size:11.5px;line-height:1.55;color:#cdd6f4;white-space:pre-wrap;word-break:break-word;background:#1e1e2e;padding:8px 10px;border-radius:6px;border:1px solid #313244}
+  .metric-expr{font-size:11.5px;line-height:1.6;color:#cba6f7;font-family:'Cascadia Code','Fira Mono',monospace;background:#1e1e2e;padding:8px 10px;border-radius:6px;border:1px solid #313244;white-space:pre-wrap;word-break:break-word}
+  .badge{display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;margin-bottom:6px}
+  .badge-none{background:#a6e3a1;color:#1e1e2e}
+  .badge-bottleneck{background:#f38ba8;color:#1e1e2e}
+  .badge-decision{background:#89b4fa;color:#1e1e2e}
+  .badge-type{background:#313244;color:#cba6f7;font-weight:400;font-size:10px;padding:1px 6px;border-radius:3px;vertical-align:middle;margin-left:4px}
+  #close-btn{float:right;cursor:pointer;font-size:18px;line-height:1;color:#6c7086}
+  #close-btn:hover{color:#cdd6f4}
+  .kv{display:flex;gap:6px;margin-bottom:3px}
+  .kv-key{color:#6c7086;font-size:12px;min-width:80px;flex-shrink:0}
+  .kv-val{color:#cdd6f4;font-size:12px;word-break:break-all}
+
+  /* ---- hint overlay ---- */
+  #hint{position:absolute;bottom:14px;left:14px;font-size:11px;color:#45475a;pointer-events:none;line-height:1.7}
+
+  /* ---- SVG node styles ---- */
+  .node-decision rect{fill:#313244;stroke:#89b4fa;stroke-width:1.5px}
+  .node-leaf-none rect{fill:#1e3a2f;stroke:#a6e3a1;stroke-width:1.5px}
+  .node-leaf-bottleneck rect{fill:#3b1f2b;stroke:#f38ba8;stroke-width:1.5px}
+  .node-highlight rect{stroke:#f9e2af !important;stroke-width:2.5px;filter:drop-shadow(0 0 6px #f9e2af)}
+  .node text{fill:#cdd6f4;font-size:11px;font-family:'Segoe UI',system-ui,sans-serif;pointer-events:none}
+  .link{fill:none;stroke:#45475a;stroke-width:1.5px}
+  .link-label{fill:#6c7086;font-size:10px;font-family:'Segoe UI',system-ui,sans-serif}
+</style>
+</head>
+<body>
+
+<div id="tab-bar"></div>
+<div id="main">
+  <div id="canvas-wrap">
+    <svg id="tree-svg"></svg>
+    <div id="hint">scroll/pinch → zoom &nbsp;|&nbsp; drag canvas → pan &nbsp;|&nbsp; drag node → move &nbsp;|&nbsp; click node → details</div>
+  </div>
+  <div id="detail" class="collapsed">
+    <span id="close-btn" title="Close">&#x2715;</span>
+    <h2 id="detail-title">Node info</h2>
+    <div id="detail-body"></div>
+  </div>
+</div>
+
+<script>
+// ============================================================
+// DATA (injected by Python)
+// ============================================================
+const TREES = /*TREES_JSON*/null/*END*/;
+
+// ============================================================
+// Constants
+// ============================================================
+const NODE_W   = 148;
+const NODE_H   = 48;
+const H_GAP    = 220;
+const V_GAP    = 60;
+const CORNER   = 7;
+
+// ============================================================
+// State
+// ============================================================
+let currentTree = 0;
+let selectedNode = null;
+
+// ============================================================
+// Tab bar
+// ============================================================
+const tabBar = document.getElementById('tab-bar');
+TREES.forEach((tree, i) => {
+  const tab = document.createElement('div');
+  tab.className = 'tab' + (i === 0 ? ' active' : '');
+  tab.textContent = tree.tree_name;
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    currentTree = i;
+    renderTree(i);
+  });
+  tabBar.appendChild(tab);
+});
+
+// ============================================================
+// Detail panel
+// ============================================================
+const detail     = document.getElementById('detail');
+const detailBody = document.getElementById('detail-body');
+const detailTitle = document.getElementById('detail-title');
+
+document.getElementById('close-btn').addEventListener('click', () => {
+  detail.classList.add('collapsed');
+  if (selectedNode) { selectedNode.classed('node-highlight', false); selectedNode = null; }
+});
+
+function kv(key, val) {
+  if (val === '' || val === null || val === undefined) return '';
+  return `<div class="kv"><span class="kv-key">${escHtml(key)}</span><span class="kv-val">${escHtml(String(val))}</span></div>`;
+}
+
+function showDetail(node) {
+  detail.classList.remove('collapsed');
+  detailTitle.textContent = node.id;
+
+  let html = '';
+
+  if (node.kind === 'decision') {
+    html += `<div class="detail-section">
+      <span class="badge badge-decision">DECISION</span>
+      ${node.description ? `<p style="margin-top:6px">${escHtml(node.description)}</p>` : ''}
+    </div>`;
+
+    // Metric — rendered differently for simple vs composite types
+    const mtypeBadge = node.metric_type !== 'simple'
+      ? `<span class="badge-type">${escHtml(node.metric_type)}</span>`
+      : '';
+    html += `<div class="detail-section">
+      <h3>Metric ${mtypeBadge}</h3>
+      <div class="metric-expr">${escHtml(node.metric_description)}</div>
+      <div style="margin-top:6px">${kv('Aggregation', node.aggregation)}</div>
+    </div>`;
+
+    html += `<div class="detail-section">
+      <h3>Condition</h3>
+      <p>value &nbsp;<b>${escHtml(node.operator)}</b>&nbsp; ${escHtml(node.threshold)}</p>
+    </div>`;
+
+  } else {
+    const isNone = node.bottleneck_type === 'NONE';
+    const badgeClass = isNone ? 'badge-none' : 'badge-bottleneck';
+    html += `<div class="detail-section">
+      <span class="badge ${badgeClass}">${escHtml(node.bottleneck_type)}</span>
+      ${node.description ? `<p style="margin-top:6px">${escHtml(node.description)}</p>` : ''}
+    </div>`;
+
+    html += `<div class="detail-section">
+      <h3>Diagnosis</h3>
+      ${kv('Severity formula', node.severity_formula)}
+      ${kv('Threshold', node.threshold)}
+      ${kv('Confidence', node.confidence)}
+    </div>`;
+
+    if (node.recommendation) {
+      html += `<div class="detail-section">
+        <h3>Recommendation</h3>
+        <pre>${escHtml(node.recommendation)}</pre>
+      </div>`;
+    }
+  }
+
+  detailBody.innerHTML = html;
+}
+
+function escHtml(s) {
+  return String(s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ============================================================
+// Build D3 hierarchy
+// ============================================================
+function buildHierarchy(tree) {
+  const nodeMap = {};
+  tree.nodes.forEach(n => { nodeMap[n.id] = { ...n, children: [] }; });
+
+  tree.edges.forEach(e => {
+    if (nodeMap[e.source] && nodeMap[e.target]) {
+      nodeMap[e.source].children.push({ ...nodeMap[e.target], edgeLabel: e.label });
+    }
+  });
+
+  const targets = new Set(tree.edges.map(e => e.target));
+  const rootId  = tree.nodes.find(n => !targets.has(n.id))?.id;
+  if (!rootId) return null;
+
+  function build(id, edgeLabel) {
+    const n = nodeMap[id];
+    const out = { ...n, edgeLabel };
+    out.children = n.children.map(c => build(c.id, c.edgeLabel));
+    return out;
+  }
+
+  return build(rootId, '');
+}
+
+// ============================================================
+// Render
+// ============================================================
+function renderTree(idx) {
+  const tree = TREES[idx];
+  const svg  = d3.select('#tree-svg');
+  svg.selectAll('*').remove();
+
+  detail.classList.add('collapsed');
+  selectedNode = null;
+
+  const hier = buildHierarchy(tree);
+  if (!hier) {
+    svg.append('text').attr('x',40).attr('y',40).text('Empty tree').attr('fill','#f38ba8');
+    return;
+  }
+
+  const root = d3.hierarchy(hier);
+
+  const treeLayout = d3.tree()
+    .nodeSize([NODE_H + V_GAP, NODE_W + H_GAP])
+    .separation((a, b) => a.parent === b.parent ? 1 : 1.3);
+
+  treeLayout(root);
+
+  // Swap x/y: make the tree grow left → right
+  root.each(d => { const tmp = d.x; d.x = d.y; d.y = tmp; });
+
+  // Canvas group (zoom target)
+  const g = svg.append('g').attr('class', 'canvas');
+
+  const zoom = d3.zoom()
+    .scaleExtent([0.08, 4])
+    .on('zoom', e => g.attr('transform', e.transform));
+  svg.call(zoom);
+
+  // Initial centering
+  const svgEl = document.getElementById('tree-svg');
+  const W = svgEl.clientWidth  || window.innerWidth  - 360;
+  const H = svgEl.clientHeight || window.innerHeight - 44;
+
+  const xs = root.descendants().map(d => d.x);
+  const ys = root.descendants().map(d => d.y);
+  const minX = Math.min(...xs), maxX = Math.max(...xs);
+  const minY = Math.min(...ys), maxY = Math.max(...ys);
+  const treeW = maxX - minX + NODE_W;
+  const treeH = maxY - minY + NODE_H;
+  const scale = Math.min(0.9, Math.min(W / (treeW + 80), H / (treeH + 80)));
+  const tx = (W - treeW * scale) / 2 - minX * scale;
+  const ty = (H - treeH * scale) / 2 - minY * scale;
+  svg.call(zoom.transform, d3.zoomIdentity.translate(tx, ty).scale(scale));
+
+  // ---- links ----
+  const linkGroup = g.append('g');
+
+  const linkGen = d3.linkHorizontal()
+    .x(d => d.x + NODE_W / 2)
+    .y(d => d.y + NODE_H / 2);
+
+  linkGroup.selectAll('path.link')
+    .data(root.links())
+    .join('path')
+    .attr('class', 'link')
+    .attr('d', linkGen);
+
+  linkGroup.selectAll('text.link-label')
+    .data(root.links())
+    .join('text')
+    .attr('class', 'link-label')
+    .attr('x', d => (d.source.x + NODE_W/2 + d.target.x + NODE_W/2) / 2)
+    .attr('y', d => (d.source.y + NODE_H/2 + d.target.y + NODE_H/2) / 2 - 4)
+    .attr('text-anchor', 'middle')
+    .text(d => d.target.data.edgeLabel || '');
+
+  // ---- nodes ----
+  const nodeGroup = g.append('g');
+
+  const nodeEnter = nodeGroup.selectAll('g.node')
+    .data(root.descendants())
+    .join('g')
+    .attr('class', d => {
+      if (d.data.kind === 'decision')         return 'node node-decision';
+      if (d.data.bottleneck_type === 'NONE')  return 'node node-leaf-none';
+      return 'node node-leaf-bottleneck';
+    })
+    .attr('transform', d => `translate(${d.x},${d.y})`)
+    .style('cursor', 'pointer')
+    .call(d3.drag()
+      .on('start', function() { d3.select(this).raise(); })
+      .on('drag', function(event, d) {
+        d.x += event.dx;
+        d.y += event.dy;
+        d3.select(this).attr('transform', `translate(${d.x},${d.y})`);
+        linkGroup.selectAll('path.link').attr('d', linkGen);
+        linkGroup.selectAll('text.link-label')
+          .attr('x', d2 => (d2.source.x + NODE_W/2 + d2.target.x + NODE_W/2)/2)
+          .attr('y', d2 => (d2.source.y + NODE_H/2 + d2.target.y + NODE_H/2)/2 - 4);
+      })
+    )
+    .on('click', function(event, d) {
+      event.stopPropagation();
+      if (selectedNode) selectedNode.classed('node-highlight', false);
+      selectedNode = d3.select(this);
+      selectedNode.classed('node-highlight', true);
+      showDetail(d.data);
+    });
+
+  nodeEnter.append('rect')
+    .attr('width', NODE_W)
+    .attr('height', NODE_H)
+    .attr('rx', d => d.data.kind === 'decision' ? CORNER : NODE_H / 2);
+
+  // Word-wrapped text labels
+  nodeEnter.each(function(d) {
+    const g2    = d3.select(this);
+    const label = d.data.label || d.data.id;
+    const words = label.split(/\s+/);
+    const maxCharsPerLine = 18;
+
+    const lines = [];
+    let cur = '';
+    for (const w of words) {
+      if ((cur + ' ' + w).trim().length > maxCharsPerLine && cur) {
+        lines.push(cur.trim()); cur = w;
+      } else {
+        cur = (cur + ' ' + w).trim();
+      }
+    }
+    if (cur) lines.push(cur.trim());
+
+    const lineH  = 14;
+    const totalH = lines.length * lineH;
+    const startY = (NODE_H - totalH) / 2 + lineH * 0.8;
+
+    lines.forEach((line, i) => {
+      g2.append('text')
+        .attr('x', NODE_W / 2)
+        .attr('y', startY + i * lineH)
+        .attr('text-anchor', 'middle')
+        .text(line);
+    });
+  });
+
+  // Click on blank canvas → deselect
+  svg.on('click', () => {
+    if (selectedNode) { selectedNode.classed('node-highlight', false); selectedNode = null; }
+    detail.classList.add('collapsed');
+  });
+}
+
+// ============================================================
+// Boot
+// ============================================================
+renderTree(0);
+</script>
+</body>
+</html>
