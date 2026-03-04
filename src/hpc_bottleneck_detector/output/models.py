@@ -23,40 +23,55 @@ from typing import List, Optional
 class MacroCategoryType(Enum):
     """Coarse family a bottleneck belongs to."""
 
-    COMPUTE_BOUND = "COMPUTE_BOUND"
-    MEMORY_BOUND  = "MEMORY_BOUND"
-    IO_BOUND      = "IO_BOUND"
-    OTHER         = "OTHER"
-    NONE          = "NONE"
+    COMPUTE_BOUND  = "COMPUTE_BOUND"
+    MEMORY_BOUND   = "MEMORY_BOUND"
+    LOAD_IMBALANCE = "LOAD_IMBALANCE"
+    # IO_BOUND       = "IO_BOUND"
+    # NETWORK_BOUND  = "NETWORK_BOUND"
+    OTHER          = "OTHER"
+    NONE           = "NONE"
+    UNKNOWN       = "UNKNOWN"  # analysis could not be performed (missing metrics)
 
 
 class BottleneckType(Enum):
     """Fine-grained bottleneck classification."""
 
-    # Compute-bound
-    BRANCH_MISPREDICTION     = "BRANCH_MISPREDICTION"
-    DATA_LEVEL_PARALLELISM   = "DATA_LEVEL_PARALLELISM"
+    # Compute-bound — pipeline / instruction efficiency
+    PIPELINE_BOUND                  = "PIPELINE_BOUND"
+    OBJECT_INSTANTIATION_OVERHEAD   = "OBJECT_INSTANTIATION_OVERHEAD"
+    COMPUTE_BOUND_INEFFICIENCY      = "COMPUTE_BOUND_INEFFICIENCY"
+    PRECISION_INEFFICIENCY          = "PRECISION_INEFFICIENCY"
+
+    # Compute-bound — vectorisation / data-level parallelism
+    BRANCH_MISPREDICTION            = "BRANCH_MISPREDICTION"
+    DATA_LEVEL_PARALLELISM          = "DATA_LEVEL_PARALLELISM"
 
     # Memory-bound
-    DATA_LOCALITY            = "DATA_LOCALITY"
-    MEMORY_BANDWIDTH         = "MEMORY_BANDWIDTH"
+    DATA_LOCALITY                   = "DATA_LOCALITY"
+    MEMORY_BANDWIDTH                = "MEMORY_BANDWIDTH"
 
     # Communication / load balance
-    INTER_NODE_LOAD_IMBALANCE = "INTER_NODE_LOAD_IMBALANCE"
+    INTER_NODE_LOAD_IMBALANCE       = "INTER_NODE_LOAD_IMBALANCE"
 
-    # Catch-all
-    NONE = "NONE"
+    # Catch-all / sentinel
+    NONE    = "NONE"
+    UNKNOWN = "UNKNOWN"  # analysis could not be performed (e.g. missing metrics)
 
     # ------------------------------------------------------------------
     def get_macro_category(self) -> MacroCategoryType:
         """Return the macro category this bottleneck belongs to."""
         _MAP: dict[BottleneckType, MacroCategoryType] = {
-            BottleneckType.BRANCH_MISPREDICTION:     MacroCategoryType.COMPUTE_BOUND,
-            BottleneckType.DATA_LEVEL_PARALLELISM:   MacroCategoryType.COMPUTE_BOUND,
-            BottleneckType.DATA_LOCALITY:            MacroCategoryType.MEMORY_BOUND,
-            BottleneckType.MEMORY_BANDWIDTH:         MacroCategoryType.MEMORY_BOUND,
-            BottleneckType.INTER_NODE_LOAD_IMBALANCE: MacroCategoryType.OTHER,
-            BottleneckType.NONE:                     MacroCategoryType.NONE,
+            BottleneckType.PIPELINE_BOUND:                MacroCategoryType.COMPUTE_BOUND,
+            BottleneckType.OBJECT_INSTANTIATION_OVERHEAD: MacroCategoryType.COMPUTE_BOUND,
+            BottleneckType.COMPUTE_BOUND_INEFFICIENCY:    MacroCategoryType.COMPUTE_BOUND,
+            BottleneckType.PRECISION_INEFFICIENCY:        MacroCategoryType.COMPUTE_BOUND,
+            BottleneckType.BRANCH_MISPREDICTION:          MacroCategoryType.COMPUTE_BOUND,
+            BottleneckType.DATA_LEVEL_PARALLELISM:        MacroCategoryType.COMPUTE_BOUND,
+            BottleneckType.DATA_LOCALITY:                 MacroCategoryType.MEMORY_BOUND,
+            BottleneckType.MEMORY_BANDWIDTH:              MacroCategoryType.MEMORY_BOUND,
+            BottleneckType.INTER_NODE_LOAD_IMBALANCE:     MacroCategoryType.LOAD_IMBALANCE,
+            BottleneckType.NONE:                          MacroCategoryType.NONE,
+            BottleneckType.UNKNOWN:                       MacroCategoryType.UNKNOWN,
         }
         return _MAP.get(self, MacroCategoryType.NONE)
 
@@ -92,6 +107,11 @@ class Diagnosis:
         """True when no bottleneck was detected."""
         return self.bottleneck_type is BottleneckType.NONE
 
+    @property
+    def is_unknown(self) -> bool:
+        """True when the analysis could not determine whether a bottleneck exists."""
+        return self.bottleneck_type is BottleneckType.UNKNOWN
+
     def to_dict(self) -> dict:
         return {
             "bottleneck_type":   self.bottleneck_type.value,
@@ -126,8 +146,12 @@ class WindowDiagnosis:
 
     # ------------------------------------------------------------------
     def has_bottlenecks(self) -> bool:
-        """Return True when at least one non-healthy diagnosis is present."""
-        return any(not d.is_healthy for d in self.diagnoses)
+        """Return True when at least one real (non-NONE, non-UNKNOWN) diagnosis is present."""
+        return any(not d.is_healthy and not d.is_unknown for d in self.diagnoses)
+
+    def has_unknowns(self) -> bool:
+        """Return True when at least one UNKNOWN diagnosis is present."""
+        return any(d.is_unknown for d in self.diagnoses)
 
     def worst_severity(self) -> float:
         """Return the maximum severity score among all diagnoses (0.0 if empty)."""

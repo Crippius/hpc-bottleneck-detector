@@ -116,6 +116,14 @@ class DataManager:
             DataFrame with columns: group, metric, trace
         """
         return self.job_data[['group', 'metric', 'trace']].drop_duplicates().reset_index(drop=True)
+
+    def has_metric(self, group: str, metric: str, trace: Optional[str] = None) -> bool:
+        """Return True when the requested metric exists in the job data."""
+        try:
+            self.get_metric(group, metric, trace)
+            return True
+        except ValueError:
+            return False
     
     def get_time_series_length(self) -> int:
         """

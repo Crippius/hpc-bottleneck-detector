@@ -67,7 +67,12 @@ def _to_print(windows: List[WindowDiagnosis]) -> str:
     lines.append("=" * 70)
 
     for wd in windows:
-        status = "BOTTLENECK" if wd.has_bottlenecks() else "HEALTHY"
+        if wd.has_bottlenecks():
+            status = "BOTTLENECK"
+        elif wd.has_unknowns():
+            status = "UNKNOWN"
+        else:
+            status = "HEALTHY"
         lines.append(
             f"\n[Window {wd.window_index:>3}]  "
             f"intervals {wd.start_interval}–{wd.end_interval}  "

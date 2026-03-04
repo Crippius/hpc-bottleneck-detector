@@ -21,6 +21,7 @@ Usage:
 from __future__ import annotations
 
 import sys
+from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import List, Optional
@@ -34,6 +35,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 from hpc_bottleneck_detector.data import DataManager
 from hpc_bottleneck_detector.data.job_context import JobContext
 from hpc_bottleneck_detector.data_sources.xbat_source import XBATDataSource
+from hpc_bottleneck_detector.strategies import HeuristicStrategy
+from hpc_bottleneck_detector.output.models import BottleneckType
 
 
 # =============================================================================
@@ -310,18 +313,57 @@ def main() -> None:
     except ValueError as exc:
         print(f"  {exc}")
 
-    # ── 6. Run detection algorithms ───────────────────────────────────────────
-    print_section("6. Running detection algorithms")
+ 
+    # ── 6. Run HeuristicStrategy (decision-tree engine) ───────────────────────
+    print_section("6. HeuristicStrategy — decision-tree analysis")
 
-    detectors = [
-        MemoryBandwidthBottleneckDetector(threshold=0.70),
-        BranchMispredictionDetector(threshold=0.15),
-    ]
+    strategy_folder = (
+        Path(__file__).parent.parent / "configs" / "strategies" / "persyst_strategy"
+    )
+    strategy = HeuristicStrategy(str(strategy_folder))
 
-    for detector in detectors:
-        result: DetectionResult = detector.analyze(dm)
-        print()
-        print(result.summary())
+    print(f"\n  Trees loaded   : {len(strategy._strategy_trees)}")
+    print(f"  Tree names     : {[t.tree_name for t in strategy._strategy_trees]}")
+
+    bottleneck_counter: Counter = Counter()
+    bottleneck_windows = 0
+    total_windows = 0
+
+    # Slide a 10-interval window over the full job
+    window_size = 10
+    for start, end, win_dm in dm.iterate_windows(window_size=window_size, step_size=window_size):
+        total_windows += 1
+        diagnoses = strategy.diagnose(win_dm)
+        findings = [d for d in diagnoses if not d.is_healthy]
+        if findings:
+            bottleneck_windows += 1
+        for d in diagnoses:
+            bottleneck_counter[d.bottleneck_type.value] += 1
+
+    print(f"\n  Windows with bottleneck : {bottleneck_windows} / {total_windows}")
+    print("  Bottleneck distribution :")
+    for bt, cnt in bottleneck_counter.most_common():
+        bar = "█" * cnt
+        print(f"    {bt:<42} {cnt:>3}  {bar}")
+
+    # ── Detailed view of the first flagged window ─────────────────────────────
+    print()
+    for start, end, win_dm in dm.iterate_windows(window_size=window_size, step_size=window_size):
+        diagnoses = strategy.diagnose(win_dm)
+        findings  = [d for d in diagnoses if not d.is_healthy]
+        if findings:
+            print(f"  First bottleneck window: intervals {start}–{end}")
+            for d in findings:
+                cat = d.bottleneck_type.get_macro_category().value
+                print(f"    [{d.source}]")
+                print(f"      bottleneck   : {d.bottleneck_type.value}  ({cat})")
+                print(f"      severity     : {d.severity_score:.3f}")
+                print(f"      confidence   : {d.confidence:.2f}")
+                print(f"      metrics used : {', '.join(d.triggered_metrics)}")
+                if d.recommendation:
+                    first_line = d.recommendation.strip().splitlines()[0]
+                    print(f"      rec (1st ln) : {first_line}")
+            break
 
     print()
     print("=" * 70)
