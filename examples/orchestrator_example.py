@@ -114,23 +114,20 @@ def example_xbat(job_id: str = "249755") -> list[WindowDiagnosis]:
     """
     Build the orchestrator programmatically using the XBAT data source.
 
-    The demo credentials (demo/demo) work against https://demo.xbat.dev.
-    Replace them with real credentials for production use.
+    Credentials are loaded from a ``.env`` file via
+    :meth:`~hpc_bottleneck_detector.data_sources.XBATDataSource.from_env`.
+    Copy ``.env.example`` → ``.env`` and fill in your real values before
+    running this example.
     """
     print("\n" + "=" * 60)
     print("  Example 3 — manual XBAT setup")
     print("=" * 60)
 
     orchestrator = AnalysisOrchestrator(
-        data_source=XBATDataSource(
-            api_base="https://demo.xbat.dev",
-            username="demo",
-            password="demo",
-            client_id="demo",
-            group="",       # empty → all groups, job-level aggregation
+        data_source=XBATDataSource.from_env(
+            group="",   # empty → all groups, job-level aggregation
             metric="",
             level="job",
-            token_file=".env.xbat",
         ),
         strategy=HeuristicStrategy(
             strategy_folder="configs/strategies/persyst_strategy"

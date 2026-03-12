@@ -16,6 +16,16 @@ CSV endpoint:
         &metric=<metric> (optional, only when group is set)
         &level=<level>   (default: 'job')
         &node=<node>     (only when level='node')
+
+Credentials / environment variables:
+    The recommended way to supply credentials is via a ``.env`` file (which
+    should be git-ignored) and the :meth:`XBATDataSource.from_env` factory.
+    Copy ``.env.example`` to ``.env`` and fill in your values::
+
+        XBAT_API_BASE=https://xbat-master:7000
+        XBAT_USERNAME=your_username
+        XBAT_PASSWORD=your_password
+        XBAT_CLIENT_ID=your_client_id
 """
 
 from __future__ import annotations
@@ -34,7 +44,7 @@ from ..data.job_context import JobContext
 
 
 # ---------------------------------------------------------------------------
-# Default demo credentials
+# Default fallback credentials (public demo instance)
 # ---------------------------------------------------------------------------
 _DEFAULT_API_BASE = "https://demo.xbat.dev"
 _DEFAULT_USERNAME = "demo"
@@ -57,6 +67,9 @@ class XBATDataSource(IDataSource):
         level:       Aggregation level: ``'job'`` | ``'node'`` | ``'core'``.
         node:        Node identifier (required only when level is ``'node'``).
         token_file:  Path where the cached access token is stored.
+        proxies:     Optional proxy mapping forwarded to the underlying
+                     ``requests.Session``, e.g.
+                     ``{'http': 'socks5h://localhost:xxx', 'https': 'socks5h://localhost:xxx'}``.
         session:     Underlying ``requests.Session`` (created automatically).
     """
 
@@ -71,6 +84,8 @@ class XBATDataSource(IDataSource):
         level: str = "job",
         node: str = "",
         token_file: str = _DEFAULT_TOKEN_FILE,
+        proxies: Optional[dict] = None,
+        verify_ssl: bool = True,
     ) -> None:
         # Validate argument combinations
         if not group and metric:
@@ -87,14 +102,110 @@ class XBATDataSource(IDataSource):
         self.level = level or "job"
         self.node = node
         self.token_file = Path(token_file)
+        self.proxies = proxies or {}
+        self.verify_ssl = verify_ssl
 
         self._access_token: Optional[str] = None
         self.session = requests.Session()
+        if self.proxies:
+            self.session.proxies.update(self.proxies)
+        if not self.verify_ssl:
+            self.session.verify = False
+            import urllib3
+            urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
         # Attempt to reuse a cached token on construction
         self._load_token()
         if not self._validate_token():
             self._request_new_token()
+
+    # ------------------------------------------------------------------
+    # Environment-based factory
+    # ------------------------------------------------------------------
+
+    @classmethod
+    def from_env(
+        cls,
+        env_file: str = ".env",
+        group: str = "",
+        metric: str = "",
+        level: str = "job",
+        node: str = "",
+        token_file: str = _DEFAULT_TOKEN_FILE,
+        proxies: Optional[dict] = None,
+        verify_ssl: bool = True,
+    ) -> "XBATDataSource":
+        """
+        Construct an :class:`XBATDataSource` from environment variables.
+
+        Reads the following variables from the environment (after optionally
+        loading *env_file* via ``python-dotenv``):
+
+        +--------------------+------------------------------------------+
+        | Variable           | Description                              |
+        +====================+==========================================+
+        | ``XBAT_API_BASE``  | Base URL (``https://xbat-master:7000``)  |
+        | ``XBAT_USERNAME``  | OAuth username                           |
+        | ``XBAT_PASSWORD``  | OAuth password                           |
+        | ``XBAT_CLIENT_ID`` | OAuth client ID                          |
+        | ``XBAT_PROXY``     | Proxy URL, (``socks5h://localhost:xxx``) |
+        | ``XBAT_VERIFY_SSL``| Set to ``false`` to skip TLS validation  |
+        +--------------------+------------------------------------------+
+
+        Each variable falls back to the public demo credentials if not set.
+        ``XBAT_PROXY``, when set, is applied to both ``http`` and ``https``.
+        Copy ``.env.example`` to ``.env`` and fill in your real values.
+
+        Args:
+            env_file:   Path to the ``.env`` file to load. Silently ignored if
+                        the file does not exist or ``python-dotenv`` is not
+                        installed.
+            group:      Forwarded to :meth:`__init__`.
+            metric:     Forwarded to :meth:`__init__`.
+            level:      Forwarded to :meth:`__init__`.
+            node:       Forwarded to :meth:`__init__`.
+            token_file: Forwarded to :meth:`__init__`.
+            proxies:    Explicit proxy dict; overrides ``XBAT_PROXY`` when given.
+            verify_ssl: Whether to verify TLS certificates. Set to ``False`` for
+                        servers with self-signed certs; overrides ``XBAT_VERIFY_SSL``.
+
+        Returns:
+            A fully initialised :class:`XBATDataSource` instance.
+
+        Example::
+
+            # Copy .env.example → .env and fill in real credentials, then:
+            source = XBATDataSource.from_env()
+        """
+        try:
+            from dotenv import load_dotenv  # optional dependency
+            load_dotenv(dotenv_path=env_file, override=False)
+        except ImportError:
+            pass  # python-dotenv not installed; rely on already-set env vars
+
+        # Build proxy dict from XBAT_PROXY env var when not supplied explicitly
+        if proxies is None:
+            proxy_url = os.environ.get("XBAT_PROXY", "")
+            proxies = {"http": proxy_url, "https": proxy_url} if proxy_url else {}
+
+        # Resolve verify_ssl from XBAT_VERIFY_SSL env var
+        env_verify = os.environ.get("XBAT_VERIFY_SSL", "").strip().lower()
+        if env_verify in ("false", "0", "no"):
+            verify_ssl = False
+
+        return cls(
+            api_base=os.environ.get("XBAT_API_BASE", _DEFAULT_API_BASE),
+            username=os.environ.get("XBAT_USERNAME", _DEFAULT_USERNAME),
+            password=os.environ.get("XBAT_PASSWORD", _DEFAULT_PASSWORD),
+            client_id=os.environ.get("XBAT_CLIENT_ID", _DEFAULT_CLIENT_ID),
+            group=group,
+            metric=metric,
+            level=level,
+            node=node,
+            token_file=token_file,
+            proxies=proxies,
+            verify_ssl=verify_ssl,
+        )
 
     # ------------------------------------------------------------------
     # IDataSource interface

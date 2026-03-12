@@ -29,15 +29,27 @@ data_source:
   # delimiter: ","
 
   # ── XBAT REST API ─────────────────────────────────────────────────────────
+  # Option A (recommended): load credentials from a .env file.
+  # Copy .env.example into private .env and fill in your real values.
   type: xbat
-  api_base: https://demo.xbat.dev
-  username: demo
-  password: demo
-  client_id: demo
+  env_file: .env # reads XBAT_API_BASE / USERNAME / PASSWORD / CLIENT_ID / XBAT_PROXY
   group: "" # empty -> fetch all groups at job level
   metric: ""
   level: job # job | node | core
   token_file: .env.xbat # path to cached OAuth token
+
+  # Option B: spell out credentials directly (e.g. for the demo instance).
+  # type: xbat
+  # api_base: https://demo.xbat.dev
+  # username: demo
+  # password: demo
+  # client_id: demo
+  # group: ""
+  # metric: ""
+  # level: job
+  # token_file: .env.xbat
+  # proxy: socks5h://localhost:xxx  # uncomment if a SOCKS5 proxy is needed
+  # verify_ssl: false                # uncomment for self-signed certificates
 
   # ── Database (NOT IMPLEMENTED YET) ─────────────────────────────────────
   # type:              database

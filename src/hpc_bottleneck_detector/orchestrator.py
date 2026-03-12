@@ -241,6 +241,24 @@ class AnalysisOrchestrator:
             )
 
         if ds_type == "xbat":
+            # If env_file is set, load credentials from the .env file;
+            # otherwise fall back to values spelled out in the YAML.
+            # Build proxies dict from config when present
+            proxy_url = cfg.get("proxy", "")
+            proxies = {"http": proxy_url, "https": proxy_url} if proxy_url else None
+            verify_ssl = cfg.get("verify_ssl", True)
+
+            if "env_file" in cfg:
+                return XBATDataSource.from_env(
+                    env_file=cfg["env_file"],
+                    group=cfg.get("group", ""),
+                    metric=cfg.get("metric", ""),
+                    level=cfg.get("level", "job"),
+                    node=cfg.get("node", ""),
+                    token_file=cfg.get("token_file", ".env.xbat"),
+                    proxies=proxies,  # None -> from_env reads XBAT_PROXY instead
+                    verify_ssl=verify_ssl,
+                )
             return XBATDataSource(
                 api_base=cfg.get("api_base",   "https://demo.xbat.dev"),
                 username=cfg.get("username",   "demo"),
@@ -249,7 +267,10 @@ class AnalysisOrchestrator:
                 group=cfg.get("group", ""),
                 metric=cfg.get("metric", ""),
                 level=cfg.get("level", "job"),
+                node=cfg.get("node", ""),
                 token_file=cfg.get("token_file", ".env.xbat"),
+                proxies=proxies,
+                verify_ssl=verify_ssl,
             )
 
         raise ValueError(

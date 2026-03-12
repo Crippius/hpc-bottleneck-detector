@@ -84,11 +84,14 @@ def print_section(title: str) -> None:
 def main() -> None:
 
     JOB_ID = "248750"
+    ENV_FILE = ".env.example"
 
 
-    # ── 1. Create the data source (demo credentials are the defaults) ─────────
+
+    # ── 1. Create the data source from .env credentials ─────────────────────
+    # Copy .env.example -> .env and fill in your real values, then run.
     print_section("1. Creating XBATDataSource")
-    source = XBATDataSource()          # connects to demo.xbat.dev
+    source = XBATDataSource.from_env(env_file=ENV_FILE)
     print(f"  Connected to : {source.api_base}")
     print(f"  Level        : {source.level}")
 
