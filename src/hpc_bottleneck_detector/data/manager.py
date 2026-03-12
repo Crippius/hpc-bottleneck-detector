@@ -146,6 +146,55 @@ class DataManager:
         """
         return self.job_data.copy()
 
+    def get_flat_dataframe(self, interval_seconds: int = 5) -> pd.DataFrame:
+        """
+        Return a flat (wide) DataFrame version of data.
+
+        The returned DataFrame has one row per time interval and the
+        following columns:
+
+        - ``id``   : job identifier (same value for every row).
+        - ``time`` : elapsed time in seconds (0, 5, 10, …), stepping by
+                     *interval_seconds* per interval.
+        - One column per metric, named ``<group>_<metric>`` or
+          ``<group>_<metric>_<trace>`` (spaces replaced by underscores).
+
+        To extract features with tsfresh pass::
+
+            tsfresh.extract_features(
+                df,
+                column_id="id",
+                column_sort="time",
+            )
+
+        Args:
+            interval_seconds: Duration of each interval in seconds.
+                              Defaults to 5.
+
+        Returns:
+            DataFrame with shape ``(n_intervals, 2 + n_metrics)``.
+        """
+        interval_cols = self._interval_columns()
+        n_intervals = len(interval_cols)
+
+        result = pd.DataFrame({
+            "id": [self.job_id] * n_intervals,
+            "time": [i * interval_seconds for i in range(n_intervals)],
+        })
+
+        for _, row in self.job_data.iterrows():
+            group = row["group"]
+            metric = row["metric"]
+            trace = row.get("trace")
+
+            col_name = f"{group}_{metric}"
+            if pd.notna(trace) and str(trace).strip():
+                col_name += f"_{str(trace).replace(' ', '_')}"
+
+            result[col_name] = row[interval_cols].values
+
+        return result
+
     # ------------------------------------------------------------------
     # Windowing helpers
     # ------------------------------------------------------------------
