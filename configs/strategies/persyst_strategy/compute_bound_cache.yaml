@@ -65,9 +65,7 @@ root:
         severity_formula: "0.0"
         confidence: 1.0
         recommendation: >
-          L3 bandwidth is elevated but L2 miss rate is low.
-          Hardware prefetching is likely masking latency effectively.
-          No immediate action required; monitor for sustained increases.
+          L3 bandwidth is elevated but L2 miss rate is low. Hardware prefetching is likely masking latency effectively. No immediate action required; monitor for sustained increases.
 
     if_true:
       node_id: check_l2_miss_ratio
@@ -88,18 +86,12 @@ root:
           threshold: 0.30
           confidence: 1.0
           recommendation: >
-            L3 bandwidth is high, L2 miss rate is elevated, and the L2
-            miss ratio exceeds 30 %: the cache hierarchy is suffering from
-            severe locality problems.
+            L3 bandwidth is high, L2 miss rate is elevated, and the L2 miss ratio exceeds 30 %: the cache hierarchy is suffering from severe locality problems.
             Actions:
-              - Tiling/blocking: restructure loops so each tile's working
-                set fits in L2 or L3 (e.g. cache-oblivious matrix multiply).
-              - Replace gather/scatter patterns with sequential access
-                using AoS → SoA data layout transformations.
-              - Fuse loops that access the same data to avoid re-loading
-                it from memory.
-              - In multi-socket codes, ensure first-touch allocation places
-                data on the socket that will process it (NUMA affinity).
+              - Tiling/blocking: restructure loops so each tile's working set fits in L2 or L3 (e.g. cache-oblivious matrix multiply).
+              - Replace gather/scatter patterns with sequential access moving from Array of Structures (AoS) to Structure of Arrays (SoA) data layout transformations.
+              - Fuse loops that access the same data to avoid re-loading it from memory.
+              - In multi-socket codes, ensure first-touch allocation places data on the socket that will process it (NUMA affinity).
 
       if_false:
         node_id: moderate_cache_pressure
@@ -109,8 +101,4 @@ root:
           threshold: 0.15
           confidence: 1.0
           recommendation: >
-            L3 bandwidth and L2 miss rate are elevated but the miss ratio
-            is still below 30 %. Hardware prefetching may be partially
-            hiding the latency. Profile with VTune or perf to identify
-            the specific functions driving L3 traffic, then apply loop
-            tiling to the hottest data-access kernels.
+            L3 bandwidth and L2 miss rate are elevated but the miss ratio is still below 30 %. Hardware prefetching may be partially hiding the latency. Profile with VTune or perf to identify the specific functions driving L3 traffic, then apply loop tiling to the hottest data-access kernels.

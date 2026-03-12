@@ -4,8 +4,7 @@
 
 tree_name: memory_bound
 description: >
-  Root memory-bandwidth gate. If memory-bound, analyses data-locality
-  indicators: loads/stores ratio, L2 miss ratio, and SP/DP precision use.
+  Root memory-bandwidth gate. If memory-bound, analyses data-locality indicators: loads/stores ratio, L2 miss ratio, and SP/DP precision use.
 
 required_metrics:
   - group: memory
@@ -43,8 +42,7 @@ root:
       severity_formula: "0.0"
       confidence: 1.0
       recommendation: >
-        Memory bandwidth is below the saturation threshold - the job is
-        COMPUTE BOUND.
+        Memory bandwidth is below the saturation threshold -> the job is COMPUTE BOUND.
 
   if_true:
     node_id: check_loads_to_stores
@@ -67,12 +65,9 @@ root:
         recommendation: >
           High loads-to-stores ratio: data is loaded but not efficiently used.
           Actions:
-            - Improve temporal reuse: tile/block loops so the same data is
-              consumed before it is evicted from cache.
-            - Check for strided or irregular access patterns; restructure to
-              sequential (AoS → SoA).
-            - In OpenMP codes, verify first-touch allocation so threads work
-              on the same NUMA domain where data was initialised.
+            - Improve temporal reuse: tile/block loops so the same data is consumed before it is evicted from cache.
+            - Check for strided or irregular access patterns; restructure to sequential (Array of Structures (Aos) to Structure of Arrays (Soa)).
+            - In OpenMP codes, verify first-touch allocation so threads work on the same NUMA domain where data was initialised.
 
     if_false:
       node_id: check_l2_miss_ratio
@@ -93,13 +88,10 @@ root:
           threshold: 0.20
           confidence: 1.0
           recommendation: >
-            High L2 miss ratio with elevated memory bandwidth: data is
-            frequently missing the cache hierarchy.
+            High L2 miss ratio with elevated memory bandwidth: data is frequently missing the cache hierarchy.
             Actions:
-              - Improve spatial locality: prefer sequential access; restructure
-                data (AoS → SoA where beneficial).
-              - Improve temporal locality: use loop tiling/blocking to keep
-                working sets in L2/L3.
+              - Improve spatial locality: prefer sequential access; restructure data (Array of Structures (AoS) to Structure of Arrays (SoA) where beneficial).
+              - Improve temporal locality: use loop tiling/blocking to keepvworking sets in L2/L3.
               - Review first-touch NUMA policy in multi-socket codes.
 
       if_false:
@@ -123,11 +115,7 @@ root:
             threshold: 0.50
             confidence: 1.0
             recommendation: >
-              The job is memory-bound and predominantly uses double precision.
-              If numerical stability allows, migrating to single precision
-              halves the memory footprint and memory traffic, potentially
-              shifting the code from memory-bound to compute-bound.
-              Verify accuracy requirements before applying this change.
+              The job is memory-bound and predominantly uses double precision. If numerical stability allows, migrating to single precision halves the memory footprint and memory traffic, potentially shifting the code from memory-bound to compute-bound. Verify accuracy requirements before applying this change.
 
         if_false:
           node_id: memory_bound_generic
@@ -137,8 +125,4 @@ root:
             threshold: 0.50
             confidence: 1.0
             recommendation: >
-              Job is memory-bound but no specific data-locality indicator
-              triggered. Memory bandwidth is near saturation and the code
-              may already be well-optimised for data movement.
-              Use hardware-counter profiling (VTune, Likwid, perf) for a
-              finer-grained diagnosis.
+              Job is memory-bound but no specific data-locality indicator triggered. Memory bandwidth is near saturation and the code may already be well-optimised for data movement. Use profiling tools like VTune for a finer-grained diagnosis.
