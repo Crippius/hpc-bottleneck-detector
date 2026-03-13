@@ -83,9 +83,11 @@ def print_section(title: str) -> None:
 
 def main() -> None:
 
-    JOB_ID = "248750"
-    ENV_FILE = ".env.example"
+    # JOB_ID = "248750"
+    # ENV_FILE = ".env.example"
 
+    JOB_ID = "43129"
+    ENV_FILE = ".env"
 
 
     # ── 1. Create the data source from .env credentials ─────────────────────

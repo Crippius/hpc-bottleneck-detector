@@ -30,6 +30,7 @@ Credentials / environment variables:
 
 from __future__ import annotations
 
+import csv
 import io
 import os
 from pathlib import Path
@@ -260,12 +261,52 @@ class XBATDataSource(IDataSource):
             )
 
         try:
-            df = pd.read_csv(io.StringIO(response.text))
+            df = self._parse_xbat_csv_response(response.text)
         except Exception as exc:
             raise IOError(f"Failed to parse CSV response from XBAT: {exc}") from exc
 
         job_context = self._fetch_job_context(job_id)
         return DataManager(df.reset_index(drop=True), job_context=job_context)
+
+    def _parse_xbat_csv_response(self, csv_text: str) -> pd.DataFrame:
+        """
+        Parse XBAT CSV robustly across schema differences.
+
+        Current production behavior can produce csv where a subset of metric
+        rows contains one additional trailing interval value. Drop conservatively
+        the trailing overflow values so every metric shares the same interval count.
+        """
+        rows = list(csv.reader(io.StringIO(csv_text)))
+        if not rows:
+            raise IOError("Empty CSV response from XBAT.")
+
+        header = rows[0]
+        expected_cols = len(header)
+        parsed_rows: list[list[str]] = []
+
+        for row in rows[1:]:
+            if not row:
+                continue
+
+            if row[0] == "jobId":
+                continue
+
+            if len(row) > expected_cols:
+                row = row[:expected_cols]
+            elif len(row) < expected_cols:
+                row = row + [""] * (expected_cols - len(row))
+
+            parsed_rows.append(row)
+
+        if not parsed_rows:
+            raise IOError("No data rows found in XBAT CSV response.")
+        df = pd.DataFrame(parsed_rows, columns=header)
+
+        interval_cols = [col for col in df.columns if col.startswith("interval ")]
+        for column in interval_cols:
+            df[column] = pd.to_numeric(df[column], errors="coerce")
+
+        return df
 
     # ------------------------------------------------------------------
     # Job context

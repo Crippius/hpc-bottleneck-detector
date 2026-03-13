@@ -5,6 +5,8 @@ This module provides a CSV-based data source for reading HPC job metrics
 from CSV files (e.g., exported from XBAT).
 """
 
+import csv
+import io
 import pandas as pd
 from pathlib import Path
 from typing import Optional
@@ -49,6 +51,48 @@ class CSVDataSource(IDataSource):
         
         if not self.file_path.exists():
             raise FileNotFoundError(f"CSV file not found: {file_path}")
+
+    def _read_csv_robust(self) -> pd.DataFrame:
+        """
+        Parse XBAT CSV robustly across schema differences.
+
+        Current production behavior can produce csv where a subset of metric
+        rows contains one additional trailing interval value. Drop conservatively
+        the trailing overflow values so every metric shares the same interval count.
+        """
+        raw_text = self.file_path.read_text()
+        rows = list(csv.reader(io.StringIO(raw_text), delimiter=self.delimiter))
+
+        if not rows:
+            raise IOError(f"CSV file is empty: {self.file_path}")
+
+        header = rows[0]
+        expected_cols = len(header)
+        parsed_rows: list[list[str]] = []
+
+        for row in rows[1:]:
+            if not row:
+                continue
+
+            if row[0] == "jobId":
+                continue
+
+            if len(row) > expected_cols:
+                row = row[:expected_cols]
+            elif len(row) < expected_cols:
+                row = row + [""] * (expected_cols - len(row))
+
+            parsed_rows.append(row)
+
+        if not parsed_rows:
+            raise IOError(f"No data rows found in CSV file: {self.file_path}")
+        df = pd.DataFrame(parsed_rows, columns=header)
+
+        interval_cols = [col for col in df.columns if col.startswith("interval ")]
+        for column in interval_cols:
+            df[column] = pd.to_numeric(df[column], errors="coerce")
+
+        return df
     
     def fetch_job_data(self, job_id: str) -> DataManager:
         """
@@ -67,8 +111,8 @@ class CSVDataSource(IDataSource):
             IOError: If the CSV cannot be read
         """
         try:
-            # Read the CSV file
-            df = pd.read_csv(self.file_path, delimiter=self.delimiter)
+            # Read the CSV file (robust against XBAT export format drifts)
+            df = self._read_csv_robust()
             
             # Filter by job ID
             job_data = df[df['jobId'].astype(str) == str(job_id)]
@@ -79,6 +123,8 @@ class CSVDataSource(IDataSource):
             # Create and return a DataManager with the job data
             return DataManager(job_data.reset_index(drop=True))
             
+        except ValueError:
+            raise
         except pd.errors.ParserError as e:
             raise IOError(f"Failed to parse CSV file {self.file_path}: {e}")
         except Exception as e:
