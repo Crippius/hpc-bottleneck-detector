@@ -4,54 +4,50 @@
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
 <title>Strategy Tree Viewer</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/dreampulse/computer-modern-web-font@master/fonts.css"/>
 <script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
 <style>
   /* ---- reset & layout ---- */
   *{box-sizing:border-box;margin:0;padding:0}
-  html,body{height:100%;background:#1e1e2e;color:#cdd6f4;font-family:'Segoe UI',system-ui,sans-serif;overflow:hidden}
+  html,body{height:100%;background:#f0f4f8;color:#1a202c;font-family:'Computer Modern','CMU Serif',Georgia,serif;overflow:hidden}
 
-  /* ---- tabs ---- */
-  #tab-bar{display:flex;gap:4px;padding:8px 12px 0;background:#181825;border-bottom:1px solid #313244;flex-shrink:0;overflow-x:auto;min-height:44px}
-  .tab{padding:6px 14px;border-radius:6px 6px 0 0;cursor:pointer;font-size:13px;white-space:nowrap;background:#313244;color:#a6adc8;border:1px solid transparent;border-bottom:none;transition:background .15s}
-  .tab:hover{background:#45475a}
-  .tab.active{background:#1e1e2e;color:#cdd6f4;border-color:#313244}
+  /* ---- tab bar ---- */
+  #tab-bar{display:flex;gap:4px;padding:8px 14px 0;background:#fff;border-bottom:2px solid #e2e8f0;flex-shrink:0;overflow-x:auto;min-height:46px;box-shadow:0 1px 4px rgba(0,0,0,.06)}
+  .tab{padding:7px 18px;border-radius:6px 6px 0 0;cursor:pointer;font-size:13.5px;white-space:nowrap;background:#f0f4f8;color:#64748b;border:1px solid transparent;border-bottom:none;transition:background .15s,color .15s;font-family:'Computer Modern','CMU Serif',Georgia,serif}
+  .tab:hover{background:#e2e8f0;color:#334155}
+  .tab.active{background:#fff;color:#1d4ed8;border-color:#e2e8f0;border-bottom:2px solid #fff;font-weight:700;margin-bottom:-2px}
 
   /* ---- main split ---- */
-  #main{display:flex;height:calc(100% - 44px)}
+  #main{display:flex;height:calc(100% - 46px)}
   #canvas-wrap{flex:1;position:relative;overflow:hidden}
-  svg#tree-svg{width:100%;height:100%;display:block}
+  svg#tree-svg{width:100%;height:100%;display:block;background:#fff}
 
   /* ---- detail panel ---- */
-  #detail{width:360px;min-width:280px;background:#181825;border-left:1px solid #313244;overflow-y:auto;padding:18px 16px;flex-shrink:0;transition:width .2s}
+  #detail{width:360px;min-width:280px;background:#fff;border-left:2px solid #e2e8f0;overflow-y:auto;padding:20px 18px;flex-shrink:0;transition:width .2s;box-shadow:-3px 0 12px rgba(0,0,0,.06)}
   #detail.collapsed{width:0;padding:0;overflow:hidden}
-  #detail h2{font-size:15px;font-weight:600;margin-bottom:12px;color:#89b4fa;word-break:break-all}
-  .detail-section{margin-bottom:14px}
-  .detail-section h3{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:#6c7086;margin-bottom:5px}
-  .detail-section p{font-size:12.5px;line-height:1.6;color:#cdd6f4}
-  .detail-section pre{font-size:11.5px;line-height:1.55;color:#cdd6f4;white-space:pre-wrap;word-break:break-word;background:#1e1e2e;padding:8px 10px;border-radius:6px;border:1px solid #313244}
-  .metric-expr{font-size:11.5px;line-height:1.6;color:#cba6f7;font-family:'Cascadia Code','Fira Mono',monospace;background:#1e1e2e;padding:8px 10px;border-radius:6px;border:1px solid #313244;white-space:pre-wrap;word-break:break-word}
-  .badge{display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;margin-bottom:6px}
-  .badge-none{background:#a6e3a1;color:#1e1e2e}
-  .badge-bottleneck{background:#f38ba8;color:#1e1e2e}
-  .badge-decision{background:#89b4fa;color:#1e1e2e}
-  .badge-type{background:#313244;color:#cba6f7;font-weight:400;font-size:10px;padding:1px 6px;border-radius:3px;vertical-align:middle;margin-left:4px}
-  #close-btn{float:right;cursor:pointer;font-size:18px;line-height:1;color:#6c7086}
-  #close-btn:hover{color:#cdd6f4}
-  .kv{display:flex;gap:6px;margin-bottom:3px}
-  .kv-key{color:#6c7086;font-size:12px;min-width:80px;flex-shrink:0}
-  .kv-val{color:#cdd6f4;font-size:12px;word-break:break-all}
+  #detail h2{font-size:14.5px;font-weight:700;margin-bottom:14px;color:#1d4ed8;word-break:break-all;padding-right:26px;line-height:1.4;font-family:'Computer Modern','CMU Serif',Georgia,serif}
+  .detail-section{margin-bottom:16px}
+  .detail-section h3{font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:#94a3b8;margin-bottom:6px;font-weight:600;font-family:'Segoe UI',system-ui,sans-serif}
+  .detail-section p{font-size:12.5px;line-height:1.65;color:#374151;font-family:'Computer Modern','CMU Serif',Georgia,serif}
+  .detail-section pre{font-size:11.5px;line-height:1.6;color:#374151;white-space:pre-wrap;word-break:break-word;background:#f8fafc;padding:10px 12px;border-radius:6px;border:1px solid #e2e8f0;font-family:'Cascadia Code','Fira Mono',monospace}
+  .metric-expr{font-size:11.5px;line-height:1.6;color:#5b21b6;font-family:'Cascadia Code','Fira Mono',monospace;background:#faf5ff;padding:10px 12px;border-radius:6px;border:1px solid #e9d5ff;white-space:pre-wrap;word-break:break-word}
+  .badge{display:inline-block;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;margin-bottom:8px;letter-spacing:.02em;font-family:'Segoe UI',system-ui,sans-serif}
+  .badge-none{background:#dcfce7;color:#14532d}
+  .badge-bottleneck{background:#fee2e2;color:#7f1d1d}
+  .badge-decision{background:#dbeafe;color:#1e3a8a}
+  .badge-root{background:#fef9c3;color:#713f12}
+  .badge-type{background:#f1f5f9;color:#5b21b6;font-weight:500;font-size:10px;padding:1px 7px;border-radius:3px;vertical-align:middle;margin-left:5px;font-family:'Segoe UI',system-ui,sans-serif}
+  #close-btn{position:absolute;top:18px;right:16px;cursor:pointer;font-size:17px;line-height:1;color:#94a3b8;background:none;border:none;padding:2px 5px;border-radius:4px}
+  #close-btn:hover{background:#f1f5f9;color:#374151}
+  .kv{display:flex;gap:8px;margin-bottom:4px}
+  .kv-key{color:#94a3b8;font-size:12px;min-width:90px;flex-shrink:0;font-weight:500;font-family:'Segoe UI',system-ui,sans-serif}
+  .kv-val{color:#374151;font-size:12px;word-break:break-all;font-family:'Computer Modern','CMU Serif',Georgia,serif}
 
   /* ---- hint overlay ---- */
-  #hint{position:absolute;bottom:14px;left:14px;font-size:11px;color:#45475a;pointer-events:none;line-height:1.7}
+  #hint{position:absolute;bottom:14px;left:14px;font-size:11px;color:#94a3b8;pointer-events:none;line-height:1.8;background:rgba(255,255,255,.85);padding:6px 10px;border-radius:6px;backdrop-filter:blur(4px);font-family:'Segoe UI',system-ui,sans-serif}
 
-  /* ---- SVG node styles ---- */
-  .node-decision rect{fill:#313244;stroke:#89b4fa;stroke-width:1.5px}
-  .node-leaf-none rect{fill:#1e3a2f;stroke:#a6e3a1;stroke-width:1.5px}
-  .node-leaf-bottleneck rect{fill:#3b1f2b;stroke:#f38ba8;stroke-width:1.5px}
-  .node-highlight rect{stroke:#f9e2af !important;stroke-width:2.5px;filter:drop-shadow(0 0 6px #f9e2af)}
-  .node text{fill:#cdd6f4;font-size:11px;font-family:'Segoe UI',system-ui,sans-serif;pointer-events:none}
-  .link{fill:none;stroke:#45475a;stroke-width:1.5px}
-  .link-label{fill:#6c7086;font-size:10px;font-family:'Segoe UI',system-ui,sans-serif}
+  /* ---- node highlight (CSS overrides SVG presentation attrs) ---- */
+  .node-highlight .node-shape{stroke:#1d4ed8 !important;stroke-width:2.5px !important;filter:drop-shadow(0 0 8px rgba(29,78,216,.3)) !important}
 </style>
 </head>
 <body>
@@ -60,10 +56,15 @@
 <div id="main">
   <div id="canvas-wrap">
     <svg id="tree-svg"></svg>
-    <div id="hint">scroll/pinch → zoom &nbsp;|&nbsp; drag canvas → pan &nbsp;|&nbsp; drag node → move &nbsp;|&nbsp; click node → details</div>
+    <div id="hint">
+      scroll / pinch → zoom &nbsp;|&nbsp;
+      drag canvas → pan &nbsp;|&nbsp;
+      drag node → move &nbsp;|&nbsp;
+      click node → details
+    </div>
   </div>
   <div id="detail" class="collapsed">
-    <span id="close-btn" title="Close">&#x2715;</span>
+    <button id="close-btn" title="Close">&#x2715;</button>
     <h2 id="detail-title">Node info</h2>
     <div id="detail-body"></div>
   </div>
@@ -76,18 +77,32 @@
 const TREES = /*TREES_JSON*/null/*END*/;
 
 // ============================================================
-// Constants
+// Layout constants
 // ============================================================
-const NODE_W   = 148;
-const NODE_H   = 48;
-const H_GAP    = 220;
-const V_GAP    = 60;
-const CORNER   = 7;
+const NODE_W  = 170;
+const NODE_H  = 52;
+const H_GAP   = 230;
+const V_GAP   = 68;
+const CORNER  = 8;
+
+// Node visual styles
+const STYLE = {
+  root:       { fill: '#dbeafe', stroke: '#2563eb', rx: CORNER,     fw: 700 },
+  decision:   { fill: '#ffffff', stroke: '#475569', rx: CORNER,     fw: 400 },
+  leaf_none:  { fill: '#dcfce7', stroke: '#16a34a', rx: NODE_H / 2, fw: 700 },
+  leaf_other: { fill: '#fee2e2', stroke: '#dc2626', rx: CORNER,     fw: 500 },
+};
+
+function nodeStyle(d) {
+  if (d.kind === 'root')                                  return STYLE.root;
+  if (d.kind === 'decision')                              return STYLE.decision;
+  if (d.kind === 'leaf' && d.bottleneck_type === 'NONE')  return STYLE.leaf_none;
+  return STYLE.leaf_other;
+}
 
 // ============================================================
 // State
 // ============================================================
-let currentTree = 0;
 let selectedNode = null;
 
 // ============================================================
@@ -101,7 +116,6 @@ TREES.forEach((tree, i) => {
   tab.addEventListener('click', () => {
     document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
     tab.classList.add('active');
-    currentTree = i;
     renderTree(i);
   });
   tabBar.appendChild(tab);
@@ -110,92 +124,96 @@ TREES.forEach((tree, i) => {
 // ============================================================
 // Detail panel
 // ============================================================
-const detail     = document.getElementById('detail');
-const detailBody = document.getElementById('detail-body');
+const detail      = document.getElementById('detail');
+const detailBody  = document.getElementById('detail-body');
 const detailTitle = document.getElementById('detail-title');
 
-document.getElementById('close-btn').addEventListener('click', () => {
+document.getElementById('close-btn').addEventListener('click', closeDetail);
+
+function closeDetail() {
   detail.classList.add('collapsed');
   if (selectedNode) { selectedNode.classed('node-highlight', false); selectedNode = null; }
-});
+}
 
 function kv(key, val) {
   if (val === '' || val === null || val === undefined) return '';
-  return `<div class="kv"><span class="kv-key">${escHtml(key)}</span><span class="kv-val">${escHtml(String(val))}</span></div>`;
+  return `<div class="kv"><span class="kv-key">${esc(key)}</span><span class="kv-val">${esc(String(val))}</span></div>`;
+}
+
+// Strip filename prefix (e.g. "compute_bound_branch__") from a node id
+function cleanId(id) {
+  const i = id.indexOf('__');
+  return i >= 0 ? id.slice(i + 2) : id;
 }
 
 function showDetail(node) {
   detail.classList.remove('collapsed');
-  detailTitle.textContent = node.id;
+  detailTitle.textContent = cleanId(node.id).replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
 
   let html = '';
 
-  if (node.kind === 'decision') {
+  if (node.kind === 'root') {
     html += `<div class="detail-section">
-      <span class="badge badge-decision">DECISION</span>
-      ${node.description ? `<p style="margin-top:6px">${escHtml(node.description)}</p>` : ''}
+      <span class="badge badge-root">GROUP ROOT</span>
+      ${node.description ? `<p style="margin-top:6px">${esc(node.description)}</p>` : ''}
     </div>`;
 
-    // Metric — rendered differently for simple vs composite types
+  } else if (node.kind === 'decision') {
+    html += `<div class="detail-section">
+      <span class="badge badge-decision">DECISION NODE</span>
+      ${node.description ? `<p style="margin-top:6px">${esc(node.description)}</p>` : ''}
+    </div>`;
+
     const mtypeBadge = node.metric_type !== 'simple'
-      ? `<span class="badge-type">${escHtml(node.metric_type)}</span>`
-      : '';
+      ? `<span class="badge-type">${esc(node.metric_type)}</span>` : '';
     html += `<div class="detail-section">
       <h3>Metric ${mtypeBadge}</h3>
-      <div class="metric-expr">${escHtml(node.metric_description)}</div>
-      <div style="margin-top:6px">${kv('Aggregation', node.aggregation)}</div>
+      <div class="metric-expr">${esc(node.metric_description)}</div>
+      <div style="margin-top:8px">${kv('Aggregation', node.aggregation)}</div>
     </div>`;
-
     html += `<div class="detail-section">
-      <h3>Condition</h3>
-      <p>value &nbsp;<b>${escHtml(node.operator)}</b>&nbsp; ${escHtml(node.threshold)}</p>
+      <h3>Threshold condition</h3>
+      <p>value &nbsp;<strong>${esc(node.operator)}</strong>&nbsp; ${esc(node.threshold)}</p>
     </div>`;
 
   } else {
     const isNone = node.bottleneck_type === 'NONE';
-    const badgeClass = isNone ? 'badge-none' : 'badge-bottleneck';
     html += `<div class="detail-section">
-      <span class="badge ${badgeClass}">${escHtml(node.bottleneck_type)}</span>
-      ${node.description ? `<p style="margin-top:6px">${escHtml(node.description)}</p>` : ''}
+      <span class="badge ${isNone ? 'badge-none' : 'badge-bottleneck'}">${esc(node.bottleneck_type)}</span>
+      ${node.description ? `<p style="margin-top:6px">${esc(node.description)}</p>` : ''}
     </div>`;
-
     html += `<div class="detail-section">
       <h3>Diagnosis</h3>
-      ${kv('Severity formula', node.severity_formula)}
+      ${kv('Severity', node.severity_formula)}
       ${kv('Threshold', node.threshold)}
       ${kv('Confidence', node.confidence)}
     </div>`;
-
     if (node.recommendation) {
       html += `<div class="detail-section">
         <h3>Recommendation</h3>
-        <pre>${escHtml(node.recommendation)}</pre>
+        <pre>${esc(node.recommendation)}</pre>
       </div>`;
     }
   }
-
   detailBody.innerHTML = html;
 }
 
-function escHtml(s) {
+function esc(s) {
   return String(s)
     .replace(/&/g,'&amp;').replace(/</g,'&lt;')
     .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
 // ============================================================
-// Build D3 hierarchy
+// D3 hierarchy
 // ============================================================
 function buildHierarchy(tree) {
   const nodeMap = {};
   tree.nodes.forEach(n => { nodeMap[n.id] = { ...n, children: [] }; });
-
   tree.edges.forEach(e => {
-    if (nodeMap[e.source] && nodeMap[e.target]) {
+    if (nodeMap[e.source] && nodeMap[e.target])
       nodeMap[e.source].children.push({ ...nodeMap[e.target], edgeLabel: e.label });
-    }
   });
-
   const targets = new Set(tree.edges.map(e => e.target));
   const rootId  = tree.nodes.find(n => !targets.has(n.id))?.id;
   if (!rootId) return null;
@@ -203,10 +221,9 @@ function buildHierarchy(tree) {
   function build(id, edgeLabel) {
     const n = nodeMap[id];
     const out = { ...n, edgeLabel };
-    out.children = n.children.map(c => build(c.id, c.edgeLabel));
+    out.children = (n.children || []).map(c => build(c.id, c.edgeLabel));
     return out;
   }
-
   return build(rootId, '');
 }
 
@@ -217,84 +234,115 @@ function renderTree(idx) {
   const tree = TREES[idx];
   const svg  = d3.select('#tree-svg');
   svg.selectAll('*').remove();
+  closeDetail();
 
-  detail.classList.add('collapsed');
-  selectedNode = null;
+  // ---- arrowhead marker ----
+  const defs = svg.append('defs');
+  defs.append('marker')
+    .attr('id', 'arr')
+    .attr('viewBox', '0 -5 10 10')
+    .attr('refX', 9)
+    .attr('refY', 0)
+    .attr('markerWidth', 7)
+    .attr('markerHeight', 7)
+    .attr('orient', 'auto')
+    .append('path')
+    .attr('d', 'M0,-5L10,0L0,5')
+    .attr('fill', '#4a90d9');
 
   const hier = buildHierarchy(tree);
   if (!hier) {
-    svg.append('text').attr('x',40).attr('y',40).text('Empty tree').attr('fill','#f38ba8');
+    svg.append('text').attr('x', 40).attr('y', 40).text('Empty tree').attr('fill', '#dc2626');
     return;
   }
 
   const root = d3.hierarchy(hier);
-
-  const treeLayout = d3.tree()
+  d3.tree()
     .nodeSize([NODE_H + V_GAP, NODE_W + H_GAP])
-    .separation((a, b) => a.parent === b.parent ? 1 : 1.3);
+    .separation((a, b) => a.parent === b.parent ? 1 : 1.35)
+    (root);
 
-  treeLayout(root);
+  // Swap axes: tree grows left → right
+  root.each(d => { const t = d.x; d.x = d.y; d.y = t; });
 
-  // Swap x/y: make the tree grow left → right
-  root.each(d => { const tmp = d.x; d.x = d.y; d.y = tmp; });
-
-  // Canvas group (zoom target)
   const g = svg.append('g').attr('class', 'canvas');
 
+  // ---- zoom & pan ----
   const zoom = d3.zoom()
-    .scaleExtent([0.08, 4])
+    .scaleExtent([0.05, 5])
     .on('zoom', e => g.attr('transform', e.transform));
   svg.call(zoom);
 
-  // Initial centering
+  // Initial fit-to-view
   const svgEl = document.getElementById('tree-svg');
-  const W = svgEl.clientWidth  || window.innerWidth  - 360;
-  const H = svgEl.clientHeight || window.innerHeight - 44;
-
+  const W = svgEl.clientWidth  || (window.innerWidth  - 360);
+  const H = svgEl.clientHeight || (window.innerHeight - 46);
   const xs = root.descendants().map(d => d.x);
   const ys = root.descendants().map(d => d.y);
   const minX = Math.min(...xs), maxX = Math.max(...xs);
   const minY = Math.min(...ys), maxY = Math.max(...ys);
-  const treeW = maxX - minX + NODE_W;
-  const treeH = maxY - minY + NODE_H;
-  const scale = Math.min(0.9, Math.min(W / (treeW + 80), H / (treeH + 80)));
-  const tx = (W - treeW * scale) / 2 - minX * scale;
-  const ty = (H - treeH * scale) / 2 - minY * scale;
-  svg.call(zoom.transform, d3.zoomIdentity.translate(tx, ty).scale(scale));
+  const tW = maxX - minX + NODE_W + 40;
+  const tH = maxY - minY + NODE_H + 40;
+  const sc = Math.min(0.88, W / tW, H / tH);
+  const tx = (W - tW * sc) / 2 - minX * sc + 20 * sc;
+  const ty = (H - tH * sc) / 2 - minY * sc + 20 * sc;
+  svg.call(zoom.transform, d3.zoomIdentity.translate(tx, ty).scale(sc));
+
+  // Anchor helpers
+  const srcX = d => d.x + NODE_W;
+  const srcY = d => d.y + NODE_H / 2;
+  const tgtX = d => d.x;
+  const tgtY = d => d.y + NODE_H / 2;
+
+  // S-curve bezier
+  function linkPath(link) {
+    const x1 = srcX(link.source), y1 = srcY(link.source);
+    const x2 = tgtX(link.target), y2 = tgtY(link.target);
+    const mx = (x1 + x2) / 2;
+    return `M${x1},${y1} C${mx},${y1} ${mx},${y2} ${x2},${y2}`;
+  }
+
+  // Edge label position: 38% from source toward target
+  function labelX(link) { return srcX(link.source) * 0.62 + tgtX(link.target) * 0.38; }
+  function labelY(link) { return srcY(link.source) * 0.62 + tgtY(link.target) * 0.38; }
+  // Offset: above the line for upward edges, below for downward edges
+  function labelDy(link) {
+    return tgtY(link.target) > srcY(link.source) ? 14 : -5;
+  }
 
   // ---- links ----
-  const linkGroup = g.append('g');
+  const linkG = g.append('g');
 
-  const linkGen = d3.linkHorizontal()
-    .x(d => d.x + NODE_W / 2)
-    .y(d => d.y + NODE_H / 2);
-
-  linkGroup.selectAll('path.link')
+  linkG.selectAll('path.lnk')
     .data(root.links())
     .join('path')
-    .attr('class', 'link')
-    .attr('d', linkGen);
+    .attr('class', 'lnk')
+    .attr('fill', 'none')
+    .attr('stroke', '#4a90d9')
+    .attr('stroke-width', 1.6)
+    .attr('marker-end', 'url(#arr)')
+    .attr('d', linkPath);
 
-  linkGroup.selectAll('text.link-label')
+  linkG.selectAll('text.el')
     .data(root.links())
     .join('text')
-    .attr('class', 'link-label')
-    .attr('x', d => (d.source.x + NODE_W/2 + d.target.x + NODE_W/2) / 2)
-    .attr('y', d => (d.source.y + NODE_H/2 + d.target.y + NODE_H/2) / 2 - 4)
+    .attr('class', 'el')
+    .attr('font-size', 10.5)
+    .attr('font-family', "'Computer Modern', 'CMU Serif', Georgia, serif")
+    .attr('fill', '#475569')
+    .attr('font-weight', 600)
     .attr('text-anchor', 'middle')
+    .attr('x', labelX)
+    .attr('y', d => labelY(d) + labelDy(d))
     .text(d => d.target.data.edgeLabel || '');
 
   // ---- nodes ----
-  const nodeGroup = g.append('g');
+  const nodeG = g.append('g');
 
-  const nodeEnter = nodeGroup.selectAll('g.node')
+  const nodes = nodeG.selectAll('g.node')
     .data(root.descendants())
     .join('g')
-    .attr('class', d => {
-      if (d.data.kind === 'decision')         return 'node node-decision';
-      if (d.data.bottleneck_type === 'NONE')  return 'node node-leaf-none';
-      return 'node node-leaf-bottleneck';
-    })
+    .attr('class', 'node')
     .attr('transform', d => `translate(${d.x},${d.y})`)
     .style('cursor', 'pointer')
     .call(d3.drag()
@@ -303,10 +351,10 @@ function renderTree(idx) {
         d.x += event.dx;
         d.y += event.dy;
         d3.select(this).attr('transform', `translate(${d.x},${d.y})`);
-        linkGroup.selectAll('path.link').attr('d', linkGen);
-        linkGroup.selectAll('text.link-label')
-          .attr('x', d2 => (d2.source.x + NODE_W/2 + d2.target.x + NODE_W/2)/2)
-          .attr('y', d2 => (d2.source.y + NODE_H/2 + d2.target.y + NODE_H/2)/2 - 4);
+        linkG.selectAll('path.lnk').attr('d', linkPath);
+        linkG.selectAll('text.el')
+          .attr('x', labelX)
+          .attr('y', d2 => labelY(d2) + labelDy(d2));
       })
     )
     .on('click', function(event, d) {
@@ -317,47 +365,61 @@ function renderTree(idx) {
       showDetail(d.data);
     });
 
-  nodeEnter.append('rect')
-    .attr('width', NODE_W)
-    .attr('height', NODE_H)
-    .attr('rx', d => d.data.kind === 'decision' ? CORNER : NODE_H / 2);
+  // Rect + text per node
+  nodes.each(function(d) {
+    const g2 = d3.select(this);
+    const st = nodeStyle(d.data);
 
-  // Word-wrapped text labels
-  nodeEnter.each(function(d) {
-    const g2    = d3.select(this);
-    const label = d.data.label || d.data.id;
+    g2.append('rect')
+      .attr('class', 'node-shape')
+      .attr('width', NODE_W)
+      .attr('height', NODE_H)
+      .attr('rx', st.rx)
+      .attr('ry', st.rx)
+      .attr('fill', st.fill)
+      .attr('stroke', st.stroke)
+      .attr('stroke-width', d.data.kind === 'root' ? 2 : 1.5)
+      .attr('filter', d.data.kind === 'root'
+        ? 'drop-shadow(0 2px 6px rgba(37,99,235,.18))'
+        : 'drop-shadow(0 1px 3px rgba(0,0,0,.08))');
+
+    // Word-wrap label
+    const label = d.data.label || cleanId(d.data.id).replace(/_/g, ' ');
     const words = label.split(/\s+/);
-    const maxCharsPerLine = 18;
-
+    const maxCpl = 20;
     const lines = [];
     let cur = '';
     for (const w of words) {
-      if ((cur + ' ' + w).trim().length > maxCharsPerLine && cur) {
-        lines.push(cur.trim()); cur = w;
+      const candidate = cur ? cur + ' ' + w : w;
+      if (candidate.length > maxCpl && cur) {
+        lines.push(cur); cur = w;
       } else {
-        cur = (cur + ' ' + w).trim();
+        cur = candidate;
       }
     }
-    if (cur) lines.push(cur.trim());
+    if (cur) lines.push(cur);
 
     const lineH  = 14;
     const totalH = lines.length * lineH;
-    const startY = (NODE_H - totalH) / 2 + lineH * 0.8;
+    const startY = (NODE_H - totalH) / 2 + lineH * 0.85;
+    const isOk   = d.data.kind === 'leaf' && d.data.bottleneck_type === 'NONE';
 
     lines.forEach((line, i) => {
       g2.append('text')
         .attr('x', NODE_W / 2)
         .attr('y', startY + i * lineH)
         .attr('text-anchor', 'middle')
+        .attr('fill', '#1a202c')
+        .attr('font-size', isOk ? 13 : 11.5)
+        .attr('font-weight', st.fw)
+        .attr('font-family', "'Computer Modern', 'CMU Serif', Georgia, serif")
+        .style('pointer-events', 'none')
         .text(line);
     });
   });
 
-  // Click on blank canvas → deselect
-  svg.on('click', () => {
-    if (selectedNode) { selectedNode.classed('node-highlight', false); selectedNode = null; }
-    detail.classList.add('collapsed');
-  });
+  // Click on blank SVG → deselect
+  svg.on('click', closeDetail);
 }
 
 // ============================================================
