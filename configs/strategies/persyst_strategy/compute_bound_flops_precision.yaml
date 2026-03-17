@@ -79,7 +79,7 @@ root:
       node_id: dp_only_code
       diagnosis:
         bottleneck_type: PRECISION_INEFFICIENCY
-        severity_formula: FORMULA2
+        severity_formula: DECREASING
         threshold: 0.10
         confidence: 1.0
         recommendation: >

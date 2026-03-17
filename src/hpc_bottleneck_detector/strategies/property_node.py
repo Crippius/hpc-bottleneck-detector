@@ -150,17 +150,17 @@ def _compute_severity(
 
     Supported formulas:
 
-    * ``FORMULA1`` — ``min(1, max(0, value / threshold - 1))``
+    * ``INCREASING`` — ``min(1, max(0, value / threshold - 1))``
       Higher metric value → higher severity.
-    * ``FORMULA2`` — ``min(1, max(0, 1 - value / threshold))``
+    * ``DECREASING`` — ``min(1, max(0, 1 - value / threshold))``
       Lower metric value → higher severity.
     * Any other string is interpreted as a Python float literal (e.g. ``"0.0"``).
     """
-    if formula == "FORMULA1":
+    if formula == "INCREASING":
         if threshold == 0:
             return 0.0
         return float(min(1.0, max(0.0, value / threshold - 1.0)))
-    if formula == "FORMULA2":
+    if formula == "DECREASING":
         if threshold == 0:
             return 0.0
         return float(min(1.0, max(0.0, 1.0 - value / threshold)))
@@ -292,7 +292,7 @@ class PropertyNode:
         formula   = str(cfg.get("severity_formula", "0.0"))
         sev_threshold = float(cfg.get("threshold", 1.0))
 
-        if metric_value is not None and formula in ("FORMULA1", "FORMULA2"):
+        if metric_value is not None and formula in ("INCREASING", "DECREASING"):
             severity = _compute_severity(formula, metric_value, sev_threshold)
         else:
             severity = _compute_severity(formula, 0.0, sev_threshold)

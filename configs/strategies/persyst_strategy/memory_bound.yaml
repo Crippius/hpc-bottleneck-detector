@@ -59,7 +59,7 @@ root:
       node_id: loads_stores_bottleneck
       diagnosis:
         bottleneck_type: DATA_LOCALITY
-        severity_formula: FORMULA1
+        severity_formula: INCREASING
         threshold: 4.0
         confidence: 1.0
         recommendation: >
@@ -84,7 +84,7 @@ root:
         node_id: cache_locality_bottleneck
         diagnosis:
           bottleneck_type: DATA_LOCALITY
-          severity_formula: FORMULA1
+          severity_formula: INCREASING
           threshold: 0.20
           confidence: 1.0
           recommendation: >
@@ -111,7 +111,7 @@ root:
           node_id: sp_dp_recommendation
           diagnosis:
             bottleneck_type: DATA_LOCALITY
-            severity_formula: FORMULA2
+            severity_formula: DECREASING
             threshold: 0.50
             confidence: 1.0
             recommendation: >
@@ -121,7 +121,7 @@ root:
           node_id: memory_bound_generic
           diagnosis:
             bottleneck_type: DATA_LOCALITY
-            severity_formula: FORMULA1
+            severity_formula: INCREASING
             threshold: 0.50
             confidence: 1.0
             recommendation: >

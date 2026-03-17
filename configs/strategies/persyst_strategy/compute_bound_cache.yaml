@@ -82,7 +82,7 @@ root:
         node_id: severe_cache_locality
         diagnosis:
           bottleneck_type: DATA_LOCALITY
-          severity_formula: FORMULA1
+          severity_formula: INCREASING
           threshold: 0.30
           confidence: 1.0
           recommendation: >
@@ -97,7 +97,7 @@ root:
         node_id: moderate_cache_pressure
         diagnosis:
           bottleneck_type: DATA_LOCALITY
-          severity_formula: FORMULA1
+          severity_formula: INCREASING
           threshold: 0.15
           confidence: 1.0
           recommendation: >

@@ -93,7 +93,7 @@ root:
       node_id: no_vectorization
       diagnosis:
         bottleneck_type: DATA_LEVEL_PARALLELISM
-        severity_formula: FORMULA2
+        severity_formula: DECREASING
         threshold: 0.50
         confidence: 1.0
         recommendation: >
@@ -135,7 +135,7 @@ root:
         node_id: avx_flag_missing
         diagnosis:
           bottleneck_type: DATA_LEVEL_PARALLELISM
-          severity_formula: FORMULA2
+          severity_formula: DECREASING
           threshold: 0.013
           confidence: 1.0
           recommendation: >
@@ -150,7 +150,7 @@ root:
         node_id: vectorised_but_low_rate
         diagnosis:
           bottleneck_type: COMPUTE_BOUND_INEFFICIENCY
-          severity_formula: FORMULA2
+          severity_formula: DECREASING
           threshold: 0.15
           confidence: 1.0
           recommendation: >
