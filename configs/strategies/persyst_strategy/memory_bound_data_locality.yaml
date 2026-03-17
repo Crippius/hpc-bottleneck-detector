@@ -1,0 +1,58 @@
+# =============================================================================
+# Strategy Tree — Memory-Bound: Data Locality (Loads to L3 Misses Ratio)
+# =============================================================================
+
+tree_name: memory_bound_data_locality
+description: >
+  Checks the loads-to-L3-misses ratio for memory-bound jobs.
+  A low ratio means most load requests result in L3 misses, indicating
+  poor spatial or temporal data locality.
+
+required_metrics:
+  - group: cache
+    metric: Request Rate
+    trace: L3 request rate
+  - group: cache
+    metric: Miss Rate
+    trace: L3 miss rate
+
+root:
+  node_id: check_loads_to_l3_misses
+  description: "Is the loads-to-L3-misses ratio LOW (many L3 misses relative to requests)?"
+  metric:
+    type: ratio
+    numerator:
+      group: cache
+      metric: Request Rate
+      trace: L3 request rate
+    denominator:
+      group: cache
+      metric: Miss Rate
+      trace: L3 miss rate
+  aggregation: mean
+  operator: "<"
+  threshold: 124.0
+
+  if_true:
+    node_id: data_locality_l3_misses
+    diagnosis:
+      bottleneck_type: DATA_LOCALITY
+      severity_formula: DECREASING
+      threshold: 124.0
+      confidence: 1.0
+      recommendation: >
+        Low loads-to-L3-misses ratio: most load requests result in L3 misses,
+        indicating poor spatial or temporal data locality.
+        Actions:
+          - Improve spatial locality: prefer sequential access; restructure data (AoS → SoA).
+          - Improve temporal locality: use loop tiling/blocking to keep working sets in L2/L3.
+          - Review first-touch NUMA policy in multi-socket codes.
+          - Check for strided or irregular access patterns.
+
+  if_false:
+    node_id: l3_misses_ok
+    diagnosis:
+      bottleneck_type: NONE
+      severity_formula: "0.0"
+      confidence: 1.0
+      recommendation: null

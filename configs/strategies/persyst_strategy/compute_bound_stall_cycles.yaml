@@ -1,0 +1,54 @@
+# =============================================================================
+# Strategy Tree — Compute-Bound: Stall Cycles
+# =============================================================================
+
+tree_name: compute_bound_stall_cycles
+description: >
+  Detects pipeline stall overhead in compute-bound code.
+
+required_metrics:
+  - group: cpu
+    metric: Stalls
+    trace: stall rate
+
+root:
+  node_id: check_stall_rate
+  description: "Is the cycle stall rate above 20% (pipeline not being fed)?"
+  metric:
+    group: cpu
+    metric: Stalls
+    trace: stall rate
+  aggregation: mean
+  operator: ">"
+  threshold: 0.20
+
+  if_false:
+    node_id: low_stall_rate
+    diagnosis:
+      bottleneck_type: NONE
+      severity_formula: "0.0"
+      confidence: 1.0
+      recommendation: null
+
+  if_true:
+    node_id: pipeline_stall_smt
+    diagnosis:
+      bottleneck_type: PIPELINE_BOUND
+      severity_formula: INCREASING
+      threshold: 0.20
+      confidence: 1.0
+      recommendation: >
+        High stall rate: most cycles are spent stalling, indicating
+        the pipeline is not being fed with useful work — likely due to memory-latency or
+        dependency chains.
+        Actions:
+          - Enable Simultaneous Multi-Threading (SMT / Hyper-Threading) to fill idle
+            pipeline slots with work from sibling threads during stalls.
+          - Cross-reference with compute_bound_cache: if L3 miss rate is also elevated,
+            the root cause is memory latency (prefetch or data-locality fix needed).
+          - Use software prefetching (__builtin_prefetch) to hide memory latency for
+            irregular access patterns that hardware prefetchers cannot learn.
+          - Profile with Intel VTune Top-Down Microarchitecture Analysis to distinguish
+            front-end bound (instruction fetch stalls) from back-end bound (execution stalls).
+          - Check for long dependency chains in hot loops (e.g. sequential accumulation);
+            use multiple accumulators to expose instruction-level parallelism.

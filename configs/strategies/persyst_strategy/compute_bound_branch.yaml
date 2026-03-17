@@ -1,0 +1,77 @@
+# =============================================================================
+# Strategy Tree — Compute-Bound: Branch Misprediction
+# =============================================================================
+
+tree_name: compute_bound_branch
+description: >
+  Detects branch misprediction overhead in compute-bound code.
+
+required_metrics:
+  - group: cpu
+    metric: Branching
+    trace: branch misprediction rate
+  - group: cpu
+    metric: Branching
+    trace: branch misprediction ratio
+
+root:
+  node_id: check_branch_mis_rate
+  description: "Is the branch misprediction rate (mispredictions/instructions) above threshold?"
+  metric:
+    group: cpu
+    metric: Branching
+    trace: branch misprediction rate
+  aggregation: mean
+  operator: ">"
+  threshold: 0.01
+
+  if_false:
+    node_id: low_branch_mis_rate
+    diagnosis:
+      bottleneck_type: NONE
+      severity_formula: "0.0"
+      confidence: 1.0
+      recommendation: null
+
+  if_true:
+    node_id: check_branch_mis_ratio
+    description: "Is the branch misprediction ratio (mispredictions/branches) above threshold?"
+    metric:
+      group: cpu
+      metric: Branching
+      trace: branch misprediction ratio
+    aggregation: mean
+    operator: ">"
+    threshold: 0.05
+
+    if_false:
+      node_id: branch_mis_rate_only
+      diagnosis:
+        bottleneck_type: NONE
+        severity_formula: "0.0"
+        confidence: 0.8
+        recommendation: >
+          Branch misprediction rate is elevated but ratio is within bounds. Mispredictions occur
+          frequently per instruction but branches themselves are mostly predicted correctly.
+          No immediate action required; monitor alongside CPI.
+
+    if_true:
+      node_id: branch_misprediction
+      diagnosis:
+        bottleneck_type: BRANCH_MISPREDICTION
+        severity_formula: INCREASING
+        threshold: 0.05
+        confidence: 1.0
+        recommendation: >
+          High branch misprediction rate and ratio: the processor is frequently
+          flushing and refilling the pipeline due to mispredicted branches.
+          Actions:
+            - Replace conditional branches in hot loops with branchless equivalents
+              (conditional moves: cmov, ternary operators the compiler can vectorise).
+            - Sort data before branch-heavy loops to make branch outcomes predictable
+              (e.g. sort-then-filter instead of filter-in-place).
+            - Profile with perf stat -e branch-misses,branches to pinpoint the hottest
+              mispredicting branches.
+            - For loop-exit branches, ensure trip counts are large enough for the branch
+              predictor to learn the pattern.
+            - Avoid deeply nested conditionals in performance-critical inner loops.

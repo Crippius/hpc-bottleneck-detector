@@ -19,8 +19,8 @@ required_metrics:
 thresholds:
   # Benchmark-derived:
   flop_rate_peak_fraction: 0.15 # flag if (SP + DP) FLOPS < 15 % of peakflops
-  # Hardware-independent:
-  sp_to_dp_ratio: 0.10 # SP FLOPS / DP FLOPS; < 0.10 = predominantly DP
+  # Hardware-independent (Carías Table 7.12 "SP to DP Ratio", Statistics 20th pct):
+  sp_to_dp_ratio: 0.035 # SP FLOPS / DP FLOPS; < 0.035 = predominantly DP
 
 root:
   node_id: check_total_flop_rate_prec
@@ -65,26 +65,32 @@ root:
         trace: DP
     aggregation: mean
     operator: "<"
-    threshold: 0.10
+    threshold: 0.035
 
     if_false:
-      node_id: good_precision_balance
+      node_id: precision_balance_indepth
       diagnosis:
-        bottleneck_type: NONE
-        severity_formula: "0.0"
+        bottleneck_type: COMPUTE_BOUND_INEFFICIENCY
+        severity_formula: DECREASING
+        threshold: 0.035
         confidence: 1.0
-        recommendation: null
+        recommendation: >
+          Total FP rate is low but the SP/DP ratio is not dominated by double-precision.
+          No precision inefficiency detected. Investigate other compute-bound root causes:
+            - Check vectorisation quality.
+            - Check CPI and pipeline stalls.
+            - Use Intel VTune Top-Down Microarchitecture Analysis for fine-grained diagnosis.
 
     if_true:
       node_id: dp_only_code
       diagnosis:
         bottleneck_type: PRECISION_INEFFICIENCY
         severity_formula: DECREASING
-        threshold: 0.10
+        threshold: 0.035
         confidence: 1.0
         recommendation: >
           Total FP rate is a small fraction of peak and the code is predominantly double-precision. If the application's accuracy requirements allow:
-            - Migrate hot kernels to single precision to halve the register and memory footprint, and double the SIMD lane count (e.g. AVX: 8 SP lanes vs 4 DP lanes per cycle).
+            - Migrate hot kernels to single precision to halve the register and memory footprint, and double the SIMD lane count.
             - Mixed-precision strategies: use FP32 for intermediate results and FP64 only for accumulation where precision matters.
             - In memory-bound sub-problems, SP also halves memory bandwidth consumption, potentially shifting those paths to compute-bound.
           Verify numerical accuracy requirements before applying this change.
