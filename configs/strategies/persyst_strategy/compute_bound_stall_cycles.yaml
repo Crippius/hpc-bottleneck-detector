@@ -33,7 +33,7 @@ root:
   if_true:
     node_id: pipeline_stall_smt
     diagnosis:
-      bottleneck_type: PIPELINE_BOUND
+      bottleneck_type: PIPELINE_STALL
       severity_formula: INCREASING
       threshold: 85
       confidence: 1.0

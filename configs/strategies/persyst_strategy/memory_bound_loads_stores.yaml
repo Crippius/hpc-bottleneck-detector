@@ -27,7 +27,7 @@ root:
   if_true:
     node_id: data_locality_loads_stores
     diagnosis:
-      bottleneck_type: DATA_LOCALITY
+      bottleneck_type: CACHE_PRESSURE
       severity_formula: INCREASING
       threshold: 15.0
       confidence: 1.0

@@ -38,7 +38,7 @@ root:
   if_true:
     node_id: high_cpi
     diagnosis:
-      bottleneck_type: PIPELINE_BOUND
+      bottleneck_type: PIPELINE_STALL
       severity_formula: INCREASING
       threshold: 10
       confidence: 1.0
@@ -81,7 +81,7 @@ root:
     if_false:
       node_id: object_instantiation_overhead
       diagnosis:
-        bottleneck_type: OBJECT_INSTANTIATION_OVERHEAD
+        bottleneck_type: PIPELINE_STALL
         severity_formula: DECREASING
         threshold: 0.1
         confidence: 1.0

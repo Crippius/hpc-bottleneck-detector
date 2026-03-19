@@ -26,7 +26,7 @@ root:
   if_true:
     node_id: data_locality_l3_misses
     diagnosis:
-      bottleneck_type: DATA_LOCALITY
+      bottleneck_type: CACHE_PRESSURE
       severity_formula: INCREASING
       threshold: 0.741
       confidence: 1.0

@@ -70,7 +70,7 @@ root:
     if_false:
       node_id: precision_balance_indepth
       diagnosis:
-        bottleneck_type: COMPUTE_BOUND_INEFFICIENCY
+        bottleneck_type: COMPUTE_UNDERUTILIZATION
         severity_formula: DECREASING
         threshold: 0.035
         confidence: 1.0
@@ -84,7 +84,7 @@ root:
     if_true:
       node_id: dp_only_code
       diagnosis:
-        bottleneck_type: PRECISION_INEFFICIENCY
+        bottleneck_type: PRECISION_WASTE
         severity_formula: DECREASING
         threshold: 0.035
         confidence: 1.0

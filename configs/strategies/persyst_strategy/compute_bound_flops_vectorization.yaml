@@ -73,7 +73,7 @@ root:
     if_true:
       node_id: no_vectorization
       diagnosis:
-        bottleneck_type: DATA_LEVEL_PARALLELISM
+        bottleneck_type: COMPUTE_UNDERUTILIZATION
         severity_formula: DECREASING
         threshold: 0.01
         confidence: 1.0
@@ -115,7 +115,7 @@ root:
       if_true:
         node_id: avx_flag_missing
         diagnosis:
-          bottleneck_type: DATA_LEVEL_PARALLELISM
+          bottleneck_type: COMPUTE_UNDERUTILIZATION
           severity_formula: DECREASING
           threshold: 0.042
           confidence: 1.0
@@ -130,7 +130,7 @@ root:
       if_false:
         node_id: vectorised_but_low_rate
         diagnosis:
-          bottleneck_type: COMPUTE_BOUND_INEFFICIENCY
+          bottleneck_type: COMPUTE_UNDERUTILIZATION
           severity_formula: DECREASING
           threshold: 0.15
           confidence: 1.0

@@ -36,7 +36,7 @@ root:
   if_true:
     node_id: use_single_precision_mem
     diagnosis:
-      bottleneck_type: PRECISION_INEFFICIENCY
+      bottleneck_type: PRECISION_WASTE
       severity_formula: DECREASING
       threshold: 0.035
       confidence: 1.0

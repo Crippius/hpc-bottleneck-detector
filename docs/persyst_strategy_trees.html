@@ -88,25 +88,25 @@ const TREES = /*TREES_JSON*/[
         "description": ""
       },
       {
-        "id": "memory_bound_data_locality__check_loads_to_l3_misses",
+        "id": "memory_bound_data_locality__check_l3_miss_ratio",
         "kind": "decision",
-        "description": "Is the loads-to-L3-misses ratio LOW (many L3 misses relative to requests)?",
-        "metric_type": "ratio",
-        "metric_description": "RATIO(\n  numerator:\n  cache / Request Rate / L3 request rate\n  denominator:\n  cache / Miss Rate / L3 miss rate\n)",
+        "description": "Is the L3 miss ratio HIGH (most L3 accesses miss the cache)?",
+        "metric_type": "simple",
+        "metric_description": "cache / Miss Ratio / L3 miss ratio",
         "aggregation": "mean",
-        "operator": "<",
-        "threshold": "124.0",
-        "label": "Check Loads To L3 Misses"
+        "operator": ">",
+        "threshold": "0.741",
+        "label": "Check L3 Miss Ratio"
       },
       {
         "id": "memory_bound_data_locality__data_locality_l3_misses",
         "kind": "leaf",
-        "bottleneck_type": "DATA_LOCALITY",
-        "severity_formula": "DECREASING",
-        "threshold": "124.0",
+        "bottleneck_type": "CACHE_PRESSURE",
+        "severity_formula": "INCREASING",
+        "threshold": "0.741",
         "confidence": 1.0,
-        "recommendation": "Low loads-to-L3-misses ratio: most load requests result in L3 misses, indicating poor spatial or temporal data locality. Actions:\n  - Improve spatial locality: prefer sequential access; restructure data (AoS → SoA).\n  - Improve temporal locality: use loop tiling/blocking to keep working sets in L2/L3.\n  - Review first-touch NUMA policy in multi-socket codes.\n  - Check for strided or irregular access patterns.",
-        "label": "Data Locality",
+        "recommendation": "High L3 miss ratio: most L3 accesses are misses (hits-to-misses below 0.35), indicating poor spatial or temporal data locality. Actions:\n  - Improve spatial locality: prefer sequential access; restructure data (AoS → SoA).\n  - Improve temporal locality: use loop tiling/blocking to keep working sets in L2/L3.\n  - Review first-touch NUMA policy in multi-socket codes.\n  - Check for strided or irregular access patterns.",
+        "label": "Cache Pressure",
         "description": ""
       },
       {
@@ -128,18 +128,18 @@ const TREES = /*TREES_JSON*/[
         "metric_description": "memory / Load To Store Ratio / load to store",
         "aggregation": "mean",
         "operator": ">",
-        "threshold": "4.0",
+        "threshold": "15.0",
         "label": "Check Loads To Stores"
       },
       {
         "id": "memory_bound_loads_stores__data_locality_loads_stores",
         "kind": "leaf",
-        "bottleneck_type": "DATA_LOCALITY",
+        "bottleneck_type": "CACHE_PRESSURE",
         "severity_formula": "INCREASING",
-        "threshold": "4.0",
+        "threshold": "15.0",
         "confidence": 1.0,
         "recommendation": "High loads-to-stores ratio: data is loaded many more times than stored, suggesting poor temporal reuse (data loaded multiple times before being consumed). Actions:\n  - Improve temporal reuse: tile/block loops so data is consumed before eviction.\n  - Check for strided or irregular access patterns; restructure to sequential (AoS → SoA).\n  - In OpenMP codes, verify first-touch allocation so threads work on their NUMA domain.",
-        "label": "Data Locality",
+        "label": "Cache Pressure",
         "description": ""
       },
       {
@@ -167,12 +167,12 @@ const TREES = /*TREES_JSON*/[
       {
         "id": "memory_bound_precision__use_single_precision_mem",
         "kind": "leaf",
-        "bottleneck_type": "PRECISION_INEFFICIENCY",
+        "bottleneck_type": "PRECISION_WASTE",
         "severity_formula": "DECREASING",
         "threshold": "0.035",
         "confidence": 1.0,
         "recommendation": "Low SP/DP ratio: the job is memory-bound and predominantly uses double precision. Switching to single precision halves the memory footprint and data transfer volume, potentially shifting the code from memory-bound to compute-bound. Actions:\n  - Migrate hot kernels to SP (verify numerical accuracy requirements first).\n  - Consider mixed-precision: FP32 for intermediates, FP64 only for accumulation.\n  - Verify: if SP halves bandwidth, code may become compute-bound.",
-        "label": "Precision Inefficiency",
+        "label": "Precision Waste",
         "description": ""
       },
       {
@@ -189,18 +189,18 @@ const TREES = /*TREES_JSON*/[
     ],
     "edges": [
       {
-        "source": "memory_bound_data_locality__check_loads_to_l3_misses",
+        "source": "memory_bound_data_locality__check_l3_miss_ratio",
         "target": "memory_bound_data_locality__data_locality_l3_misses",
-        "label": "Low"
-      },
-      {
-        "source": "memory_bound_data_locality__check_loads_to_l3_misses",
-        "target": "memory_bound_data_locality__l3_misses_ok",
         "label": "High"
       },
       {
+        "source": "memory_bound_data_locality__check_l3_miss_ratio",
+        "target": "memory_bound_data_locality__l3_misses_ok",
+        "label": "Low"
+      },
+      {
         "source": "virtual_memory_bound_root",
-        "target": "memory_bound_data_locality__check_loads_to_l3_misses",
+        "target": "memory_bound_data_locality__check_l3_miss_ratio",
         "label": ""
       },
       {
@@ -255,7 +255,7 @@ const TREES = /*TREES_JSON*/[
         "metric_description": "cpu / Branching / branch misprediction rate",
         "aggregation": "mean",
         "operator": ">",
-        "threshold": "0.01",
+        "threshold": "1.8",
         "label": "Check Branch Mis Rate"
       },
       {
@@ -266,7 +266,7 @@ const TREES = /*TREES_JSON*/[
         "metric_description": "cpu / Branching / branch misprediction ratio",
         "aggregation": "mean",
         "operator": ">",
-        "threshold": "0.05",
+        "threshold": "9.0",
         "label": "Check Branch Mis Ratio"
       },
       {
@@ -274,7 +274,7 @@ const TREES = /*TREES_JSON*/[
         "kind": "leaf",
         "bottleneck_type": "BRANCH_MISPREDICTION",
         "severity_formula": "INCREASING",
-        "threshold": "0.05",
+        "threshold": "9.0",
         "confidence": 1.0,
         "recommendation": "High branch misprediction rate and ratio: the processor is frequently flushing and refilling the pipeline due to mispredicted branches. Actions:\n  - Replace conditional branches in hot loops with branchless equivalents\n    (conditional moves: cmov, ternary operators the compiler can vectorise).\n  - Sort data before branch-heavy loops to make branch outcomes predictable\n    (e.g. sort-then-filter instead of filter-in-place).\n  - Profile with perf stat -e branch-misses,branches to pinpoint the hottest\n    mispredicting branches.\n  - For loop-exit branches, ensure trip counts are large enough for the branch\n    predictor to learn the pattern.\n  - Avoid deeply nested conditionals in performance-critical inner loops.",
         "label": "Branch Misprediction",
@@ -286,7 +286,7 @@ const TREES = /*TREES_JSON*/[
         "bottleneck_type": "NONE",
         "severity_formula": "0.0",
         "threshold": "",
-        "confidence": 0.8,
+        "confidence": 1.0,
         "recommendation": "Branch misprediction rate is elevated but ratio is within bounds. Mispredictions occur frequently per instruction but branches themselves are mostly predicted correctly. No immediate action required; monitor alongside CPI.",
         "label": "OK",
         "description": ""
@@ -310,7 +310,7 @@ const TREES = /*TREES_JSON*/[
         "metric_description": "cache / Bandwidth / L3 bandwidth",
         "aggregation": "mean",
         "operator": ">",
-        "threshold": "40% of benchmark(bandwidth_l3)  [fallback 1.54]",
+        "threshold": "20% of benchmark(bandwidth_l3)  [fallback 1.54]",
         "label": "Check L3 Bandwidth"
       },
       {
@@ -321,7 +321,7 @@ const TREES = /*TREES_JSON*/[
         "metric_description": "cache / Miss Rate / L3 miss rate",
         "aggregation": "mean",
         "operator": ">",
-        "threshold": "0.0003",
+        "threshold": "0.6",
         "label": "Check L3 Miss Rate"
       },
       {
@@ -338,23 +338,23 @@ const TREES = /*TREES_JSON*/[
       {
         "id": "compute_bound_cache__severe_cache_locality",
         "kind": "leaf",
-        "bottleneck_type": "DATA_LOCALITY",
+        "bottleneck_type": "CACHE_PRESSURE",
         "severity_formula": "INCREASING",
         "threshold": "0.741",
         "confidence": 1.0,
         "recommendation": "L3 bandwidth is high, L3 miss rate is elevated, and the L3 miss ratio exceeds 0.741 (hits-to-misses below 0.35): the cache hierarchy is suffering from severe locality problems. Actions:\n  - Tiling/blocking: restructure loops so each tile's working set fits in L2 or L3\n    (e.g. cache-oblivious matrix multiply).\n  - Replace gather/scatter patterns with sequential access; use Structure of Arrays (SoA)\n    layout instead of Array of Structures (AoS).\n  - Fuse loops that access the same data to avoid re-loading it from memory.\n  - In multi-socket codes, ensure first-touch allocation places data on the socket that\n    will process it (NUMA affinity).",
-        "label": "Data Locality",
+        "label": "Cache Pressure",
         "description": ""
       },
       {
         "id": "compute_bound_cache__cache_pressure_indepth",
         "kind": "leaf",
-        "bottleneck_type": "COMPUTE_BOUND_INEFFICIENCY",
+        "bottleneck_type": "COMPUTE_UNDERUTILIZATION",
         "severity_formula": "INCREASING",
-        "threshold": "0.0003",
-        "confidence": 0.7,
+        "threshold": "0.6",
+        "confidence": 1.0,
         "recommendation": "L3 bandwidth and L3 miss rate are elevated but the miss ratio is below 0.741 (hits-to-misses still acceptable). Hardware prefetching may be partially hiding latency. In-depth analysis recommended:\n  - Profile with Intel VTune or perf to identify the specific functions driving L3 traffic.\n  - Apply loop tiling to the hottest data-access kernels.\n  - Check prefetch distances and verify hardware prefetchers are not thrashing.\n  - Cross-reference with compute_bound_cpi tree: elevated CPI alongside this signal\n    confirms memory-latency root cause.",
-        "label": "Compute Bound Inefficiency",
+        "label": "Compute Underutilization",
         "description": ""
       },
       {
@@ -382,23 +382,23 @@ const TREES = /*TREES_JSON*/[
       {
         "id": "compute_bound_cpi__check_cpi",
         "kind": "decision",
-        "description": "Is CPI above 1.6 (pipeline not being fed efficiently)?",
+        "description": "Is CPI above 10 (pipeline not being fed efficiently)?",
         "metric_type": "simple",
         "metric_description": "cpu / CPI / CPI",
         "aggregation": "mean",
         "operator": ">",
-        "threshold": "1.6",
+        "threshold": "10.0",
         "label": "Check Cpi"
       },
       {
         "id": "compute_bound_cpi__high_cpi",
         "kind": "leaf",
-        "bottleneck_type": "PIPELINE_BOUND",
+        "bottleneck_type": "PIPELINE_STALL",
         "severity_formula": "INCREASING",
-        "threshold": "1.6",
+        "threshold": "10.0",
         "confidence": 1.0,
         "recommendation": "CPI is high: the processor is stalling frequently or the instruction stream is inefficient. In-depth analysis required. Recommended actions:\n  - Use Top-Down Microarchitecture Analysis (TMA) with Intel VTune or perf to identify whether the bottleneck is front-end bound, back-end bound, bad speculation, or retiring.\n  - Cross-reference with compute_bound_cache: high L3 BW and L2 miss rate would confirm a memory-latency root cause.\n  - Check for serialising instructions (CPUID, memory fences, atomic ops, lock prefixes) in hot loops.\n  - Evaluate if Simultaneous Multi-Threading (SMT / Hyper-Threading) could fill idle pipeline slots.",
-        "label": "Pipeline Bound",
+        "label": "Pipeline Stall",
         "description": ""
       },
       {
@@ -409,7 +409,7 @@ const TREES = /*TREES_JSON*/[
         "metric_description": "SUM(\n  cpu / FLOPS / SP,\n  cpu / FLOPS / DP\n)",
         "aggregation": "mean",
         "operator": ">",
-        "threshold": "15% of benchmark(peakflops)  [fallback 10.0]",
+        "threshold": "10% of benchmark(peakflops)  [fallback 10.0]",
         "label": "Check Flop Rate For Cpi"
       },
       {
@@ -426,12 +426,12 @@ const TREES = /*TREES_JSON*/[
       {
         "id": "compute_bound_cpi__object_instantiation_overhead",
         "kind": "leaf",
-        "bottleneck_type": "OBJECT_INSTANTIATION_OVERHEAD",
+        "bottleneck_type": "PIPELINE_STALL",
         "severity_formula": "DECREASING",
-        "threshold": "0.15",
+        "threshold": "0.1",
         "confidence": 1.0,
         "recommendation": "CPI is within normal range but the total FLOP rate is a small fraction of peak. The processor is executing instructions efficiently but doing very little floating-point work. Typical causes:\n  - Heavy C++ object construction/destruction in hot paths (constructor chains, std::vector reallocations, move semantics).\n  - Frequent virtual function dispatch or RTTI in inner loops.\n  - Excessive dynamic memory allocation (malloc/free/new/delete) triggering allocator overhead and cache misses.\nRecommended actions:\n  - Profile with perf or VTune focusing on instruction mix: a high fraction of integer/control instructions vs FP points to non-computational hot paths.\n  - Use object pools or arena allocators to eliminate allocator overhead in performance-critical sections.\n  - Replace virtual dispatch with CRTP or policy-based templates in inner loops to allow inlining.",
-        "label": "Object Instantiation Overhead",
+        "label": "Pipeline Stall",
         "description": ""
       },
       {
@@ -442,7 +442,7 @@ const TREES = /*TREES_JSON*/[
         "metric_description": "SUM(\n  cpu / FLOPS / SP,\n  cpu / FLOPS / DP\n)",
         "aggregation": "mean",
         "operator": "<",
-        "threshold": "15% of benchmark(peakflops)  [fallback 10.0]",
+        "threshold": "10% of benchmark(peakflops)  [fallback 10.0]",
         "label": "Check Total Flop Rate Prec"
       },
       {
@@ -459,23 +459,23 @@ const TREES = /*TREES_JSON*/[
       {
         "id": "compute_bound_flops_precision__dp_only_code",
         "kind": "leaf",
-        "bottleneck_type": "PRECISION_INEFFICIENCY",
+        "bottleneck_type": "PRECISION_WASTE",
         "severity_formula": "DECREASING",
         "threshold": "0.035",
         "confidence": 1.0,
         "recommendation": "Total FP rate is a small fraction of peak and the code is predominantly double-precision. If the application's accuracy requirements allow:\n  - Migrate hot kernels to single precision to halve the register and memory footprint, and double the SIMD lane count.\n  - Mixed-precision strategies: use FP32 for intermediate results and FP64 only for accumulation where precision matters.\n  - In memory-bound sub-problems, SP also halves memory bandwidth consumption, potentially shifting those paths to compute-bound.\nVerify numerical accuracy requirements before applying this change.",
-        "label": "Precision Inefficiency",
+        "label": "Precision Waste",
         "description": ""
       },
       {
         "id": "compute_bound_flops_precision__precision_balance_indepth",
         "kind": "leaf",
-        "bottleneck_type": "COMPUTE_BOUND_INEFFICIENCY",
+        "bottleneck_type": "COMPUTE_UNDERUTILIZATION",
         "severity_formula": "DECREASING",
         "threshold": "0.035",
         "confidence": 1.0,
         "recommendation": "Total FP rate is low but the SP/DP ratio is not dominated by double-precision. No precision inefficiency detected. Investigate other compute-bound root causes:\n  - Check vectorisation quality.\n  - Check CPI and pipeline stalls.\n  - Use Intel VTune Top-Down Microarchitecture Analysis for fine-grained diagnosis.",
-        "label": "Compute Bound Inefficiency",
+        "label": "Compute Underutilization",
         "description": ""
       },
       {
@@ -503,9 +503,9 @@ const TREES = /*TREES_JSON*/[
       {
         "id": "compute_bound_flops_vectorization__check_vec_to_scalar",
         "kind": "decision",
-        "description": "Is the fraction of FLOPS executed as vector operations low?",
-        "metric_type": "ratio",
-        "metric_description": "RATIO(\n  numerator:\n  SUM(\n    cpu / FLOPS / AVX DP,\n    cpu / FLOPS / AVX SP,\n    cpu / SSE Operations / packed SP,\n    cpu / SSE Operations / packed DP\n  )\n  denominator:\n  SUM(\n    cpu / FLOPS / DP,\n    cpu / FLOPS / SP\n  )\n)",
+        "description": "Is the fraction of DP ops executed as vector operations low (nearly scalar)?",
+        "metric_type": "simple",
+        "metric_description": "cpu / Vectorization / vectorization ratio DP",
         "aggregation": "mean",
         "operator": "<",
         "threshold": "0.01",
@@ -514,45 +514,45 @@ const TREES = /*TREES_JSON*/[
       {
         "id": "compute_bound_flops_vectorization__no_vectorization",
         "kind": "leaf",
-        "bottleneck_type": "DATA_LEVEL_PARALLELISM",
+        "bottleneck_type": "COMPUTE_UNDERUTILIZATION",
         "severity_formula": "DECREASING",
         "threshold": "0.01",
         "confidence": 1.0,
-        "recommendation": "Total FP rate is low and not enough FLOPS are vectorised. The code is largely scalar - no data-level parallelism exploited. Actions:\n  - Identify data-parallel loops and enable auto-vectorisation: -O2 -ftree-vectorize (GCC), or use Intel compiler -qopt-report.\n  - Remove loop-carried dependencies that block vectorisation.\n  - Restructure data from Array of Structures (AoS) to Structure of Arrays (SoA) for better SIMD alignment.\n  - AVX-512: up to 16 SP or 8 DP ops per cycle.",
-        "label": "Data Level Parallelism",
+        "recommendation": "Total FP rate is low and nearly all DP operations are scalar — no data-level parallelism exploited. Actions:\n  - Identify data-parallel loops and enable auto-vectorisation: -O2 -ftree-vectorize (GCC), or use Intel compiler -qopt-report.\n  - Remove loop-carried dependencies that block vectorisation.\n  - Restructure data from Array of Structures (AoS) to Structure of Arrays (SoA) for better SIMD alignment.\n  - AVX-512: up to 16 SP or 8 DP ops per cycle.",
+        "label": "Compute Underutilization",
         "description": ""
       },
       {
         "id": "compute_bound_flops_vectorization__check_avx_sse_ratio",
         "kind": "decision",
-        "description": "Is the AVX-to-SSE ratio below threshold (SSE dominates)?",
+        "description": "Is the AVX share of total FLOPS low (SSE dominates, AVX underused)?",
         "metric_type": "ratio",
-        "metric_description": "RATIO(\n  numerator:\n  SUM(\n    cpu / FLOPS / AVX SP,\n    cpu / FLOPS / AVX DP\n  )\n  denominator:\n  SUM(\n    cpu / SSE Operations / packed SP,\n    cpu / SSE Operations / packed DP\n  )\n)",
+        "metric_description": "RATIO(\n  numerator:\n  SUM(\n    cpu / FLOPS / AVX SP,\n    cpu / FLOPS / AVX DP\n  )\n  denominator:\n  SUM(\n    cpu / FLOPS / SP,\n    cpu / FLOPS / DP\n  )\n)",
         "aggregation": "mean",
         "operator": "<",
-        "threshold": "0.013",
+        "threshold": "0.042",
         "label": "Check Avx Sse Ratio"
       },
       {
         "id": "compute_bound_flops_vectorization__avx_flag_missing",
         "kind": "leaf",
-        "bottleneck_type": "DATA_LEVEL_PARALLELISM",
+        "bottleneck_type": "COMPUTE_UNDERUTILIZATION",
         "severity_formula": "DECREASING",
-        "threshold": "0.013",
+        "threshold": "0.042",
         "confidence": 1.0,
         "recommendation": "Vectorisation is present (SSE) but AVX operations are nearly absent. The hardware supports AVX but the code is not compiled to use it. Actions:\n  - Recompile with -mavx2 (GCC/Clang) or -xAVX (Intel compiler).\n  - Check for struct padding or memory alignment issues that disable 256-bit load/store paths.\n  - Profile loops with Intel Advisor to identify AVX blockers.\nAVX doubles SIMD width (256-bit vs 128-bit), potentially doubling throughput for compute-limited kernels.",
-        "label": "Data Level Parallelism",
+        "label": "Compute Underutilization",
         "description": ""
       },
       {
         "id": "compute_bound_flops_vectorization__vectorised_but_low_rate",
         "kind": "leaf",
-        "bottleneck_type": "COMPUTE_BOUND_INEFFICIENCY",
+        "bottleneck_type": "COMPUTE_UNDERUTILIZATION",
         "severity_formula": "DECREASING",
         "threshold": "0.15",
         "confidence": 1.0,
         "recommendation": "FP rate is a small fraction of peak despite good AVX vectorisation. A micro-architectural bottleneck is limiting throughput. Recommended in-depth analysis:\n  - Check execution port utilisation with Intel VTune (TMA).\n  - Look for serialising instructions (CPUID, RDTSC, fences) in hot loops preventing out-of-order execution.\n  - Check for register pressure causing spills.\n  - Cross-reference with compute_bound_cache and\n    compute_bound_cpi trees for memory and pipeline signals.",
-        "label": "Compute Bound Inefficiency",
+        "label": "Compute Underutilization",
         "description": ""
       },
       {
@@ -569,23 +569,23 @@ const TREES = /*TREES_JSON*/[
       {
         "id": "compute_bound_stall_cycles__check_stall_rate",
         "kind": "decision",
-        "description": "Is the cycle stall rate above 20% (pipeline not being fed)?",
+        "description": "Is the cycle stall rate above 85% (pipeline not being fed)?",
         "metric_type": "simple",
         "metric_description": "cpu / Stalls / stall rate",
         "aggregation": "mean",
         "operator": ">",
-        "threshold": "0.2",
+        "threshold": "85.0",
         "label": "Check Stall Rate"
       },
       {
         "id": "compute_bound_stall_cycles__pipeline_stall_smt",
         "kind": "leaf",
-        "bottleneck_type": "PIPELINE_BOUND",
+        "bottleneck_type": "PIPELINE_STALL",
         "severity_formula": "INCREASING",
-        "threshold": "0.2",
+        "threshold": "85.0",
         "confidence": 1.0,
         "recommendation": "High stall rate: most cycles are spent stalling, indicating the pipeline is not being fed with useful work — likely due to memory-latency or dependency chains. Actions:\n  - Enable Simultaneous Multi-Threading (SMT / Hyper-Threading) to fill idle\n    pipeline slots with work from sibling threads during stalls.\n  - Cross-reference with compute_bound_cache: if L3 miss rate is also elevated,\n    the root cause is memory latency (prefetch or data-locality fix needed).\n  - Use software prefetching (__builtin_prefetch) to hide memory latency for\n    irregular access patterns that hardware prefetchers cannot learn.\n  - Profile with Intel VTune Top-Down Microarchitecture Analysis to distinguish\n    front-end bound (instruction fetch stalls) from back-end bound (execution stalls).\n  - Check for long dependency chains in hot loops (e.g. sequential accumulation);\n    use multiple accumulators to expose instruction-level parallelism.",
-        "label": "Pipeline Bound",
+        "label": "Pipeline Stall",
         "description": ""
       },
       {

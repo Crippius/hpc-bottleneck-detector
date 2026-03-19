@@ -74,7 +74,7 @@ root:
       if_true:
         node_id: severe_cache_locality
         diagnosis:
-          bottleneck_type: DATA_LOCALITY
+          bottleneck_type: CACHE_PRESSURE
           severity_formula: INCREASING
           threshold: 0.741
           confidence: 1.0
@@ -93,7 +93,7 @@ root:
       if_false:
         node_id: cache_pressure_indepth
         diagnosis:
-          bottleneck_type: COMPUTE_BOUND_INEFFICIENCY
+          bottleneck_type: COMPUTE_UNDERUTILIZATION
           severity_formula: INCREASING
           threshold: 0.6
           confidence: 1.0

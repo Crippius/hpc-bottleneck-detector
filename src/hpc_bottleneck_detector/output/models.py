@@ -37,17 +37,15 @@ class BottleneckType(Enum):
     """Fine-grained bottleneck classification."""
 
     # Compute-bound — pipeline / instruction efficiency
-    PIPELINE_BOUND                  = "PIPELINE_BOUND"
-    OBJECT_INSTANTIATION_OVERHEAD   = "OBJECT_INSTANTIATION_OVERHEAD"
-    COMPUTE_BOUND_INEFFICIENCY      = "COMPUTE_BOUND_INEFFICIENCY"
-    PRECISION_INEFFICIENCY          = "PRECISION_INEFFICIENCY"
+    PIPELINE_STALL                  = "PIPELINE_STALL"
+    COMPUTE_UNDERUTILIZATION        = "COMPUTE_UNDERUTILIZATION"
+    PRECISION_WASTE                 = "PRECISION_WASTE"
 
     # Compute-bound — vectorisation / data-level parallelism
     BRANCH_MISPREDICTION            = "BRANCH_MISPREDICTION"
-    DATA_LEVEL_PARALLELISM          = "DATA_LEVEL_PARALLELISM"
 
     # Memory-bound
-    DATA_LOCALITY                   = "DATA_LOCALITY"
+    CACHE_PRESSURE                  = "CACHE_PRESSURE"
     MEMORY_BANDWIDTH                = "MEMORY_BANDWIDTH"
 
     # Communication / load balance
@@ -61,13 +59,11 @@ class BottleneckType(Enum):
     def get_macro_category(self) -> MacroCategoryType:
         """Return the macro category this bottleneck belongs to."""
         _MAP: dict[BottleneckType, MacroCategoryType] = {
-            BottleneckType.PIPELINE_BOUND:                MacroCategoryType.COMPUTE_BOUND,
-            BottleneckType.OBJECT_INSTANTIATION_OVERHEAD: MacroCategoryType.COMPUTE_BOUND,
-            BottleneckType.COMPUTE_BOUND_INEFFICIENCY:    MacroCategoryType.COMPUTE_BOUND,
-            BottleneckType.PRECISION_INEFFICIENCY:        MacroCategoryType.COMPUTE_BOUND,
+            BottleneckType.PIPELINE_STALL:                MacroCategoryType.COMPUTE_BOUND,
+            BottleneckType.COMPUTE_UNDERUTILIZATION:      MacroCategoryType.COMPUTE_BOUND,
+            BottleneckType.PRECISION_WASTE:               MacroCategoryType.COMPUTE_BOUND,
             BottleneckType.BRANCH_MISPREDICTION:          MacroCategoryType.COMPUTE_BOUND,
-            BottleneckType.DATA_LEVEL_PARALLELISM:        MacroCategoryType.COMPUTE_BOUND,
-            BottleneckType.DATA_LOCALITY:                 MacroCategoryType.MEMORY_BOUND,
+            BottleneckType.CACHE_PRESSURE:                MacroCategoryType.MEMORY_BOUND,
             BottleneckType.MEMORY_BANDWIDTH:              MacroCategoryType.MEMORY_BOUND,
             BottleneckType.INTER_NODE_LOAD_IMBALANCE:     MacroCategoryType.LOAD_IMBALANCE,
             BottleneckType.NONE:                          MacroCategoryType.NONE,
