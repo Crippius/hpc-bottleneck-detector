@@ -1,47 +1,37 @@
 # =============================================================================
-# Strategy Tree — Memory-Bound: Data Locality (Loads to L3 Misses Ratio)
+# Strategy Tree — Memory-Bound: Data Locality (L3 Miss Ratio)
 # =============================================================================
-
 tree_name: memory_bound_data_locality
 description: >
-  Checks the loads-to-L3-misses ratio for memory-bound jobs.
-  A low ratio means most load requests result in L3 misses, indicating
+  Checks the L3 miss ratio for memory-bound jobs.
+  A high ratio means most L3 accesses are misses, indicating
   poor spatial or temporal data locality.
 
 required_metrics:
   - group: cache
-    metric: Request Rate
-    trace: L3 request rate
-  - group: cache
-    metric: Miss Rate
-    trace: L3 miss rate
+    metric: Miss Ratio
+    trace: L3 miss ratio
 
 root:
-  node_id: check_loads_to_l3_misses
-  description: "Is the loads-to-L3-misses ratio LOW (many L3 misses relative to requests)?"
+  node_id: check_l3_miss_ratio
+  description: "Is the L3 miss ratio HIGH (most L3 accesses miss the cache)?"
   metric:
-    type: ratio
-    numerator:
-      group: cache
-      metric: Request Rate
-      trace: L3 request rate
-    denominator:
-      group: cache
-      metric: Miss Rate
-      trace: L3 miss rate
+    group: cache
+    metric: Miss Ratio
+    trace: L3 miss ratio
   aggregation: mean
-  operator: "<"
-  threshold: 124.0
+  operator: ">"
+  threshold: 0.741
 
   if_true:
     node_id: data_locality_l3_misses
     diagnosis:
       bottleneck_type: DATA_LOCALITY
-      severity_formula: DECREASING
-      threshold: 124.0
+      severity_formula: INCREASING
+      threshold: 0.741
       confidence: 1.0
       recommendation: >
-        Low loads-to-L3-misses ratio: most load requests result in L3 misses,
+        High L3 miss ratio: most L3 accesses are misses (hits-to-misses below 0.35),
         indicating poor spatial or temporal data locality.
         Actions:
           - Improve spatial locality: prefer sequential access; restructure data (AoS → SoA).

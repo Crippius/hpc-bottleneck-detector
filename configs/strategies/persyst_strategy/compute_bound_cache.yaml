@@ -28,7 +28,7 @@ root:
   operator: ">"
   threshold:
     benchmark: bandwidth_l3
-    fraction: 0.40
+    fraction: 0.2
     aggregate: mean
     fallback: 1.54 # GB/s
 
@@ -49,7 +49,7 @@ root:
       trace: L3 miss rate
     aggregation: mean
     operator: ">"
-    threshold: 0.0003
+    threshold: 0.6
 
     if_false:
       node_id: l3_bw_no_miss_pressure
@@ -95,8 +95,8 @@ root:
         diagnosis:
           bottleneck_type: COMPUTE_BOUND_INEFFICIENCY
           severity_formula: INCREASING
-          threshold: 0.0003
-          confidence: 0.7
+          threshold: 0.6
+          confidence: 1.0
           recommendation: >
             L3 bandwidth and L3 miss rate are elevated but the miss ratio is below 0.741
             (hits-to-misses still acceptable). Hardware prefetching may be partially hiding latency.

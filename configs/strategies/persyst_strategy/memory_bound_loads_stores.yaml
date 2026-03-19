@@ -22,14 +22,14 @@ root:
     trace: load to store
   aggregation: mean
   operator: ">"
-  threshold: 4.0
+  threshold: 15.0
 
   if_true:
     node_id: data_locality_loads_stores
     diagnosis:
       bottleneck_type: DATA_LOCALITY
       severity_formula: INCREASING
-      threshold: 4.0
+      threshold: 15.0
       confidence: 1.0
       recommendation: >
         High loads-to-stores ratio: data is loaded many more times than stored,

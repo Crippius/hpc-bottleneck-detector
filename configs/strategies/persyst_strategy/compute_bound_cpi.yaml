@@ -21,26 +21,26 @@ thresholds:
   # Benchmark-derived:
   flop_rate_peak_fraction: 0.15 # flag if (SP + DP) FLOPS < 15 % of peakflops
   # Hardware-independent ratios:
-  cpi: 1.6 # high CPI
+  cpi: 10 # high CPI
 
 root:
   # Is CPI high?
   node_id: check_cpi
-  description: "Is CPI above 1.6 (pipeline not being fed efficiently)?"
+  description: "Is CPI above 10 (pipeline not being fed efficiently)?"
   metric:
     group: cpu
     metric: CPI
     trace: CPI
   aggregation: mean
   operator: ">"
-  threshold: 1.6
+  threshold: 10
 
   if_true:
     node_id: high_cpi
     diagnosis:
       bottleneck_type: PIPELINE_BOUND
       severity_formula: INCREASING
-      threshold: 1.6
+      threshold: 10
       confidence: 1.0
       recommendation: >
         CPI is high: the processor is stalling frequently or the instruction stream is inefficient. In-depth analysis required.
@@ -66,7 +66,7 @@ root:
     operator: ">"
     threshold:
       benchmark: peakflops
-      fraction: 0.15
+      fraction: 0.1
       aggregate: mean
       fallback: 10.0
 
@@ -83,7 +83,7 @@ root:
       diagnosis:
         bottleneck_type: OBJECT_INSTANTIATION_OVERHEAD
         severity_formula: DECREASING
-        threshold: 0.15
+        threshold: 0.1
         confidence: 1.0
         recommendation: >
           CPI is within normal range but the total FLOP rate is a small fraction of peak. The processor is executing instructions efficiently but doing very little floating-point work.

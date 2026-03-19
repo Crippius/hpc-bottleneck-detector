@@ -5,7 +5,7 @@
 tree_name: compute_bound_flops_vectorization
 description: >
   When total FP rate is a small fraction of peak, investigates vectorisation
-  quality: scalar vs vector split, then AVX vs SSE split.
+  quality: overall scalar vs vector split, then AVX vs SSE split.
 
 required_metrics:
   - group: cpu
@@ -21,18 +21,15 @@ required_metrics:
     metric: FLOPS
     trace: AVX DP
   - group: cpu
-    metric: SSE Operations
-    trace: packed SP
-  - group: cpu
-    metric: SSE Operations
-    trace: packed DP
+    metric: Vectorization
+    trace: vectorization ratio DP
 
 thresholds:
   # Benchmark-derived:
   flop_rate_peak_fraction: 0.15 # flag if (SP + DP) FLOPS < 15 % of peakflops
   # Hardware-independent:
-  vec_to_scalar: 0.01 # (AVX + SSE_packed) / total FLOPS; < 0.01 = nearly no vectorisation
-  avx_sse_ratio: 0.013 # (AVX_SP + AVX_DP) / (SSE_packed_SP + SSE_packed_DP)
+  vec_to_scalar: 0.01 # vectorized DP ops / total DP ops; < 0.01 = nearly scalar
+  avx_share: 0.042 # (AVX_SP + AVX_DP) / (flops_SP + flops_DP); low = SSE-only
 
 root:
   node_id: check_total_flop_rate
@@ -64,33 +61,11 @@ root:
 
   if_true:
     node_id: check_vec_to_scalar
-    description: "Is the fraction of FLOPS executed as vector operations low?"
+    description: "Is the fraction of DP ops executed as vector operations low (nearly scalar)?"
     metric:
-      type: ratio
-      numerator:
-        type: sum
-        operands:
-          - group: cpu
-            metric: FLOPS
-            trace: AVX DP
-          - group: cpu
-            metric: FLOPS
-            trace: AVX SP
-          - group: cpu
-            metric: SSE Operations
-            trace: packed SP
-          - group: cpu
-            metric: SSE Operations
-            trace: packed DP
-      denominator:
-        type: sum
-        operands:
-          - group: cpu
-            metric: FLOPS
-            trace: DP
-          - group: cpu
-            metric: FLOPS
-            trace: SP
+      group: cpu
+      metric: Vectorization
+      trace: vectorization ratio DP
     aggregation: mean
     operator: "<"
     threshold: 0.01
@@ -103,7 +78,7 @@ root:
         threshold: 0.01
         confidence: 1.0
         recommendation: >
-          Total FP rate is low and not enough FLOPS are vectorised. The code is largely scalar - no data-level parallelism exploited.
+          Total FP rate is low and nearly all DP operations are scalar — no data-level parallelism exploited.
           Actions:
             - Identify data-parallel loops and enable auto-vectorisation: -O2 -ftree-vectorize (GCC), or use Intel compiler -qopt-report.
             - Remove loop-carried dependencies that block vectorisation.
@@ -112,7 +87,7 @@ root:
 
     if_false:
       node_id: check_avx_sse_ratio
-      description: "Is the AVX-to-SSE ratio below threshold (SSE dominates)?"
+      description: "Is the AVX share of total FLOPS low (SSE dominates, AVX underused)?"
       metric:
         type: ratio
         numerator:
@@ -128,21 +103,21 @@ root:
           type: sum
           operands:
             - group: cpu
-              metric: SSE Operations
-              trace: packed SP
+              metric: FLOPS
+              trace: SP
             - group: cpu
-              metric: SSE Operations
-              trace: packed DP
+              metric: FLOPS
+              trace: DP
       aggregation: mean
       operator: "<"
-      threshold: 0.013
+      threshold: 0.042
 
       if_true:
         node_id: avx_flag_missing
         diagnosis:
           bottleneck_type: DATA_LEVEL_PARALLELISM
           severity_formula: DECREASING
-          threshold: 0.013
+          threshold: 0.042
           confidence: 1.0
           recommendation: >
             Vectorisation is present (SSE) but AVX operations are nearly absent. The hardware supports AVX but the code is not compiled to use it.

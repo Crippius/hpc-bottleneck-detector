@@ -23,7 +23,7 @@ root:
     trace: branch misprediction rate
   aggregation: mean
   operator: ">"
-  threshold: 0.01
+  threshold: 1.8
 
   if_false:
     node_id: low_branch_mis_rate
@@ -42,14 +42,14 @@ root:
       trace: branch misprediction ratio
     aggregation: mean
     operator: ">"
-    threshold: 0.05
+    threshold: 9.0
 
     if_false:
       node_id: branch_mis_rate_only
       diagnosis:
         bottleneck_type: NONE
         severity_formula: "0.0"
-        confidence: 0.8
+        confidence: 1.0
         recommendation: >
           Branch misprediction rate is elevated but ratio is within bounds. Mispredictions occur
           frequently per instruction but branches themselves are mostly predicted correctly.
@@ -60,7 +60,7 @@ root:
       diagnosis:
         bottleneck_type: BRANCH_MISPREDICTION
         severity_formula: INCREASING
-        threshold: 0.05
+        threshold: 9.0
         confidence: 1.0
         recommendation: >
           High branch misprediction rate and ratio: the processor is frequently
