@@ -26,6 +26,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import List, Optional
 
+import matplotlib.colors as mcolors
 import numpy as np
 import pandas as pd
 
@@ -73,6 +74,96 @@ class DetectionResult:
 # Main demo
 # =============================================================================
 
+def _lerp_color(rgb_low: tuple, rgb_high: tuple, t: float) -> tuple:
+    """Linearly interpolate between two RGB tuples (values 0-1)."""
+    return tuple(rgb_low[i] + (rgb_high[i] - rgb_low[i]) * t for i in range(3))
+
+
+def _ansi_bg(rgb: tuple) -> str:
+    """Return ANSI truecolor background escape for an RGB tuple (values 0–1)."""
+    r, g, b = (int(v * 255) for v in rgb)
+    return f"\033[48;2;{r};{g};{b}m"
+
+
+_RESET = "\033[0m"
+
+
+def print_bottleneck_timeline(
+    window_records: list,
+    color_low: str = "green",
+    color_high: str = "red",
+) -> None:
+    """Print a Persyst-style timeline heatmap to the terminal.
+
+    Rows = bottleneck types, columns = time windows.
+    Cell color interpolates from *color_low* (low severity) to *color_high*
+    (high severity).  Windows with no detection are left blank.
+
+    Parameters
+    ----------
+    window_records:
+        List of ``(start_interval, end_interval, diagnoses)`` tuples.
+    color_low, color_high:
+        Any matplotlib-compatible color name or hex string.
+    """
+    from hpc_bottleneck_detector.output.models import BottleneckType
+
+    rgb_low  = mcolors.to_rgb(color_low)
+    rgb_high = mcolors.to_rgb(color_high)
+
+    excluded = {BottleneckType.NONE, BottleneckType.UNKNOWN}
+    all_types = [bt for bt in BottleneckType if bt not in excluded]
+
+    n_windows = len(window_records)
+    severity_grid = np.full((len(all_types), n_windows), np.nan)
+
+    for col, (_, __, diagnoses) in enumerate(window_records):
+        for d in diagnoses:
+            if d.bottleneck_type in excluded:
+                continue
+            row = all_types.index(d.bottleneck_type)
+            current = severity_grid[row, col]
+            severity_grid[row, col] = (
+                d.severity_score if np.isnan(current) else max(current, d.severity_score)
+            )
+
+    # Keep only bottleneck types that were ever detected
+    active_mask = ~np.all(np.isnan(severity_grid), axis=1)
+    severity_grid = severity_grid[active_mask]
+    active_types  = [bt for bt, keep in zip(all_types, active_mask) if keep]
+
+    if severity_grid.size == 0:
+        print("  No bottlenecks detected — nothing to display.")
+        return
+
+    # ── layout ────────────────────────────────────────────────────────────────
+    CELL    = "  "          # two chars per window column
+    label_w = max(len(bt.value) for bt in active_types)
+    n_cols  = severity_grid.shape[1]
+
+    # ── rows ──────────────────────────────────────────────────────────────────
+    for row_idx, bt in enumerate(active_types):
+        label = bt.value.ljust(label_w)
+        cells = ""
+        for col in range(n_cols):
+            sev = severity_grid[row_idx, col]
+            if np.isnan(sev):
+                cells += " " * len(CELL)
+            else:
+                rgb = _lerp_color(rgb_low, rgb_high, sev)
+                cells += _ansi_bg(rgb) + CELL + _RESET
+        print(f"  {label}  {cells}")
+
+    # ── legend ────────────────────────────────────────────────────────────────
+    print()
+    steps = 20
+    gradient = "".join(
+        _ansi_bg(_lerp_color(rgb_low, rgb_high, i / (steps - 1))) + " " + _RESET
+        for i in range(steps)
+    )
+    print(f"  {'':>{label_w}}  {color_low} {gradient} {color_high}  (severity 0 -> 1)")
+
+
 def print_section(title: str) -> None:
     width = 70
     print()
@@ -86,7 +177,7 @@ def main() -> None:
     # JOB_ID = "248750"
     # ENV_FILE = ".env.example"
 
-    JOB_ID = "43129"
+    JOB_ID = "43081"
     ENV_FILE = ".env"
 
 
@@ -179,19 +270,20 @@ def main() -> None:
 
     bottleneck_counter: Counter = Counter()
     bottleneck_windows = 0
-    total_windows = 0
+    window_records = []  # (start, end, diagnoses) for every window
 
-    # Slide a 10-interval window over the full job
+    # Slide a 10-interval window over the full job (single pass)
     window_size = 10
     for start, end, win_dm in dm.iterate_windows(window_size=window_size, step_size=window_size):
-        total_windows += 1
         diagnoses = strategy.diagnose(win_dm)
+        window_records.append((start, end, diagnoses))
         findings = [d for d in diagnoses if not d.is_healthy]
         if findings:
             bottleneck_windows += 1
         for d in diagnoses:
             bottleneck_counter[d.bottleneck_type.value] += 1
 
+    total_windows = len(window_records)
     print(f"\n  Windows with bottleneck : {bottleneck_windows} / {total_windows}")
     print("  Bottleneck distribution :")
     for bt, cnt in bottleneck_counter.most_common():
@@ -200,9 +292,8 @@ def main() -> None:
 
     # ── Detailed view of the first flagged window ─────────────────────────────
     print()
-    for start, end, win_dm in dm.iterate_windows(window_size=window_size, step_size=window_size):
-        diagnoses = strategy.diagnose(win_dm)
-        findings  = [d for d in diagnoses if not d.is_healthy]
+    for start, end, diagnoses in window_records:
+        findings = [d for d in diagnoses if not d.is_healthy]
         if findings:
             print(f"  First bottleneck window: intervals {start}–{end}")
             for d in findings:
@@ -216,6 +307,14 @@ def main() -> None:
                     first_line = d.recommendation.strip().splitlines()[0]
                     print(f"      rec (1st ln) : {first_line}")
             break
+
+    # ── 7. Bottleneck timeline heatmap ────────────────────────────────────────
+    print_section("7. Bottleneck timeline heatmap")
+    print_bottleneck_timeline(
+        window_records,
+        color_low="green",
+        color_high="red",
+    )
 
     print()
     print("=" * 70)
