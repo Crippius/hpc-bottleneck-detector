@@ -212,13 +212,14 @@ def parse_tree_yaml(path: pathlib.Path) -> dict:
 _GROUP_META: dict[str, tuple[str, str]] = {
     "memory_bound":  ("Memory Bound Analysis",  "virtual_memory_bound_root"),
     "compute_bound": ("Compute Bound Analysis", "virtual_compute_bound_root"),
+    "load_imbalance": ("Load Imbalance Analysis", "virtual_compute_bound_root")
 }
 
 
 def group_and_merge_trees(
     parsed: list[tuple[pathlib.Path, dict]]
 ) -> list[dict]:
-    """Group memory_bound_* and compute_bound_* files under a single virtual root.
+    """Group memory_bound_* compute_bound_* and load_imbalance_* files under a single virtual root.
 
     All other trees are kept as standalone entries.
     Returns a list of tree dicts ready for the HTML viewer.

@@ -762,6 +762,118 @@ const TREES = /*TREES_JSON*/[
         "label": ""
       }
     ]
+  },
+  {
+    "tree_name": "Load Imbalance Analysis",
+    "description": "Combined load imbalance strategy trees",
+    "required_metrics": [],
+    "thresholds": {},
+    "nodes": [
+      {
+        "id": "virtual_compute_bound_root",
+        "kind": "root",
+        "label": "Load Imbalance Analysis",
+        "description": ""
+      },
+      {
+        "id": "load_imbalance_inter_node__check_inter_node_imbalance",
+        "kind": "decision",
+        "description": "Is there any detectable inter-node FLOPS imbalance?",
+        "metric_type": "simple",
+        "metric_description": "load_imbalance / FLOPS / inter_node",
+        "aggregation": "mean",
+        "operator": ">",
+        "threshold": "0.005",
+        "label": "Check Inter Node Imbalance"
+      },
+      {
+        "id": "load_imbalance_inter_node__inter_node_load_imbalance_detected",
+        "kind": "leaf",
+        "bottleneck_type": "INTER_NODE_LOAD_IMBALANCE",
+        "severity_formula": "INCREASING",
+        "threshold": "",
+        "confidence": 1.0,
+        "recommendation": "Inter-node load imbalance detected: compute nodes are performing at meaningfully different FLOPS/s rates, causing idle resources at scale. Recommended actions:\n  - Perform an in-depth analysis of the parallel paradigm (MPI, task-\n    based, data-parallel) to locate the root cause of skew.\n  - Implement non-blocking communications (MPI_Isend/Irecv) to overlap\n    computation and communication, reducing synchronisation stalls.\n  - Evaluate a Dynamic Load Balancing (DLB) scheme to redistribute\n    work at runtime when data or computation is irregular.\n  - Profile with Score-P, Scalasca, or Intel Trace Analyzer to\n    identify the overloaded rank(s) and the communication pattern\n    driving the imbalance.\n  - Review data distribution strategies: uneven partitioning of\n    domains or arrays leads directly to imbalanced node workloads.",
+        "label": "Inter Node Load Imbalance",
+        "description": ""
+      },
+      {
+        "id": "load_imbalance_inter_node__no_inter_node_imbalance",
+        "kind": "leaf",
+        "bottleneck_type": "NONE",
+        "severity_formula": "0.0",
+        "threshold": "",
+        "confidence": 1.0,
+        "recommendation": "",
+        "label": "OK",
+        "description": ""
+      },
+      {
+        "id": "load_imbalance_intra_node__check_intra_node_imbalance",
+        "kind": "decision",
+        "description": "Is intra-node FLOPS imbalance above 50% of peak FLOPS?",
+        "metric_type": "simple",
+        "metric_description": "load_imbalance / FLOPS / intra_node",
+        "aggregation": "mean",
+        "operator": ">",
+        "threshold": "0% of benchmark(peakflops)  [fallback 100.0]",
+        "label": "Check Intra Node Imbalance"
+      },
+      {
+        "id": "load_imbalance_intra_node__intra_node_load_imbalance_detected",
+        "kind": "leaf",
+        "bottleneck_type": "INTRA_NODE_LOAD_IMBALANCE",
+        "severity_formula": "INCREASING",
+        "threshold": "0% of benchmark(peakflops_avx512_fma)  [fallback 100.0]",
+        "confidence": 1.0,
+        "recommendation": "Significant intra-node load imbalance detected: the FLOPS/s spread between the most and least active cores exceeds 50% of peak processor performance. Recommended actions:\n  - Profile thread/process workload distribution using Intel VTune,\n    perf, or Extrae to find which cores are idle and why.\n  - Check for uneven loop-iteration distribution in OpenMP parallel\n    regions; replace static scheduling with dynamic or guided.\n  - Look for serialisation points (critical sections, barriers,\n    reductions) that force a subset of cores to wait.\n  - Investigate NUMA effects: cores on different sockets may experience\n    different memory-access latencies, leading to asymmetric runtimes.\n  - If using MPI with OpenMP, verify that thread affinity (OMP_PROC_BIND,\n    numactl) pins threads in a NUMA-aware layout.",
+        "label": "Intra Node Load Imbalance",
+        "description": ""
+      },
+      {
+        "id": "load_imbalance_intra_node__no_intra_node_imbalance",
+        "kind": "leaf",
+        "bottleneck_type": "NONE",
+        "severity_formula": "0.0",
+        "threshold": "",
+        "confidence": 1.0,
+        "recommendation": "",
+        "label": "OK",
+        "description": ""
+      }
+    ],
+    "edges": [
+      {
+        "source": "load_imbalance_inter_node__check_inter_node_imbalance",
+        "target": "load_imbalance_inter_node__inter_node_load_imbalance_detected",
+        "label": "High"
+      },
+      {
+        "source": "load_imbalance_inter_node__check_inter_node_imbalance",
+        "target": "load_imbalance_inter_node__no_inter_node_imbalance",
+        "label": "Low"
+      },
+      {
+        "source": "virtual_compute_bound_root",
+        "target": "load_imbalance_inter_node__check_inter_node_imbalance",
+        "label": ""
+      },
+      {
+        "source": "load_imbalance_intra_node__check_intra_node_imbalance",
+        "target": "load_imbalance_intra_node__intra_node_load_imbalance_detected",
+        "label": "High"
+      },
+      {
+        "source": "load_imbalance_intra_node__check_intra_node_imbalance",
+        "target": "load_imbalance_intra_node__no_intra_node_imbalance",
+        "label": "Low"
+      },
+      {
+        "source": "virtual_compute_bound_root",
+        "target": "load_imbalance_intra_node__check_intra_node_imbalance",
+        "label": ""
+      }
+    ]
   }
 ]/*END*/;
 
