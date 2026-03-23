@@ -179,7 +179,10 @@ class CSVDataSource(IDataSource):
             return None
 
         matrix = np.stack(list(core_totals.values()))  # (n_cores, n_intervals)
-        imbalance = matrix.max(axis=0) - matrix.min(axis=0)
+        t_max = matrix.max(axis=0)
+        t_avg = matrix.mean(axis=0)
+        with np.errstate(invalid="ignore", divide="ignore"):
+            lif = np.where(t_max > 0, (t_max - t_avg) / t_max, 0.0)
 
         row_dict: dict = {
             "jobId": job_id,
@@ -187,6 +190,6 @@ class CSVDataSource(IDataSource):
             "metric": "FLOPS",
             "trace": "intra_node",
         }
-        for col, val in zip(interval_cols, imbalance):
+        for col, val in zip(interval_cols, lif):
             row_dict[col] = float(val)
         return row_dict

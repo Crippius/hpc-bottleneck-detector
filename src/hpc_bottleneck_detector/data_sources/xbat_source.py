@@ -56,6 +56,32 @@ _DEFAULT_CLIENT_ID = "demo"
 _DEFAULT_TOKEN_FILE = ".env.xbat"
 
 
+# ---------------------------------------------------------------------------
+# Load imbalance helper
+# ---------------------------------------------------------------------------
+
+def _load_imbalance_factor(matrix: np.ndarray) -> np.ndarray:
+    """
+    Compute the Load Imbalance Factor per interval from a 2-D matrix.
+
+    Args:
+        matrix: Shape ``(n_entities, n_intervals)`` — total FLOPS/s per
+                entity (core or node) at each interval.
+
+    Returns:
+        1-D array of shape ``(n_intervals,)`` with values in ``[0, 1]``::
+
+            LIF[t] = (T_max[t] - T_avg[t]) / T_max[t]
+
+        Intervals where ``T_max == 0`` are assigned ``LIF = 0``.
+    """
+    t_max = matrix.max(axis=0)
+    t_avg = matrix.mean(axis=0)
+    with np.errstate(invalid="ignore", divide="ignore"):
+        lif = np.where(t_max > 0, (t_max - t_avg) / t_max, 0.0)
+    return lif
+
+
 class XBATDataSource(IDataSource):
     """
     Data source that fetches job metrics from the XBAT REST API.
@@ -330,8 +356,8 @@ class XBATDataSource(IDataSource):
         interval_cols: List[str],
     ) -> Optional[dict]:
         """
-        From core-level FLOPS data, compute ``max - min`` total FLOPS/s
-        across all cores for each interval.
+        From core-level FLOPS data, compute the Load Imbalance Factor
+        ``(T_max - T_avg) / T_max`` across all cores for each interval.
 
         Traces in *core_df* are expected to follow the pattern
         ``<type> c<N>`` (e.g. ``SP c0``, ``AVX512 DP c3``).
@@ -358,8 +384,8 @@ class XBATDataSource(IDataSource):
             return None
 
         matrix = np.stack(list(core_totals.values()))  # (n_cores, n_intervals)
-        imbalance = matrix.max(axis=0) - matrix.min(axis=0)
-        return self._build_imbalance_row(job_id, "intra_node", interval_cols, imbalance)
+        lif = _load_imbalance_factor(matrix)
+        return self._build_imbalance_row(job_id, "intra_node", interval_cols, lif)
 
     def _inter_node_imbalance_row(
         self,
@@ -368,14 +394,14 @@ class XBATDataSource(IDataSource):
         interval_cols: List[str],
     ) -> Optional[dict]:
         """
-        Given per-node total FLOPS/s arrays, compute ``max - min`` across
-        nodes for each interval.
+        Given per-node total FLOPS/s arrays, compute the Load Imbalance Factor
+        ``(T_max - T_avg) / T_max`` across nodes for each interval.
         """
         if len(node_totals) < 2:
             return None
         matrix = np.stack(list(node_totals.values()))  # (n_nodes, n_intervals)
-        imbalance = matrix.max(axis=0) - matrix.min(axis=0)
-        return self._build_imbalance_row(job_id, "inter_node", interval_cols, imbalance)
+        lif = _load_imbalance_factor(matrix)
+        return self._build_imbalance_row(job_id, "inter_node", interval_cols, lif)
 
     def _sum_flops_series(
         self,
