@@ -7,9 +7,13 @@ from CSV files (e.g., exported from XBAT).
 
 import csv
 import io
-import pandas as pd
+import re
 from pathlib import Path
-from typing import Optional
+from typing import Dict, List, Optional
+
+import numpy as np
+import pandas as pd
+
 from .interface import IDataSource
 from ..data.manager import DataManager
 
@@ -120,12 +124,69 @@ class CSVDataSource(IDataSource):
             if job_data.empty:
                 raise ValueError(f"Job ID '{job_id}' not found in {self.file_path}")
             
-            # Create and return a DataManager with the job data
+            # Compute intra-node imbalance from core-level traces if present.
+            intra_row = self._intra_node_imbalance_row(str(job_id), job_data)
+            if intra_row is not None:
+                job_data = pd.concat(
+                    [job_data, pd.DataFrame([intra_row])],
+                    ignore_index=True,
+                )
+
             return DataManager(job_data.reset_index(drop=True))
-            
+
         except ValueError:
             raise
         except pd.errors.ParserError as e:
             raise IOError(f"Failed to parse CSV file {self.file_path}: {e}")
         except Exception as e:
             raise IOError(f"Failed to read CSV file {self.file_path}: {e}")
+
+    @staticmethod
+    def _intra_node_imbalance_row(
+        job_id: str,
+        df: pd.DataFrame,
+    ) -> Optional[dict]:
+        """
+        Compute per-interval ``max - min`` total FLOPS/s across all cores.
+
+        Operates on traces with the pattern ``<type> c<N>`` (e.g. ``SP c0``,
+        ``AVX512 DP c3``).  Returns ``None`` when fewer than two distinct
+        cores are found.
+        """
+        interval_cols: List[str] = [
+            c for c in df.columns if c.startswith("interval ")
+        ]
+        flops_df = df[(df["group"] == "cpu") & (df["metric"] == "FLOPS")]
+        if flops_df.empty:
+            return None
+
+        core_totals: Dict[str, np.ndarray] = {}
+        for _, row in flops_df.iterrows():
+            m = re.search(r"\bc(\d+)$", str(row["trace"]))
+            if not m:
+                continue
+            core_id = m.group(0)
+            values = np.zeros(len(interval_cols))
+            for i, col in enumerate(interval_cols):
+                v = row.get(col, 0.0)
+                values[i] = float(v) if pd.notna(v) else 0.0
+            if core_id not in core_totals:
+                core_totals[core_id] = values.copy()
+            else:
+                core_totals[core_id] += values
+
+        if len(core_totals) < 2:
+            return None
+
+        matrix = np.stack(list(core_totals.values()))  # (n_cores, n_intervals)
+        imbalance = matrix.max(axis=0) - matrix.min(axis=0)
+
+        row_dict: dict = {
+            "jobId": job_id,
+            "group": "load_imbalance",
+            "metric": "FLOPS",
+            "trace": "intra_node",
+        }
+        for col, val in zip(interval_cols, imbalance):
+            row_dict[col] = float(val)
+        return row_dict

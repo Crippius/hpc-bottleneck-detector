@@ -33,9 +33,11 @@ from __future__ import annotations
 import csv
 import io
 import os
+import re
 from pathlib import Path
-from typing import Optional
+from typing import Dict, List, Optional
 
+import numpy as np
 import pandas as pd
 import requests
 
@@ -231,24 +233,7 @@ class XBATDataSource(IDataSource):
         """
         url = self._build_url(job_id)
 
-        response = self.session.get(
-            url,
-            headers={
-                "accept": "text/csv",
-                "Authorization": f"Bearer {self._access_token}",
-            },
-        )
-
-        if response.status_code == 401:
-            # Token may have expired mid-session; refresh once and retry
-            self._request_new_token()
-            response = self.session.get(
-                url,
-                headers={
-                    "accept": "text/csv",
-                    "Authorization": f"Bearer {self._access_token}",
-                },
-            )
+        response = self._get_authenticated(url)
 
         if response.status_code == 404:
             raise ValueError(
@@ -265,8 +250,224 @@ class XBATDataSource(IDataSource):
         except Exception as exc:
             raise IOError(f"Failed to parse CSV response from XBAT: {exc}") from exc
 
-        job_context = self._fetch_job_context(job_id)
+        # Fetch job entry once - reused for both context and node names.
+        job_entry = self._find_job_entry(job_id)
+        job_context = self._build_job_context_from_entry(job_id, job_entry)
+
+        # Append computed load-imbalance rows (best-effort, never fatal).
+        imbalance_rows = self._compute_load_imbalance_rows(job_id, df, job_entry)
+        if imbalance_rows:
+            df = pd.concat(
+                [df, pd.DataFrame(imbalance_rows)],
+                ignore_index=True,
+            )
+
         return DataManager(df.reset_index(drop=True), job_context=job_context)
+
+    # ------------------------------------------------------------------
+    # Load imbalance computation
+    # ------------------------------------------------------------------
+
+    def _compute_load_imbalance_rows(
+        self,
+        job_id: str,
+        main_df: pd.DataFrame,
+        job_entry: Optional[dict],
+    ) -> List[dict]:
+        """
+        Compute intra- and inter-node load imbalance rows.
+
+        Both rows live in the synthetic group ``load_imbalance`` with
+        metric ``FLOPS`` and traces ``intra_node`` / ``inter_node``.
+        The value at each interval is ``max(total_flops) - min(total_flops)``
+        across cores (intra) or nodes (inter).
+        """
+        interval_cols = [c for c in main_df.columns if c.startswith("interval ")]
+        rows: List[dict] = []
+
+        # ── Intra-node ────────────────────────────────────────────────
+        try:
+            core_df = self._fetch_csv_params(
+                job_id, group="cpu", metric="FLOPS", level="core"
+            )
+            if core_df is not None:
+                row = self._intra_node_imbalance_row(job_id, core_df, interval_cols)
+                if row is not None:
+                    rows.append(row)
+        except Exception:
+            pass  # non-fatal
+
+        # ── Inter-node ────────────────────────────────────────────────
+        if job_entry is not None:
+            node_names = list(job_entry.get("nodes", {}).keys())
+            if len(node_names) > 1:
+                try:
+                    node_totals: Dict[str, np.ndarray] = {}
+                    for name in node_names:
+                        node_df = self._fetch_csv_params(
+                            job_id, group="cpu", metric="FLOPS",
+                            level="node", node=name,
+                        )
+                        if node_df is not None:
+                            total = self._sum_flops_series(node_df, interval_cols)
+                            if total is not None:
+                                node_totals[name] = total
+                    if len(node_totals) > 1:
+                        row = self._inter_node_imbalance_row(
+                            job_id, node_totals, interval_cols
+                        )
+                        if row is not None:
+                            rows.append(row)
+                except Exception:
+                    pass  # non-fatal
+
+        return rows
+
+    def _intra_node_imbalance_row(
+        self,
+        job_id: str,
+        core_df: pd.DataFrame,
+        interval_cols: List[str],
+    ) -> Optional[dict]:
+        """
+        From core-level FLOPS data, compute ``max - min`` total FLOPS/s
+        across all cores for each interval.
+
+        Traces in *core_df* are expected to follow the pattern
+        ``<type> c<N>`` (e.g. ``SP c0``, ``AVX512 DP c3``).
+        """
+        flops_df = core_df[
+            (core_df["group"] == "cpu") & (core_df["metric"] == "FLOPS")
+        ]
+        if flops_df.empty:
+            return None
+
+        core_totals: Dict[str, np.ndarray] = {}
+        for _, row in flops_df.iterrows():
+            m = re.search(r"\bc(\d+)$", str(row["trace"]))
+            if not m:
+                continue
+            core_id = m.group(0)
+            values = self._aligned_values(row, interval_cols)
+            if core_id not in core_totals:
+                core_totals[core_id] = values.copy()
+            else:
+                core_totals[core_id] += values
+
+        if len(core_totals) < 2:
+            return None
+
+        matrix = np.stack(list(core_totals.values()))  # (n_cores, n_intervals)
+        imbalance = matrix.max(axis=0) - matrix.min(axis=0)
+        return self._build_imbalance_row(job_id, "intra_node", interval_cols, imbalance)
+
+    def _inter_node_imbalance_row(
+        self,
+        job_id: str,
+        node_totals: Dict[str, np.ndarray],
+        interval_cols: List[str],
+    ) -> Optional[dict]:
+        """
+        Given per-node total FLOPS/s arrays, compute ``max - min`` across
+        nodes for each interval.
+        """
+        if len(node_totals) < 2:
+            return None
+        matrix = np.stack(list(node_totals.values()))  # (n_nodes, n_intervals)
+        imbalance = matrix.max(axis=0) - matrix.min(axis=0)
+        return self._build_imbalance_row(job_id, "inter_node", interval_cols, imbalance)
+
+    def _sum_flops_series(
+        self,
+        df: pd.DataFrame,
+        interval_cols: List[str],
+    ) -> Optional[np.ndarray]:
+        """Sum all FLOPS traces in *df* (node-level: ``SP``, ``DP``, etc.)."""
+        flops_df = df[
+            (df["group"] == "cpu") & (df["metric"] == "FLOPS")
+        ]
+        if flops_df.empty:
+            return None
+        total = np.zeros(len(interval_cols))
+        for _, row in flops_df.iterrows():
+            total += self._aligned_values(row, interval_cols)
+        return total
+
+    @staticmethod
+    def _aligned_values(row: pd.Series, interval_cols: List[str]) -> np.ndarray:
+        """
+        Extract numeric interval values from *row*, aligned to *interval_cols*.
+        Missing columns are filled with 0.
+        """
+        values = np.zeros(len(interval_cols))
+        for i, col in enumerate(interval_cols):
+            if col in row.index:
+                v = row[col]
+                values[i] = float(v) if pd.notna(v) else 0.0
+        return values
+
+    @staticmethod
+    def _build_imbalance_row(
+        job_id: str,
+        trace: str,
+        interval_cols: List[str],
+        imbalance: np.ndarray,
+    ) -> dict:
+        """Construct a DataFrame-compatible row dict for a load-imbalance metric."""
+        row: dict = {
+            "jobId": job_id,
+            "group": "load_imbalance",
+            "metric": "FLOPS",
+            "trace": trace,
+        }
+        for col, val in zip(interval_cols, imbalance):
+            row[col] = float(val)
+        return row
+
+    def _fetch_csv_params(
+        self,
+        job_id: str,
+        group: str,
+        metric: str,
+        level: str,
+        node: str = "",
+    ) -> Optional[pd.DataFrame]:
+        """
+        Fetch XBAT CSV with explicit query parameters.
+
+        Returns the parsed DataFrame, or ``None`` on any HTTP / parse failure.
+        """
+        base = f"{self.api_base}/api/v1/measurements/{job_id}/csv"
+        params: dict = {"group": group, "metric": metric, "level": level}
+        if node:
+            params["node"] = node
+        query = "&".join(f"{k}={v}" for k, v in params.items())
+        url = f"{base}?{query}"
+
+        response = self._get_authenticated(url)
+        if response.status_code != 200:
+            return None
+        try:
+            return self._parse_xbat_csv_response(response.text)
+        except Exception:
+            return None
+
+    # ------------------------------------------------------------------
+    # Authenticated GET helper
+    # ------------------------------------------------------------------
+
+    def _get_authenticated(self, url: str) -> requests.Response:
+        """GET *url* with the current bearer token, refreshing once on 401."""
+        headers = {
+            "accept": "text/csv",
+            "Authorization": f"Bearer {self._access_token}",
+        }
+        response = self.session.get(url, headers=headers)
+        if response.status_code == 401:
+            self._request_new_token()
+            headers["Authorization"] = f"Bearer {self._access_token}"
+            response = self.session.get(url, headers=headers)
+        return response
 
     def _parse_xbat_csv_response(self, csv_text: str) -> pd.DataFrame:
         """
@@ -313,24 +514,21 @@ class XBATDataSource(IDataSource):
     # ------------------------------------------------------------------
 
     def _fetch_job_context(self, job_id: str) -> Optional[JobContext]:
+        """Build a JobContext by fetching the job entry from XBAT."""
+        return self._build_job_context_from_entry(job_id, self._find_job_entry(job_id))
+
+    def _build_job_context_from_entry(
+        self, job_id: str, job_entry: Optional[dict]
+    ) -> Optional[JobContext]:
         """
         Build a :class:`~hpc_bottleneck_detector.data.job_context.JobContext`
-        for *job_id* by calling the XBAT metadata endpoints.
-
-        Flow:
-            1. ``GET /api/v1/jobs?short=true`` - find the entry for *job_id*
-               and collect the node hashes used by that job.
-            2. ``GET /api/v1/nodes?node_hashes=<h1>,<h2>,…`` - fetch the
-               hardware description for each unique hash.
-            3. Extract relevant fields (benchmarks, CPU, memory, OS) and
-               return a populated :class:`JobContext`.
+        from a pre-fetched job entry dict.
 
         Returns:
-            :class:`JobContext` on success, ``None`` if the job cannot be
-            found or the metadata endpoints are unavailable.
+            :class:`JobContext` on success, ``None`` if *job_entry* is ``None``
+            or the metadata endpoints are unavailable.
         """
         try:
-            job_entry = self._find_job_entry(job_id)
             if job_entry is None:
                 return None
 

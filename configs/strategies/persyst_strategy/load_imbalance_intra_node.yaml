@@ -1,0 +1,65 @@
+# =============================================================================
+# Strategy Tree — Load Imbalance: Intra-Node
+# =============================================================================
+
+tree_name: load_imbalance_intra_node
+description: >
+  Detects intra-node load imbalance by measuring the spread (max - min) of
+  total FLOPS/s across all cores within a node. A difference exceeding 50%
+  of the processor's peak FLOPS indicates that workload is unevenly distributed
+  among cores, causing idle compute resources within the node.
+
+required_metrics:
+  - group: load_imbalance
+    metric: FLOPS
+    trace: intra_node
+
+root:
+  node_id: check_intra_node_imbalance
+  description: "Is intra-node FLOPS imbalance above 50% of peak FLOPS?"
+  metric:
+    group: load_imbalance
+    metric: FLOPS
+    trace: intra_node
+  aggregation: mean
+  operator: ">"
+  threshold:
+    benchmark: peakflops_avx512_fma
+    fraction: 0.5
+    aggregate: mean
+    fallback: 100.0
+
+  if_true:
+    node_id: intra_node_load_imbalance_detected
+    diagnosis:
+      bottleneck_type: INTRA_NODE_LOAD_IMBALANCE
+      severity_formula: INCREASING
+      threshold:
+        benchmark: peakflops_avx512_fma
+        fraction: 0.5
+        aggregate: mean
+        fallback: 100.0
+      confidence: 1.0
+      recommendation: >
+        Significant intra-node load imbalance detected: the FLOPS/s spread
+        between the most and least active cores exceeds 50% of peak processor
+        performance.
+        Recommended actions:
+          - Profile thread/process workload distribution using Intel VTune,
+            perf, or Extrae to find which cores are idle and why.
+          - Check for uneven loop-iteration distribution in OpenMP parallel
+            regions; replace static scheduling with dynamic or guided.
+          - Look for serialisation points (critical sections, barriers,
+            reductions) that force a subset of cores to wait.
+          - Investigate NUMA effects: cores on different sockets may experience
+            different memory-access latencies, leading to asymmetric runtimes.
+          - If using MPI with OpenMP, verify that thread affinity (OMP_PROC_BIND,
+            numactl) pins threads in a NUMA-aware layout.
+
+  if_false:
+    node_id: no_intra_node_imbalance
+    diagnosis:
+      bottleneck_type: NONE
+      severity_formula: "0.0"
+      confidence: 1.0
+      recommendation: null

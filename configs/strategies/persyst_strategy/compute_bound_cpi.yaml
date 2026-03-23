@@ -19,7 +19,7 @@ required_metrics:
 
 thresholds:
   # Benchmark-derived:
-  flop_rate_peak_fraction: 0.15 # flag if (SP + DP) FLOPS < 15 % of peakflops
+  flop_rate_peak_fraction: 0.10 # flag if (SP + DP) FLOPS < 15 % of peakflops
   # Hardware-independent ratios:
   cpi: 10 # high CPI
 
