@@ -88,6 +88,17 @@ const TREES = /*TREES_JSON*/[
         "description": ""
       },
       {
+        "id": "memory_bound_data_locality__check_memory_bound_gate",
+        "kind": "decision",
+        "description": "Is DRAM bandwidth above 50% of peak (memory-bound regime)?",
+        "metric_type": "simple",
+        "metric_description": "memory / Bandwidth / total",
+        "aggregation": "mean",
+        "operator": ">",
+        "threshold": "50% of benchmark(bandwidth_mem)  [fallback 4.023]",
+        "label": "Check Memory Bound Gate"
+      },
+      {
         "id": "memory_bound_data_locality__check_l3_miss_ratio",
         "kind": "decision",
         "description": "Is the L3 miss ratio HIGH (most L3 accesses miss the cache)?",
@@ -119,6 +130,28 @@ const TREES = /*TREES_JSON*/[
         "recommendation": "",
         "label": "OK",
         "description": ""
+      },
+      {
+        "id": "memory_bound_data_locality__not_memory_bound",
+        "kind": "leaf",
+        "bottleneck_type": "NONE",
+        "severity_formula": "0.0",
+        "threshold": "",
+        "confidence": 1.0,
+        "recommendation": "",
+        "label": "OK",
+        "description": ""
+      },
+      {
+        "id": "memory_bound_loads_stores__check_memory_bound_gate",
+        "kind": "decision",
+        "description": "Is DRAM bandwidth above 50% of peak (memory-bound regime)?",
+        "metric_type": "simple",
+        "metric_description": "memory / Bandwidth / total",
+        "aggregation": "mean",
+        "operator": ">",
+        "threshold": "50% of benchmark(bandwidth_mem)  [fallback 4.023]",
+        "label": "Check Memory Bound Gate"
       },
       {
         "id": "memory_bound_loads_stores__check_loads_to_stores",
@@ -154,6 +187,28 @@ const TREES = /*TREES_JSON*/[
         "description": ""
       },
       {
+        "id": "memory_bound_loads_stores__not_memory_bound",
+        "kind": "leaf",
+        "bottleneck_type": "NONE",
+        "severity_formula": "0.0",
+        "threshold": "",
+        "confidence": 1.0,
+        "recommendation": "",
+        "label": "OK",
+        "description": ""
+      },
+      {
+        "id": "memory_bound_precision__check_memory_bound_gate",
+        "kind": "decision",
+        "description": "Is DRAM bandwidth above 50% of peak (memory-bound regime)?",
+        "metric_type": "simple",
+        "metric_description": "memory / Bandwidth / total",
+        "aggregation": "mean",
+        "operator": ">",
+        "threshold": "50% of benchmark(bandwidth_mem)  [fallback 4.023]",
+        "label": "Check Memory Bound Gate"
+      },
+      {
         "id": "memory_bound_precision__check_sp_dp_ratio",
         "kind": "decision",
         "description": "Is the SP/DP FLOPS ratio LOW (code is predominantly double-precision)?",
@@ -185,9 +240,25 @@ const TREES = /*TREES_JSON*/[
         "recommendation": "",
         "label": "OK",
         "description": ""
+      },
+      {
+        "id": "memory_bound_precision__not_memory_bound",
+        "kind": "leaf",
+        "bottleneck_type": "NONE",
+        "severity_formula": "0.0",
+        "threshold": "",
+        "confidence": 1.0,
+        "recommendation": "",
+        "label": "OK",
+        "description": ""
       }
     ],
     "edges": [
+      {
+        "source": "memory_bound_data_locality__check_memory_bound_gate",
+        "target": "memory_bound_data_locality__check_l3_miss_ratio",
+        "label": "High"
+      },
       {
         "source": "memory_bound_data_locality__check_l3_miss_ratio",
         "target": "memory_bound_data_locality__data_locality_l3_misses",
@@ -199,9 +270,19 @@ const TREES = /*TREES_JSON*/[
         "label": "Low"
       },
       {
+        "source": "memory_bound_data_locality__check_memory_bound_gate",
+        "target": "memory_bound_data_locality__not_memory_bound",
+        "label": "Low"
+      },
+      {
         "source": "virtual_memory_bound_root",
-        "target": "memory_bound_data_locality__check_l3_miss_ratio",
+        "target": "memory_bound_data_locality__check_memory_bound_gate",
         "label": ""
+      },
+      {
+        "source": "memory_bound_loads_stores__check_memory_bound_gate",
+        "target": "memory_bound_loads_stores__check_loads_to_stores",
+        "label": "High"
       },
       {
         "source": "memory_bound_loads_stores__check_loads_to_stores",
@@ -214,9 +295,19 @@ const TREES = /*TREES_JSON*/[
         "label": "Low"
       },
       {
+        "source": "memory_bound_loads_stores__check_memory_bound_gate",
+        "target": "memory_bound_loads_stores__not_memory_bound",
+        "label": "Low"
+      },
+      {
         "source": "virtual_memory_bound_root",
-        "target": "memory_bound_loads_stores__check_loads_to_stores",
+        "target": "memory_bound_loads_stores__check_memory_bound_gate",
         "label": ""
+      },
+      {
+        "source": "memory_bound_precision__check_memory_bound_gate",
+        "target": "memory_bound_precision__check_sp_dp_ratio",
+        "label": "High"
       },
       {
         "source": "memory_bound_precision__check_sp_dp_ratio",
@@ -229,8 +320,13 @@ const TREES = /*TREES_JSON*/[
         "label": "High"
       },
       {
+        "source": "memory_bound_precision__check_memory_bound_gate",
+        "target": "memory_bound_precision__not_memory_bound",
+        "label": "Low"
+      },
+      {
         "source": "virtual_memory_bound_root",
-        "target": "memory_bound_precision__check_sp_dp_ratio",
+        "target": "memory_bound_precision__check_memory_bound_gate",
         "label": ""
       }
     ]
@@ -437,7 +533,7 @@ const TREES = /*TREES_JSON*/[
       {
         "id": "compute_bound_flops_precision__check_total_flop_rate_prec",
         "kind": "decision",
-        "description": "Is total FLOP rate (SP + DP) small fraction of peak?",
+        "description": "Is total FLOP rate (SP + DP) a small fraction of peak?",
         "metric_type": "sum",
         "metric_description": "SUM(\n  cpu / FLOPS / SP,\n  cpu / FLOPS / DP\n)",
         "aggregation": "mean",
@@ -778,12 +874,12 @@ const TREES = /*TREES_JSON*/[
       {
         "id": "load_imbalance_inter_node__check_inter_node_imbalance",
         "kind": "decision",
-        "description": "Is there any detectable inter-node FLOPS imbalance?",
+        "description": "Is mean inter-node LIF high?",
         "metric_type": "simple",
         "metric_description": "load_imbalance / FLOPS / inter_node",
         "aggregation": "mean",
         "operator": ">",
-        "threshold": "0.005",
+        "threshold": "0.5",
         "label": "Check Inter Node Imbalance"
       },
       {
@@ -791,9 +887,9 @@ const TREES = /*TREES_JSON*/[
         "kind": "leaf",
         "bottleneck_type": "INTER_NODE_LOAD_IMBALANCE",
         "severity_formula": "INCREASING",
-        "threshold": "",
+        "threshold": "0.5",
         "confidence": 1.0,
-        "recommendation": "Inter-node load imbalance detected: compute nodes are performing at meaningfully different FLOPS/s rates, causing idle resources at scale. Recommended actions:\n  - Perform an in-depth analysis of the parallel paradigm (MPI, task-\n    based, data-parallel) to locate the root cause of skew.\n  - Implement non-blocking communications (MPI_Isend/Irecv) to overlap\n    computation and communication, reducing synchronisation stalls.\n  - Evaluate a Dynamic Load Balancing (DLB) scheme to redistribute\n    work at runtime when data or computation is irregular.\n  - Profile with Score-P, Scalasca, or Intel Trace Analyzer to\n    identify the overloaded rank(s) and the communication pattern\n    driving the imbalance.\n  - Review data distribution strategies: uneven partitioning of\n    domains or arrays leads directly to imbalanced node workloads.",
+        "recommendation": "Inter-node load imbalance detected: the mean Load Imbalance Factor (LIF = (T_max - T_avg) / T_max) across nodes  exceeds the threshold. Recommended actions:\n  - Perform an in-depth analysis of the parallel paradigm (MPI, task-\n    based, data-parallel) to locate the root cause of skew.\n  - Implement non-blocking communications (MPI_Isend/Irecv) to overlap\n    computation and communication, reducing synchronisation stalls.\n  - Evaluate a Dynamic Load Balancing (DLB) scheme to redistribute\n    work at runtime when data or computation is irregular.\n  - Profile with Score-P, Scalasca, or Intel Trace Analyzer to\n    identify the overloaded rank(s) and the communication pattern\n    driving the imbalance.\n  - Review data distribution strategies: uneven partitioning of\n    domains or arrays leads directly to imbalanced node workloads.",
         "label": "Inter Node Load Imbalance",
         "description": ""
       },
@@ -811,12 +907,12 @@ const TREES = /*TREES_JSON*/[
       {
         "id": "load_imbalance_intra_node__check_intra_node_imbalance",
         "kind": "decision",
-        "description": "Is intra-node FLOPS imbalance above 50% of peak FLOPS?",
+        "description": "Is mean LIF high?",
         "metric_type": "simple",
         "metric_description": "load_imbalance / FLOPS / intra_node",
         "aggregation": "mean",
         "operator": ">",
-        "threshold": "0% of benchmark(peakflops)  [fallback 100.0]",
+        "threshold": "0.5",
         "label": "Check Intra Node Imbalance"
       },
       {
@@ -824,9 +920,9 @@ const TREES = /*TREES_JSON*/[
         "kind": "leaf",
         "bottleneck_type": "INTRA_NODE_LOAD_IMBALANCE",
         "severity_formula": "INCREASING",
-        "threshold": "0% of benchmark(peakflops_avx512_fma)  [fallback 100.0]",
+        "threshold": "0.5",
         "confidence": 1.0,
-        "recommendation": "Significant intra-node load imbalance detected: the FLOPS/s spread between the most and least active cores exceeds 50% of peak processor performance. Recommended actions:\n  - Profile thread/process workload distribution using Intel VTune,\n    perf, or Extrae to find which cores are idle and why.\n  - Check for uneven loop-iteration distribution in OpenMP parallel\n    regions; replace static scheduling with dynamic or guided.\n  - Look for serialisation points (critical sections, barriers,\n    reductions) that force a subset of cores to wait.\n  - Investigate NUMA effects: cores on different sockets may experience\n    different memory-access latencies, leading to asymmetric runtimes.\n  - If using MPI with OpenMP, verify that thread affinity (OMP_PROC_BIND,\n    numactl) pins threads in a NUMA-aware layout.",
+        "recommendation": "Significant intra-node load imbalance detected: the mean Load Imbalance Factor (LIF = (T_max - T_avg) / T_max) across cores exceeds threshold. Recommended actions:\n  - Profile thread/process workload distribution using Intel VTune,\n    perf, or Extrae to find which cores are idle and why.\n  - Check for uneven loop-iteration distribution in OpenMP parallel\n    regions; replace static scheduling with dynamic or guided.\n  - Look for serialisation points (critical sections, barriers,\n    reductions) that force a subset of cores to wait.\n  - Investigate NUMA effects: cores on different sockets may experience\n    different memory-access latencies, leading to asymmetric runtimes.\n  - If using MPI with OpenMP, verify that thread affinity (OMP_PROC_BIND,\n    numactl) pins threads in a NUMA-aware layout.",
         "label": "Intra Node Load Imbalance",
         "description": ""
       },

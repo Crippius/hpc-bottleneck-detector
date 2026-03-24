@@ -10,39 +10,65 @@ description: >
 
 required_metrics:
   - group: memory
+    metric: Bandwidth
+    trace: total
+  - group: memory
     metric: Load To Store Ratio
     trace: load to store
 
 root:
-  node_id: check_loads_to_stores
-  description: "Is the loads-to-stores ratio HIGH (data loaded but underused)?"
+  node_id: check_memory_bound_gate
+  description: "Is DRAM bandwidth above 50% of peak (memory-bound regime)?"
   metric:
     group: memory
-    metric: Load To Store Ratio
-    trace: load to store
+    metric: Bandwidth
+    trace: total
   aggregation: mean
   operator: ">"
-  threshold: 15.0
-
-  if_true:
-    node_id: data_locality_loads_stores
-    diagnosis:
-      bottleneck_type: CACHE_PRESSURE
-      severity_formula: INCREASING
-      threshold: 15.0
-      confidence: 1.0
-      recommendation: >
-        High loads-to-stores ratio: data is loaded many more times than stored,
-        suggesting poor temporal reuse (data loaded multiple times before being consumed).
-        Actions:
-          - Improve temporal reuse: tile/block loops so data is consumed before eviction.
-          - Check for strided or irregular access patterns; restructure to sequential (AoS → SoA).
-          - In OpenMP codes, verify first-touch allocation so threads work on their NUMA domain.
+  threshold:
+    benchmark: bandwidth_mem
+    fraction: 0.50
+    aggregate: mean
+    fallback: 4.023 # GB/s per core, Sandy Bridge-EP STREAM
 
   if_false:
-    node_id: loads_stores_ok
+    node_id: not_memory_bound
     diagnosis:
       bottleneck_type: NONE
       severity_formula: "0.0"
       confidence: 1.0
       recommendation: null
+
+  if_true:
+    node_id: check_loads_to_stores
+    description: "Is the loads-to-stores ratio HIGH (data loaded but underused)?"
+    metric:
+      group: memory
+      metric: Load To Store Ratio
+      trace: load to store
+    aggregation: mean
+    operator: ">"
+    threshold: 15.0
+
+    if_true:
+      node_id: data_locality_loads_stores
+      diagnosis:
+        bottleneck_type: CACHE_PRESSURE
+        severity_formula: INCREASING
+        threshold: 15.0
+        confidence: 1.0
+        recommendation: >
+          High loads-to-stores ratio: data is loaded many more times than stored,
+          suggesting poor temporal reuse (data loaded multiple times before being consumed).
+          Actions:
+            - Improve temporal reuse: tile/block loops so data is consumed before eviction.
+            - Check for strided or irregular access patterns; restructure to sequential (AoS → SoA).
+            - In OpenMP codes, verify first-touch allocation so threads work on their NUMA domain.
+
+    if_false:
+      node_id: loads_stores_ok
+      diagnosis:
+        bottleneck_type: NONE
+        severity_formula: "0.0"
+        confidence: 1.0
+        recommendation: null

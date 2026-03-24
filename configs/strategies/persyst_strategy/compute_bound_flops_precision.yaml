@@ -18,13 +18,13 @@ required_metrics:
 
 thresholds:
   # Benchmark-derived:
-  flop_rate_peak_fraction: 0.15 # flag if (SP + DP) FLOPS < 15 % of peakflops
-  # Hardware-independent
+  flop_rate_peak_fraction: 0.10 # flag if (SP + DP) FLOPS < 10% of peakflops
+  # Hardware-independent:
   sp_to_dp_ratio: 0.035 # SP FLOPS / DP FLOPS; < 0.035 = predominantly DP
 
 root:
   node_id: check_total_flop_rate_prec
-  description: "Is total FLOP rate (SP + DP) small fraction of peak?"
+  description: "Is total FLOP rate (SP + DP) a small fraction of peak?"
   metric:
     type: sum
     operands:
@@ -38,7 +38,7 @@ root:
   operator: "<"
   threshold:
     benchmark: peakflops
-    fraction: 0.1
+    fraction: 0.10
     aggregate: mean
     fallback: 10.0
 

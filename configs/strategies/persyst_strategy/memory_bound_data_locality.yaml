@@ -8,41 +8,67 @@ description: >
   poor spatial or temporal data locality.
 
 required_metrics:
+  - group: memory
+    metric: Bandwidth
+    trace: total
   - group: cache
     metric: Miss Ratio
     trace: L3 miss ratio
 
 root:
-  node_id: check_l3_miss_ratio
-  description: "Is the L3 miss ratio HIGH (most L3 accesses miss the cache)?"
+  node_id: check_memory_bound_gate
+  description: "Is DRAM bandwidth above 50% of peak (memory-bound regime)?"
   metric:
-    group: cache
-    metric: Miss Ratio
-    trace: L3 miss ratio
+    group: memory
+    metric: Bandwidth
+    trace: total
   aggregation: mean
   operator: ">"
-  threshold: 0.741
-
-  if_true:
-    node_id: data_locality_l3_misses
-    diagnosis:
-      bottleneck_type: CACHE_PRESSURE
-      severity_formula: INCREASING
-      threshold: 0.741
-      confidence: 1.0
-      recommendation: >
-        High L3 miss ratio: most L3 accesses are misses (hits-to-misses below 0.35),
-        indicating poor spatial or temporal data locality.
-        Actions:
-          - Improve spatial locality: prefer sequential access; restructure data (AoS → SoA).
-          - Improve temporal locality: use loop tiling/blocking to keep working sets in L2/L3.
-          - Review first-touch NUMA policy in multi-socket codes.
-          - Check for strided or irregular access patterns.
+  threshold:
+    benchmark: bandwidth_mem
+    fraction: 0.50
+    aggregate: mean
+    fallback: 4.023 # GB/s per core, Sandy Bridge-EP STREAM
 
   if_false:
-    node_id: l3_misses_ok
+    node_id: not_memory_bound
     diagnosis:
       bottleneck_type: NONE
       severity_formula: "0.0"
       confidence: 1.0
       recommendation: null
+
+  if_true:
+    node_id: check_l3_miss_ratio
+    description: "Is the L3 miss ratio HIGH (most L3 accesses miss the cache)?"
+    metric:
+      group: cache
+      metric: Miss Ratio
+      trace: L3 miss ratio
+    aggregation: mean
+    operator: ">"
+    threshold: 0.741
+
+    if_true:
+      node_id: data_locality_l3_misses
+      diagnosis:
+        bottleneck_type: CACHE_PRESSURE
+        severity_formula: INCREASING
+        threshold: 0.741
+        confidence: 1.0
+        recommendation: >
+          High L3 miss ratio: most L3 accesses are misses (hits-to-misses below 0.35),
+          indicating poor spatial or temporal data locality.
+          Actions:
+            - Improve spatial locality: prefer sequential access; restructure data (AoS → SoA).
+            - Improve temporal locality: use loop tiling/blocking to keep working sets in L2/L3.
+            - Review first-touch NUMA policy in multi-socket codes.
+            - Check for strided or irregular access patterns.
+
+    if_false:
+      node_id: l3_misses_ok
+      diagnosis:
+        bottleneck_type: NONE
+        severity_formula: "0.0"
+        confidence: 1.0
+        recommendation: null

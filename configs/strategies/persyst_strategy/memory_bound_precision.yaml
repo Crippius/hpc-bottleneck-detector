@@ -9,6 +9,9 @@ description: >
   single precision halves the memory footprint and may resolve the bandwidth bottleneck.
 
 required_metrics:
+  - group: memory
+    metric: Bandwidth
+    trace: total
   - group: cpu
     metric: FLOPS
     trace: SP
@@ -17,42 +20,65 @@ required_metrics:
     trace: DP
 
 root:
-  node_id: check_sp_dp_ratio
-  description: "Is the SP/DP FLOPS ratio LOW (code is predominantly double-precision)?"
+  node_id: check_memory_bound_gate
+  description: "Is DRAM bandwidth above 50% of peak (memory-bound regime)?"
   metric:
-    type: ratio
-    numerator:
-      group: cpu
-      metric: FLOPS
-      trace: SP
-    denominator:
-      group: cpu
-      metric: FLOPS
-      trace: DP
+    group: memory
+    metric: Bandwidth
+    trace: total
   aggregation: mean
-  operator: "<"
-  threshold: 0.035
-
-  if_true:
-    node_id: use_single_precision_mem
-    diagnosis:
-      bottleneck_type: PRECISION_WASTE
-      severity_formula: DECREASING
-      threshold: 0.035
-      confidence: 1.0
-      recommendation: >
-        Low SP/DP ratio: the job is memory-bound and predominantly uses double
-        precision. Switching to single precision halves the memory footprint and data
-        transfer volume, potentially shifting the code from memory-bound to compute-bound.
-        Actions:
-          - Migrate hot kernels to SP (verify numerical accuracy requirements first).
-          - Consider mixed-precision: FP32 for intermediates, FP64 only for accumulation.
-          - Verify: if SP halves bandwidth, code may become compute-bound.
+  operator: ">"
+  threshold:
+    benchmark: bandwidth_mem
+    fraction: 0.50
+    aggregate: mean
+    fallback: 4.023 # GB/s per core, Sandy Bridge-EP STREAM
 
   if_false:
-    node_id: precision_ok
+    node_id: not_memory_bound
     diagnosis:
       bottleneck_type: NONE
       severity_formula: "0.0"
       confidence: 1.0
       recommendation: null
+
+  if_true:
+    node_id: check_sp_dp_ratio
+    description: "Is the SP/DP FLOPS ratio LOW (code is predominantly double-precision)?"
+    metric:
+      type: ratio
+      numerator:
+        group: cpu
+        metric: FLOPS
+        trace: SP
+      denominator:
+        group: cpu
+        metric: FLOPS
+        trace: DP
+    aggregation: mean
+    operator: "<"
+    threshold: 0.035
+
+    if_true:
+      node_id: use_single_precision_mem
+      diagnosis:
+        bottleneck_type: PRECISION_WASTE
+        severity_formula: DECREASING
+        threshold: 0.035
+        confidence: 1.0
+        recommendation: >
+          Low SP/DP ratio: the job is memory-bound and predominantly uses double
+          precision. Switching to single precision halves the memory footprint and data
+          transfer volume, potentially shifting the code from memory-bound to compute-bound.
+          Actions:
+            - Migrate hot kernels to SP (verify numerical accuracy requirements first).
+            - Consider mixed-precision: FP32 for intermediates, FP64 only for accumulation.
+            - Verify: if SP halves bandwidth, code may become compute-bound.
+
+    if_false:
+      node_id: precision_ok
+      diagnosis:
+        bottleneck_type: NONE
+        severity_formula: "0.0"
+        confidence: 1.0
+        recommendation: null
