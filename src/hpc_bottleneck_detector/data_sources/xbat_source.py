@@ -263,8 +263,7 @@ class XBATDataSource(IDataSource):
 
         if response.status_code == 404:
             raise ValueError(
-                f"Job ID '{job_id}' or the requested group/metric/level combination "
-                "was not found on the XBAT server."
+                f"404 Not Found — request URL: {url}"
             )
         if response.status_code != 200:
             raise IOError(

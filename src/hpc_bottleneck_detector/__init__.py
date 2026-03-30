@@ -14,6 +14,7 @@ from .output.models import (
     Diagnosis,
     WindowDiagnosis,
 )
+from .utils.labeling import label_job, BOTTLENECK_COLUMNS
 
 __all__ = [
     "AnalysisOrchestrator",
@@ -21,4 +22,6 @@ __all__ = [
     "MacroCategoryType",
     "Diagnosis",
     "WindowDiagnosis",
+    "label_job",
+    "BOTTLENECK_COLUMNS",
 ]
