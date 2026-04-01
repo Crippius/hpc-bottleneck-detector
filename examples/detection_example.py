@@ -127,22 +127,13 @@ def print_bottleneck_timeline(
                 d.severity_score if np.isnan(current) else max(current, d.severity_score)
             )
 
-    # Keep only bottleneck types that were ever detected
-    active_mask = ~np.all(np.isnan(severity_grid), axis=1)
-    severity_grid = severity_grid[active_mask]
-    active_types  = [bt for bt, keep in zip(all_types, active_mask) if keep]
-
-    if severity_grid.size == 0:
-        print("  No bottlenecks detected — nothing to display.")
-        return
-
     # ── layout ────────────────────────────────────────────────────────────────
     CELL    = "  "          # two chars per window column
-    label_w = max(len(bt.value) for bt in active_types)
+    label_w = max(len(bt.value) for bt in all_types)
     n_cols  = severity_grid.shape[1]
 
     # ── rows ──────────────────────────────────────────────────────────────────
-    for row_idx, bt in enumerate(active_types):
+    for row_idx, bt in enumerate(all_types):
         label = bt.value.ljust(label_w)
         cells = ""
         for col in range(n_cols):
@@ -176,8 +167,11 @@ def main() -> None:
 
     # JOB_ID = "248750"
     # ENV_FILE = ".env.example"
+    # 43325 43319 43298 43290 43272 43260 43236 43195 43141 43129 43118
 
-    JOB_ID = "43081"
+    
+    JOB_ID = 43298   
+    # JOB_ID = "43081"
     ENV_FILE = ".env"
 
 

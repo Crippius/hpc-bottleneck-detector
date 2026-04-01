@@ -158,11 +158,32 @@ class WindowDiagnosis:
         return max(d.severity_score for d in self.diagnoses)
 
     def to_dict(self) -> dict:
+        _excluded = {BottleneckType.NONE, BottleneckType.UNKNOWN}
+        detected = {
+            d.bottleneck_type: d
+            for d in self.diagnoses
+            if d.bottleneck_type not in _excluded
+        }
+        full_diagnoses = []
+        for bt in BottleneckType:
+            if bt in _excluded:
+                continue
+            if bt in detected:
+                full_diagnoses.append(detected[bt].to_dict())
+            else:
+                full_diagnoses.append({
+                    "bottleneck_type":   bt.value,
+                    "severity_score":    0.0,
+                    "confidence":        1.0,
+                    "recommendation":    None,
+                    "source":            "",
+                    "triggered_metrics": [],
+                })
         return {
-            "window_index":   self.window_index,
-            "start_interval": self.start_interval,
-            "end_interval":   self.end_interval,
+            "window_index":    self.window_index,
+            "start_interval":  self.start_interval,
+            "end_interval":    self.end_interval,
             "has_bottlenecks": self.has_bottlenecks(),
-            "worst_severity": round(self.worst_severity(), 4),
-            "diagnoses":      [d.to_dict() for d in self.diagnoses],
+            "worst_severity":  round(self.worst_severity(), 4),
+            "diagnoses":       full_diagnoses,
         }
