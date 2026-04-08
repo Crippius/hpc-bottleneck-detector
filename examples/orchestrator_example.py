@@ -3,9 +3,9 @@ AnalysisOrchestrator — usage examples
 
 Three patterns are shown:
 
-  1. from_config()  – load everything from orchestrator.yaml (recommended)
-  2. Manual CSV     – wire up components in code, read from a local CSV file
-  3. Manual XBAT    – wire up components in code, pull live data from XBAT API
+  1. from_config()  - load everything from orchestrator.yaml (recommended)
+  2. Manual CSV     - wire up components in code, read from a local CSV file
+  3. Manual XBAT    - wire up components in code, pull live data from XBAT API
 
 Run any section individually by adjusting the __main__ block at the bottom.
 

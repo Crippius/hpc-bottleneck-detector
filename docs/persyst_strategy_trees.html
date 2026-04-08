@@ -251,6 +251,61 @@ const TREES = /*TREES_JSON*/[
         "recommendation": "",
         "label": "OK",
         "description": ""
+      },
+      {
+        "id": "memory_bound_upi__check_memory_bound_gate",
+        "kind": "decision",
+        "description": "Is DRAM bandwidth above 50% of peak (memory-bound regime)?",
+        "metric_type": "simple",
+        "metric_description": "memory / Bandwidth / total",
+        "aggregation": "mean",
+        "operator": ">",
+        "threshold": "50% of benchmark(bandwidth_mem)  [fallback 4.023]",
+        "label": "Check Memory Bound Gate"
+      },
+      {
+        "id": "memory_bound_upi__check_upi_bandwidth",
+        "kind": "decision",
+        "description": "Is UPI (inter-socket) bandwidth high?",
+        "metric_type": "simple",
+        "metric_description": "memory / UPI Bandwidth / total",
+        "aggregation": "mean",
+        "operator": ">",
+        "threshold": "100000000.0",
+        "label": "Check Upi Bandwidth"
+      },
+      {
+        "id": "memory_bound_upi__high_upi_bandwidth",
+        "kind": "leaf",
+        "bottleneck_type": "CACHE_PRESSURE",
+        "severity_formula": "INCREASING",
+        "threshold": "100000000.0",
+        "confidence": 1.0,
+        "recommendation": "High inter-socket (UPI) bandwidth: data accessed by one socket is frequently fetched from another socket's memory, indicating poor NUMA data locality. Actions:\n  - Check first-touch policy in OpenMP threads: initialise data on the thread\n    that will use it, not in a serial region before the parallel section.\n  - Use numactl or explicit memory binding to pin data to the correct NUMA node.\n  - Avoid strided or irregular access patterns that cross NUMA boundaries.\n  - Consider restructuring data layout (AoS -> SoA) to improve spatial locality.\n  - For MPI+OpenMP codes, ensure thread affinity aligns data placement with compute.",
+        "label": "Cache Pressure",
+        "description": ""
+      },
+      {
+        "id": "memory_bound_upi__upi_bandwidth_ok",
+        "kind": "leaf",
+        "bottleneck_type": "NONE",
+        "severity_formula": "0.0",
+        "threshold": "",
+        "confidence": 1.0,
+        "recommendation": "",
+        "label": "OK",
+        "description": ""
+      },
+      {
+        "id": "memory_bound_upi__not_memory_bound",
+        "kind": "leaf",
+        "bottleneck_type": "NONE",
+        "severity_formula": "0.0",
+        "threshold": "",
+        "confidence": 1.0,
+        "recommendation": "",
+        "label": "OK",
+        "description": ""
       }
     ],
     "edges": [
@@ -327,6 +382,31 @@ const TREES = /*TREES_JSON*/[
       {
         "source": "virtual_memory_bound_root",
         "target": "memory_bound_precision__check_memory_bound_gate",
+        "label": ""
+      },
+      {
+        "source": "memory_bound_upi__check_memory_bound_gate",
+        "target": "memory_bound_upi__check_upi_bandwidth",
+        "label": "High"
+      },
+      {
+        "source": "memory_bound_upi__check_upi_bandwidth",
+        "target": "memory_bound_upi__high_upi_bandwidth",
+        "label": "High"
+      },
+      {
+        "source": "memory_bound_upi__check_upi_bandwidth",
+        "target": "memory_bound_upi__upi_bandwidth_ok",
+        "label": "Low"
+      },
+      {
+        "source": "memory_bound_upi__check_memory_bound_gate",
+        "target": "memory_bound_upi__not_memory_bound",
+        "label": "Low"
+      },
+      {
+        "source": "virtual_memory_bound_root",
+        "target": "memory_bound_upi__check_memory_bound_gate",
         "label": ""
       }
     ]
@@ -528,6 +608,61 @@ const TREES = /*TREES_JSON*/[
         "confidence": 1.0,
         "recommendation": "CPI is within normal range but the total FLOP rate is a small fraction of peak. The processor is executing instructions efficiently but doing very little floating-point work. Typical causes:\n  - Heavy C++ object construction/destruction in hot paths (constructor chains, std::vector reallocations, move semantics).\n  - Frequent virtual function dispatch or RTTI in inner loops.\n  - Excessive dynamic memory allocation (malloc/free/new/delete) triggering allocator overhead and cache misses.\nRecommended actions:\n  - Profile with perf or VTune focusing on instruction mix: a high fraction of integer/control instructions vs FP points to non-computational hot paths.\n  - Use object pools or arena allocators to eliminate allocator overhead in performance-critical sections.\n  - Replace virtual dispatch with CRTP or policy-based templates in inner loops to allow inlining.",
         "label": "Pipeline Stall",
+        "description": ""
+      },
+      {
+        "id": "compute_bound_expensive_instructions__check_l3_miss_ratio_low",
+        "kind": "decision",
+        "description": "Is L3 miss ratio LOW (ruling out cache pressure as the CPI cause)?",
+        "metric_type": "simple",
+        "metric_description": "cache / Miss Ratio / L3 miss ratio",
+        "aggregation": "mean",
+        "operator": "<",
+        "threshold": "0.2",
+        "label": "Check L3 Miss Ratio Low"
+      },
+      {
+        "id": "compute_bound_expensive_instructions__check_cpi_high",
+        "kind": "decision",
+        "description": "Is CPI above 10 (pipeline stalling despite healthy cache)?",
+        "metric_type": "simple",
+        "metric_description": "cpu / CPI / CPI",
+        "aggregation": "mean",
+        "operator": ">",
+        "threshold": "10.0",
+        "label": "Check Cpi High"
+      },
+      {
+        "id": "compute_bound_expensive_instructions__expensive_instructions",
+        "kind": "leaf",
+        "bottleneck_type": "PIPELINE_STALL",
+        "severity_formula": "INCREASING",
+        "threshold": "10.0",
+        "confidence": 1.0,
+        "recommendation": "High CPI with low L3 miss ratio: cache pressure is not the bottleneck, suggesting expensive instructions (divisions, square roots, exponentials, etc.) are dominating the compute kernel. Actions:\n  - Replace divisions by a known constant with its reciprocal and use\n    multiplication. The Intel compiler flag -no-prec-div hints the compiler\n    to do this automatically.\n  - Move expensive operations (exp, sqrt, pow) outside the inner loop\n    where possible.\n  - If moving the operation is not possible, consider a look-up table (LUT)\n    pre-computed once and accessed within the loop — evaluate the trade-off\n    between instruction latency and memory access cost carefully.\n  - Use Intel VTune or perf stat to confirm the instruction mix and identify\n    the specific expensive operations in the hot loop.",
+        "label": "Pipeline Stall",
+        "description": ""
+      },
+      {
+        "id": "compute_bound_expensive_instructions__no_expensive_instructions",
+        "kind": "leaf",
+        "bottleneck_type": "NONE",
+        "severity_formula": "0.0",
+        "threshold": "",
+        "confidence": 1.0,
+        "recommendation": "",
+        "label": "OK",
+        "description": ""
+      },
+      {
+        "id": "compute_bound_expensive_instructions__cache_pressure_dominates",
+        "kind": "leaf",
+        "bottleneck_type": "NONE",
+        "severity_formula": "0.0",
+        "threshold": "",
+        "confidence": 1.0,
+        "recommendation": "",
+        "label": "OK",
         "description": ""
       },
       {
@@ -780,6 +915,31 @@ const TREES = /*TREES_JSON*/[
       {
         "source": "virtual_compute_bound_root",
         "target": "compute_bound_cpi__check_cpi",
+        "label": ""
+      },
+      {
+        "source": "compute_bound_expensive_instructions__check_l3_miss_ratio_low",
+        "target": "compute_bound_expensive_instructions__check_cpi_high",
+        "label": "Low"
+      },
+      {
+        "source": "compute_bound_expensive_instructions__check_cpi_high",
+        "target": "compute_bound_expensive_instructions__expensive_instructions",
+        "label": "High"
+      },
+      {
+        "source": "compute_bound_expensive_instructions__check_cpi_high",
+        "target": "compute_bound_expensive_instructions__no_expensive_instructions",
+        "label": "Low"
+      },
+      {
+        "source": "compute_bound_expensive_instructions__check_l3_miss_ratio_low",
+        "target": "compute_bound_expensive_instructions__cache_pressure_dominates",
+        "label": "High"
+      },
+      {
+        "source": "virtual_compute_bound_root",
+        "target": "compute_bound_expensive_instructions__check_l3_miss_ratio_low",
         "label": ""
       },
       {

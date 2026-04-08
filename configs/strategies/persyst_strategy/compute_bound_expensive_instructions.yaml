@@ -1,0 +1,77 @@
+# =============================================================================
+# Strategy Tree — Compute-Bound: Expensive Instructions
+# =============================================================================
+tree_name: compute_bound_expensive_instructions
+description: >
+  Detects expensive instruction overhead (divisions, square roots, exponentials)
+  by first ruling out cache pressure via the L3 miss ratio, then checking for
+  high CPI as evidence of instruction-level latency in the compute kernel.
+
+required_metrics:
+  - group: cache
+    metric: Miss Ratio
+    trace: L3 miss ratio
+  - group: cpu
+    metric: CPI
+    trace: CPI
+
+root:
+  node_id: check_l3_miss_ratio_low
+  description: "Is L3 miss ratio LOW (ruling out cache pressure as the CPI cause)?"
+  metric:
+    group: cache
+    metric: Miss Ratio
+    trace: L3 miss ratio
+  aggregation: mean
+  operator: "<"
+  threshold: 0.2
+
+  if_false:
+    node_id: cache_pressure_dominates
+    diagnosis:
+      bottleneck_type: NONE
+      severity_formula: "0.0"
+      confidence: 1.0
+      recommendation: null
+
+  if_true:
+    node_id: check_cpi_high
+    description: "Is CPI above 10 (pipeline stalling despite healthy cache)?"
+    metric:
+      group: cpu
+      metric: CPI
+      trace: CPI
+    aggregation: mean
+    operator: ">"
+    threshold: 10
+
+    if_true:
+      node_id: expensive_instructions
+      diagnosis:
+        bottleneck_type: PIPELINE_STALL
+        severity_formula: INCREASING
+        threshold: 10
+        confidence: 1.0
+        recommendation: >
+          High CPI with low L3 miss ratio: cache pressure is not the bottleneck,
+          suggesting expensive instructions (divisions, square roots, exponentials, etc.)
+          are dominating the compute kernel.
+          Actions:
+            - Replace divisions by a known constant with its reciprocal and use
+              multiplication. The Intel compiler flag -no-prec-div hints the compiler
+              to do this automatically.
+            - Move expensive operations (exp, sqrt, pow) outside the inner loop
+              where possible.
+            - If moving the operation is not possible, consider a look-up table (LUT)
+              pre-computed once and accessed within the loop — evaluate the trade-off
+              between instruction latency and memory access cost carefully.
+            - Use Intel VTune or perf stat to confirm the instruction mix and identify
+              the specific expensive operations in the hot loop.
+
+    if_false:
+      node_id: no_expensive_instructions
+      diagnosis:
+        bottleneck_type: NONE
+        severity_formula: "0.0"
+        confidence: 1.0
+        recommendation: null

@@ -1,0 +1,75 @@
+# =============================================================================
+# Strategy Tree — Memory-Bound: Inter-socket (UPI) Bandwidth
+# =============================================================================
+tree_name: memory_bound_upi
+description: >
+  Checks inter-socket (UPI) bandwidth for memory-bound jobs.
+  High UPI bandwidth indicates poor NUMA data locality (e.g. first-touch policy issues).
+
+required_metrics:
+  - group: memory
+    metric: Bandwidth
+    trace: total
+  - group: memory
+    metric: UPI Bandwidth
+    trace: total
+
+root:
+  node_id: check_memory_bound_gate
+  description: "Is DRAM bandwidth above 50% of peak (memory-bound regime)?"
+  metric:
+    group: memory
+    metric: Bandwidth
+    trace: total
+  aggregation: mean
+  operator: ">"
+  threshold:
+    benchmark: bandwidth_mem
+    fraction: 0.50
+    aggregate: mean
+    fallback: 4.023 # GB/s per core, placeholder - depends on architecture
+
+  if_false:
+    node_id: not_memory_bound
+    diagnosis:
+      bottleneck_type: NONE
+      severity_formula: "0.0"
+      confidence: 1.0
+      recommendation: null
+
+  if_true:
+    node_id: check_upi_bandwidth
+    description: "Is UPI (inter-socket) bandwidth high?"
+    metric:
+      group: memory
+      metric: UPI Bandwidth
+      trace: total
+    aggregation: mean
+    operator: ">"
+    threshold: 1e+08
+
+    if_true:
+      node_id: high_upi_bandwidth
+      diagnosis:
+        bottleneck_type: CACHE_PRESSURE
+        severity_formula: INCREASING
+        threshold: 1e+08
+        confidence: 1.0
+        recommendation: >
+          High inter-socket (UPI) bandwidth: data accessed by one socket is frequently
+          fetched from another socket's memory, indicating poor NUMA data locality.
+          Actions:
+            - Check first-touch policy in OpenMP threads: initialise data on the thread
+              that will use it, not in a serial region before the parallel section.
+            - Use numactl or explicit memory binding to pin data to the correct NUMA node.
+            - Avoid strided or irregular access patterns that cross NUMA boundaries.
+            - Consider restructuring data layout (AoS -> SoA) to improve spatial locality.
+            - For MPI+OpenMP codes, ensure thread affinity aligns data placement with compute.
+
+    if_false:
+      node_id: upi_bandwidth_ok
+      diagnosis:
+        bottleneck_type: NONE
+        severity_formula: "0.0"
+        confidence: 1.0
+        recommendation: null
