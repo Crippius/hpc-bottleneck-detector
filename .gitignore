@@ -208,3 +208,7 @@ __marimo__/
 
 # xbat
 .env.xbat
+
+# Other files to ignore
+my_docs/
+labelled_data/

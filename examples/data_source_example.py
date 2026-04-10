@@ -21,7 +21,10 @@ from hpc_bottleneck_detector.data import DataManager
 def main():
     # Path to the CSV file (adjust as needed)
     # Try both the project sandbox and the parent sandbox
-    csv_path = Path(__file__).parent.parent / 'data' / '234650_all_job.csv'
+
+    JOB_ID = "43081" 
+
+    csv_path = Path(__file__).parent.parent / 'data' / f'{JOB_ID}_all_job.csv'
     
     if not csv_path.exists():
         print(f"[ERROR] CSV file not found")
@@ -39,7 +42,7 @@ def main():
     print()
     
     # Step 2: Fetch job data
-    job_id = "234650"
+    job_id = JOB_ID
     print(f"[INFO] Fetching data for Job ID: {job_id}")
     try:
         data_manager = data_source.fetch_job_data(job_id)

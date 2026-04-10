@@ -81,7 +81,7 @@ def main() -> None:
     print(labelled[preview_cols].head().to_string(index=False))
 
     # ── 6. Save to CSV ────────────────────────────────────────────────────────
-    out_path = Path(__file__).parent.parent / "data" / f"{dm.job_id}_labelled.csv"
+    out_path = Path(__file__).parent.parent / "data" / "labelled_data" / f"{dm.job_id}_labelled.csv"
     labelled.to_csv(out_path, index=False)
     print(f"\n[INFO] Saved labelled CSV → {out_path}")
 
