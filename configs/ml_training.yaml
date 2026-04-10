@@ -1,0 +1,31 @@
+training:
+  # Directory containing labelled CSVs (produced by label_job()).
+  data_dir: data/labelled_data/
+
+  # Window parameters — should match those used during labeling.
+  window_size: 10
+  step_size: 10
+
+  # Binarization: severity > this value → positive label (bottleneck present).
+  # 0.0 means any detected bottleneck counts as positive.
+  severity_threshold: 0.0
+
+  # Fraction of windows held out for evaluation.
+  test_size: 0.2
+
+backend:
+  type: default
+
+  # tsfresh feature preset. EfficientFCParameters is a good balance between
+  # coverage and speed. Use MinimalFCParameters for quick experiments.
+  tsfresh_params: EfficientFCParameters
+
+  # sklearn classifier settings.
+  classifier: RandomForestClassifier
+  classifier_kwargs:
+    n_estimators: 200
+    class_weight: balanced
+    random_state: 42
+
+output:
+  model_path: models/default.pkl

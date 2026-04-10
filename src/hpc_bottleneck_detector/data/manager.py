@@ -177,10 +177,10 @@ class DataManager:
         interval_cols = self._interval_columns()
         n_intervals = len(interval_cols)
 
-        result = pd.DataFrame({
-            "id": [self.job_id] * n_intervals,
+        cols: dict = {
+            "id":   [self.job_id] * n_intervals,
             "time": [i * interval_seconds for i in range(n_intervals)],
-        })
+        }
 
         for _, row in self.job_data.iterrows():
             group = row["group"]
@@ -191,9 +191,9 @@ class DataManager:
             if pd.notna(trace) and str(trace).strip():
                 col_name += f"_{str(trace).replace(' ', '_')}"
 
-            result[col_name] = row[interval_cols].values
+            cols[col_name] = row[interval_cols].values
 
-        return result
+        return pd.DataFrame(cols)
 
     # ------------------------------------------------------------------
     # Windowing helpers

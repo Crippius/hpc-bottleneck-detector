@@ -288,16 +288,33 @@ class AnalysisOrchestrator:
                 strategy_folder=cfg.get("strategy_folder")
             )
 
-        # supervised_ml and hybrid stubs — resolve when implemented
-        if strat_type in ("supervised_ml", "hybrid"):
-            logger.warning(
-                "Strategy type '%s' is not yet implemented; "
-                "falling back to HeuristicStrategy stub.",
-                strat_type,
+        if strat_type == "supervised_ml":
+            # Lazy import so that sklearn/tsfresh are only required when
+            # this strategy type is actually requested.
+            from .strategies.supervised_ml import SupervisedMLStrategy
+            from .ml.backends.default_backend import DefaultBackend
+
+            model_path = cfg.get("model_path")
+            if not model_path:
+                raise ValueError(
+                    "strategy.model_path must be set for supervised_ml strategy."
+                )
+            backend_type = cfg.get("backend", "tsfresh_sklearn").lower()
+            if backend_type == "tsfresh_sklearn":
+                backend = DefaultBackend.load(model_path)
+            else:
+                raise ValueError(
+                    f"Unsupported ML backend: '{backend_type}'. "
+                    "Expected 'tsfresh_sklearn'."
+                )
+            return SupervisedMLStrategy(
+                backend=backend,
+                significance_threshold=float(
+                    cfg.get("significance_threshold", 0.3)
+                ),
             )
-            return HeuristicStrategy()
 
         raise ValueError(
             f"Unsupported strategy type: '{strat_type}'. "
-            "Expected 'heuristic', 'supervised_ml', or 'hybrid'."
+            "Expected 'heuristic' or 'supervised_ml'."
         )
