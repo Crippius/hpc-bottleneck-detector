@@ -16,11 +16,12 @@ Prerequisites
 - A ``.env`` file with XBAT credentials (copy ``.env.example`` → ``.env``).
 
 Usage:
-    python examples/ml_inference_example.py
+    python examples/ml_inference_example.py [--job-id JOB_ID]
 """
 
 from __future__ import annotations
 
+import argparse
 import logging
 import sys
 from pathlib import Path
@@ -40,9 +41,7 @@ logging.basicConfig(
 
 REPO_ROOT  = Path(__file__).parent.parent
 MODEL_PATH = REPO_ROOT / "models" / "default.pkl"
-ENV_FILE   = ".env"
 
-JOB_ID      = 45719
 WINDOW_SIZE = 10
 STEP_SIZE   = 10
 THRESHOLD   = 0.3   # probability → Diagnosis
@@ -80,7 +79,7 @@ def _print_results(results: list[WindowDiagnosis]) -> None:
 # Example 1 – direct API
 # =============================================================================
 
-def example_direct(job_id: int) -> list[WindowDiagnosis]:
+def example_direct(job_id: int, env_file: str = ".env") -> list[WindowDiagnosis]:
     """
     Load a trained backend, run SupervisedMLStrategy on every window, and
     return the WindowDiagnosis list.
@@ -116,7 +115,7 @@ def example_direct(job_id: int) -> list[WindowDiagnosis]:
 
     # ── 3. Fetch job data ─────────────────────────────────────────────────────
     print(f"\n[INFO] Fetching job {job_id} from XBAT…")
-    source = XBATDataSource.from_env(env_file=ENV_FILE)
+    source = XBATDataSource.from_env(env_file=env_file)
     dm = source.fetch_job_data(job_id)
     print(f"  intervals : {dm.get_time_series_length()}")
     print(f"  metrics   : {len(dm.job_data)}")
@@ -145,7 +144,7 @@ def example_direct(job_id: int) -> list[WindowDiagnosis]:
 # Example 2 – via AnalysisOrchestrator
 # =============================================================================
 
-def example_via_orchestrator(job_id: int) -> list[WindowDiagnosis]:
+def example_via_orchestrator(job_id: int, env_file: str = ".env") -> list[WindowDiagnosis]:
     """
     Use AnalysisOrchestrator with a supervised_ml strategy block.
 
@@ -169,7 +168,7 @@ def example_via_orchestrator(job_id: int) -> list[WindowDiagnosis]:
         )
 
     orchestrator = AnalysisOrchestrator(
-        data_source=XBATDataSource.from_env(env_file=ENV_FILE),
+        data_source=XBATDataSource.from_env(env_file=env_file),
         strategy=AnalysisOrchestrator._build_strategy({
             "type": "supervised_ml",
             "backend": "tsfresh_sklearn",
@@ -197,8 +196,13 @@ def example_via_orchestrator(job_id: int) -> list[WindowDiagnosis]:
 # =============================================================================
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="ML inference example")
+    parser.add_argument("--job-id", type=int, default=45719, help="Job ID to run inference on (default: 45719)")
+    parser.add_argument("--env-file", default=".env", help="Path to .env credentials file (default: .env)")
+    _args = parser.parse_args()
+
     # Example 1 — direct API (most transparent, best for debugging)
-    results = example_direct(JOB_ID)
+    results = example_direct(_args.job_id, env_file=_args.env_file)
 
     # Example 2 — orchestrator (matches production usage)
-    # results = example_via_orchestrator(JOB_ID)
+    # results = example_via_orchestrator(_args.job_id, env_file=_args.env_file)

@@ -6,9 +6,10 @@ where each row is a time interval and each bottleneck type has its own
 severity column.  The result is saved as a CSV file ready for ML training.
 
 Usage:
-    python examples/labeling_example.py
+    python examples/labeling_example.py [--job-ids JOB_ID [JOB_ID ...]]
 """
 
+import argparse
 import sys
 from pathlib import Path
 
@@ -20,36 +21,21 @@ from hpc_bottleneck_detector.utils.labeling import label_job, BOTTLENECK_COLUMNS
 
 
 STRATEGY_FOLDER = Path(__file__).parent.parent / "configs" / "strategies" / "persyst_strategy"
-ENV_FILE        = ".env"
-
-JOB_ID = 43141
 
 WINDOW_SIZE      = 10   # intervals per analysis window
 STEP_SIZE        = 10   # tumbling windows (set < WINDOW_SIZE for sliding)
 INTERVAL_SECONDS = 5    # seconds per interval
 
 
-def main() -> None:
-    # ── 1. Load data ──────────────────────────────────────────────────────────
-    print(f"[INFO] Connecting via XBATDataSource (env={ENV_FILE})")
-    source = XBATDataSource.from_env(env_file=ENV_FILE)
-    print(f"       api_base : {source.api_base}")
-    print(f"       level    : {source.level}")
-
-    print(f"\n[INFO] Fetching job {JOB_ID} …")
-    dm = source.fetch_job_data(JOB_ID)
+def label_single_job(job_id: int, source: XBATDataSource, strategy: HeuristicStrategy) -> None:
+    print(f"\n[INFO] Fetching job {job_id} …")
+    dm = source.fetch_job_data(job_id)
     print(f"       job_id    : {dm.job_id}")
     print(f"       intervals : {dm.get_time_series_length()}")
     print(f"       metrics   : {len(dm.job_data)}")
     print(f"       context   : {dm.job_context is not None}")
 
-    # ── 2. Load heuristic strategy ────────────────────────────────────────────
-    print(f"\n[INFO] Loading strategy trees from {STRATEGY_FOLDER.name}/")
-    strategy = HeuristicStrategy(str(STRATEGY_FOLDER))
-    print(f"       trees loaded : {len(strategy._strategy_trees)}")
-    print(f"       tree names   : {[t.tree_name for t in strategy._strategy_trees]}")
-
-    # ── 3. Label the job ──────────────────────────────────────────────────────
+    # ── Label the job ─────────────────────────────────────────────────────────
     print(f"\n[INFO] Labelling (window={WINDOW_SIZE}, step={STEP_SIZE}) …")
     labelled = label_job(
         data_mgr=dm,
@@ -60,7 +46,7 @@ def main() -> None:
     )
     print(f"       output shape : {labelled.shape}  (rows=intervals, cols=metrics+labels)")
 
-    # ── 4. Inspect label columns ──────────────────────────────────────────────
+    # ── Inspect label columns ─────────────────────────────────────────────────
     print("\n[INFO] Bottleneck label summary:")
     label_cols = [bt.value for bt in BOTTLENECK_COLUMNS]
     for col in label_cols:
@@ -75,15 +61,46 @@ def main() -> None:
             f"mean_sev={mean_sev:.3f}"
         )
 
-    # ── 5. Show a few labelled rows ───────────────────────────────────────────
+    # ── Show a few labelled rows ──────────────────────────────────────────────
     print("\n[INFO] First 5 rows (id, time, label columns):")
     preview_cols = ["id", "time"] + label_cols
     print(labelled[preview_cols].head().to_string(index=False))
 
-    # ── 6. Save to CSV ────────────────────────────────────────────────────────
+    # ── Save to CSV ───────────────────────────────────────────────────────────
     out_path = Path(__file__).parent.parent / "data" / "labelled_data" / f"{dm.job_id}_labelled.csv"
     labelled.to_csv(out_path, index=False)
     print(f"\n[INFO] Saved labelled CSV → {out_path}")
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Labeling example — label one or more HPC jobs")
+    parser.add_argument(
+        "--job-ids",
+        type=int,
+        nargs="+",
+        default=[43141],
+        metavar="JOB_ID",
+        help="One or more job IDs to label (default: 43141)",
+    )
+    parser.add_argument("--env-file", default=".env", help="Path to .env credentials file (default: .env)")
+    args = parser.parse_args()
+
+    # ── 1. Connect ────────────────────────────────────────────────────────────
+    print(f"[INFO] Connecting via XBATDataSource (env={args.env_file})")
+    source = XBATDataSource.from_env(env_file=args.env_file)
+    print(f"       api_base : {source.api_base}")
+    print(f"       level    : {source.level}")
+
+    # ── 2. Load heuristic strategy ────────────────────────────────────────────
+    print(f"\n[INFO] Loading strategy trees from {STRATEGY_FOLDER.name}/")
+    strategy = HeuristicStrategy(str(STRATEGY_FOLDER))
+    print(f"       trees loaded : {len(strategy._strategy_trees)}")
+    print(f"       tree names   : {[t.tree_name for t in strategy._strategy_trees]}")
+
+    # ── 3. Label each job ─────────────────────────────────────────────────────
+    for job_id in args.job_ids:
+        print("\n" + "=" * 70)
+        label_single_job(job_id, source, strategy)
 
     print("\n" + "=" * 70)
     print("[INFO] Done.")

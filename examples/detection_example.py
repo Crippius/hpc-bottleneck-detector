@@ -15,11 +15,12 @@ Two toy detectors are shown:
        threshold, independent of hardware context.
 
 Usage:
-    python detection_example.py
+    python detection_example.py [--job-id JOB_ID]
 """
 
 from __future__ import annotations
 
+import argparse
 import sys
 from collections import Counter
 from dataclasses import dataclass, field
@@ -164,15 +165,13 @@ def print_section(title: str) -> None:
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser(description="Detection algorithm example")
+    parser.add_argument("--job-id", type=int, default=43298, help="Job ID to analyse (default: 43298)")
+    parser.add_argument("--env-file", default=".env", help="Path to .env credentials file (default: .env)")
+    args = parser.parse_args()
 
-    # JOB_ID = "248750"
-    # ENV_FILE = ".env.example"
-    # 43325 43319 43298 43290 43272 43260 43236 43195 43141 43129 43118
-
-    
-    JOB_ID = 43298   
-    # JOB_ID = "43081"
-    ENV_FILE = ".env"
+    JOB_ID = args.job_id
+    ENV_FILE = args.env_file
 
 
     # ── 1. Create the data source from .env credentials ─────────────────────

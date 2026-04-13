@@ -10,11 +10,12 @@ Three patterns are shown:
 Run any section individually by adjusting the __main__ block at the bottom.
 
 Usage:
-    python examples/orchestrator_example.py
+    python examples/orchestrator_example.py [--job-id JOB_ID]
 """
 
 from __future__ import annotations
 
+import argparse
 import logging
 import sys
 from pathlib import Path
@@ -110,7 +111,7 @@ def example_csv(
 # Example 3 – manual construction against the XBAT REST API
 # =============================================================================
 
-def example_xbat(job_id: str = "249755") -> list[WindowDiagnosis]:
+def example_xbat(job_id: str = "249755", env_file: str = ".env") -> list[WindowDiagnosis]:
     """
     Build the orchestrator programmatically using the XBAT data source.
 
@@ -125,6 +126,7 @@ def example_xbat(job_id: str = "249755") -> list[WindowDiagnosis]:
 
     orchestrator = AnalysisOrchestrator(
         data_source=XBATDataSource.from_env(
+            env_file=env_file,
             group="",   # empty → all groups, job-level aggregation
             metric="",
             level="job",
@@ -189,14 +191,19 @@ def inspect_results(results: list[WindowDiagnosis]) -> None:
 # =============================================================================
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="AnalysisOrchestrator usage examples")
+    parser.add_argument("--job-id", default="249755", help="Job ID to analyse (default: 249755)")
+    parser.add_argument("--env-file", default=".env", help="Path to .env credentials file (default: .env)")
+    _args = parser.parse_args()
+
     # ── Example 2 works offline (uses the bundled CSV) ────────────────────
     results = example_csv()
     inspect_results(results)
 
     # ── Uncomment to try the config-file approach ─────────────────────────
-    results = example_from_config(job_id="249755")
+    results = example_from_config(job_id=_args.job_id)
     inspect_results(results)
 
     # ── Uncomment to try the live XBAT API (requires network) ────────────
-    results = example_xbat(job_id="249755")
+    results = example_xbat(job_id=_args.job_id, env_file=_args.env_file)
     inspect_results(results)

@@ -5,9 +5,10 @@ This script demonstrates how to use the CSVDataSource and DataManager
 to load and access HPC job metrics from XBAT CSV files.
 
 Usage:
-    python examples/data_source_example.py
+    python examples/data_source_example.py [--job-id JOB_ID]
 """
 
+import argparse
 import sys
 from pathlib import Path
 
@@ -19,10 +20,11 @@ from hpc_bottleneck_detector.data import DataManager
 
 
 def main():
-    # Path to the CSV file (adjust as needed)
-    # Try both the project sandbox and the parent sandbox
+    parser = argparse.ArgumentParser(description="Data source usage example")
+    parser.add_argument("--job-id", default=43081, help="Job ID to load")
+    args = parser.parse_args()
 
-    JOB_ID = "43081" 
+    JOB_ID = args.job_id
 
     csv_path = Path(__file__).parent.parent / 'data' / f'{JOB_ID}_all_job.csv'
     
