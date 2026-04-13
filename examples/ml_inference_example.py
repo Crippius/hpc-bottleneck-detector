@@ -26,6 +26,9 @@ import logging
 import sys
 from pathlib import Path
 
+import matplotlib.colors as mcolors
+import numpy as np
+
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from hpc_bottleneck_detector import AnalysisOrchestrator, BottleneckType, WindowDiagnosis
@@ -45,6 +48,81 @@ MODEL_PATH = REPO_ROOT / "models" / "default.pkl"
 WINDOW_SIZE = 10
 STEP_SIZE   = 10
 THRESHOLD   = 0.3   # probability → Diagnosis
+
+
+# =============================================================================
+# Terminal helpers
+# =============================================================================
+
+def _lerp_color(rgb_low: tuple, rgb_high: tuple, t: float) -> tuple:
+    return tuple(rgb_low[i] + (rgb_high[i] - rgb_low[i]) * t for i in range(3))
+
+
+def _ansi_bg(rgb: tuple) -> str:
+    r, g, b = (int(v * 255) for v in rgb)
+    return f"\033[48;2;{r};{g};{b}m"
+
+
+_RESET = "\033[0m"
+
+
+def print_section(title: str) -> None:
+    width = 70
+    print()
+    print("=" * width)
+    print(f"  {title}")
+    print("=" * width)
+
+
+def print_bottleneck_timeline(
+    window_records: list,
+    color_low: str = "green",
+    color_high: str = "red",
+) -> None:
+    from hpc_bottleneck_detector.output.models import BottleneckType
+
+    rgb_low  = mcolors.to_rgb(color_low)
+    rgb_high = mcolors.to_rgb(color_high)
+
+    excluded = {BottleneckType.NONE, BottleneckType.UNKNOWN}
+    all_types = [bt for bt in BottleneckType if bt not in excluded]
+
+    n_windows = len(window_records)
+    severity_grid = np.full((len(all_types), n_windows), np.nan)
+
+    for col, (*_, diagnoses) in enumerate(window_records):
+        for d in diagnoses:
+            if d.bottleneck_type in excluded:
+                continue
+            row = all_types.index(d.bottleneck_type)
+            current = severity_grid[row, col]
+            severity_grid[row, col] = (
+                d.severity_score if np.isnan(current) else max(current, d.severity_score)
+            )
+
+    CELL    = "  "
+    label_w = max(len(bt.value) for bt in all_types)
+    n_cols  = severity_grid.shape[1]
+
+    for row_idx, bt in enumerate(all_types):
+        label = bt.value.ljust(label_w)
+        cells = ""
+        for col in range(n_cols):
+            sev = severity_grid[row_idx, col]
+            if np.isnan(sev):
+                cells += " " * len(CELL)
+            else:
+                rgb = _lerp_color(rgb_low, rgb_high, sev)
+                cells += _ansi_bg(rgb) + CELL + _RESET
+        print(f"  {label}  {cells}")
+
+    print()
+    steps = 20
+    gradient = "".join(
+        _ansi_bg(_lerp_color(rgb_low, rgb_high, i / (steps - 1))) + " " + _RESET
+        for i in range(steps)
+    )
+    print(f"  {'':>{label_w}}  {color_low} {gradient} {color_high}  (severity 0 -> 1)")
 
 
 # =============================================================================
@@ -137,6 +215,16 @@ def example_direct(job_id: int, env_file: str = ".env") -> list[WindowDiagnosis]
         ))
 
     _print_results(results)
+
+    window_records = [(wd.start_interval, wd.end_interval, wd.diagnoses) for wd in results]
+    print_section("Bottleneck timeline heatmap")
+    print_bottleneck_timeline(window_records, color_low="green", color_high="red")
+
+    print()
+    print("=" * 70)
+    print("  Done.")
+    print("=" * 70)
+
     return results
 
 
@@ -188,6 +276,16 @@ def example_via_orchestrator(job_id: int, env_file: str = ".env") -> list[Window
     print(f"[INFO] Running pipeline for job {job_id}…")
     results = orchestrator.run_pipeline(str(job_id))
     _print_results(results)
+
+    window_records = [(wd.start_interval, wd.end_interval, wd.diagnoses) for wd in results]
+    print_section("Bottleneck timeline heatmap")
+    print_bottleneck_timeline(window_records, color_low="green", color_high="red")
+
+    print()
+    print("=" * 70)
+    print("  Done.")
+    print("=" * 70)
+
     return results
 
 
@@ -197,7 +295,7 @@ def example_via_orchestrator(job_id: int, env_file: str = ".env") -> list[Window
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="ML inference example")
-    parser.add_argument("--job-id", type=int, default=45719, help="Job ID to run inference on (default: 45719)")
+    parser.add_argument("--job-id", type=int, default=45719, help="Job ID to run inference on")
     parser.add_argument("--env-file", default=".env", help="Path to .env credentials file (default: .env)")
     _args = parser.parse_args()
 
