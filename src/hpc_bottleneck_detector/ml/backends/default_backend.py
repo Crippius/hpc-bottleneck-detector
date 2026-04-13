@@ -28,7 +28,6 @@ from sklearn.base import ClassifierMixin, clone
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.feature_selection import SelectKBest, f_classif
 from tsfresh import extract_features, select_features
-from tsfresh.feature_extraction import EfficientFCParameters
 from tsfresh.utilities.dataframe_functions import impute
 
 # Number of features to keep when tsfresh's FDR test selects nothing.
@@ -43,6 +42,81 @@ logger = logging.getLogger(__name__)
 _LABEL_COLS = [bt.value for bt in BOTTLENECK_COLUMNS]
 # Columns that are never metric features.
 _NON_METRIC_COLS = {"id", "time"} | set(_LABEL_COLS)
+
+# ---------------------------------------------------------------------------
+# Feature-extraction parameter sets
+# ---------------------------------------------------------------------------
+# Switch between sets by uncommenting the desired assignment for _fc_params in
+# DefaultBackend.__init__ (and mirroring the change in train_ml_model.py).
+
+# 1. Basic — lightweight descriptive statistics, suitable for fast iteration.
+BASIC_FC_PARAMETERS: dict = {
+    "minimum": None,
+    "maximum": None,
+    "mean": None,
+    "standard_deviation": None,
+    "quantile": [
+        {"q": 0.05}, {"q": 0.25}, {"q": 0.50}, {"q": 0.75}, {"q": 0.95},
+    ],
+    "skewness": None,
+    "kurtosis": None,
+    "agg_autocorrelation": [
+        {"f_agg": "mean",   "maxlag": 40},
+        {"f_agg": "median", "maxlag": 40},
+        {"f_agg": "var",    "maxlag": 40},
+    ],
+    "agg_linear_trend": [
+        {"attr": "slope",     "chunk_len": 5,  "f_agg": "mean"},
+        {"attr": "intercept", "chunk_len": 5,  "f_agg": "mean"},
+        {"attr": "rvalue",    "chunk_len": 5,  "f_agg": "mean"},
+        {"attr": "slope",     "chunk_len": 10, "f_agg": "mean"},
+        {"attr": "intercept", "chunk_len": 10, "f_agg": "mean"},
+        {"attr": "rvalue",    "chunk_len": 10, "f_agg": "mean"},
+    ],
+}
+
+# 2. Basic + Advanced — adds thresholding, energy, complexity, and frequency
+#    features on top of the basic set.
+# BASIC_ADVANCED_FC_PARAMETERS: dict = {
+#     **BASIC_FC_PARAMETERS,
+#     "count_above_mean": None,
+#     "count_below_mean": None,
+#     "ratio_beyond_r_sigma": [
+#         {"r": 0.5}, {"r": 1.0}, {"r": 1.5}, {"r": 2.0}, {"r": 2.5}, {"r": 3.0},
+#     ],
+#     "first_location_of_maximum": None,
+#     "first_location_of_minimum": None,
+#     "abs_energy": None,
+#     "absolute_sum_of_changes": None,
+#     "cid_ce": [{"normalize": True}, {"normalize": False}],
+#     "c3": [{"lag": 1}, {"lag": 2}, {"lag": 3}],
+#     "ar_coefficient": [
+#         {"coeff": 0, "k": 10}, {"coeff": 1, "k": 10}, {"coeff": 2, "k": 10},
+#         {"coeff": 3, "k": 10}, {"coeff": 4, "k": 10},
+#     ],
+#     "augmented_dickey_fuller": [
+#         {"attr": "teststat", "autolag": "AIC"},
+#         {"attr": "pvalue",   "autolag": "AIC"},
+#     ],
+#     "fft_coefficient": [
+#         {"coeff": 0, "attr": "real"},
+#         {"coeff": 1, "attr": "real"}, {"coeff": 1, "attr": "imag"},
+#         {"coeff": 2, "attr": "real"}, {"coeff": 2, "attr": "imag"},
+#         {"coeff": 3, "attr": "real"}, {"coeff": 3, "attr": "imag"},
+#     ],
+# }
+
+# 3. Basic + Advanced + High-Cost — adds entropy and spectral density features;
+#    significantly slower to compute, use only when compute budget allows.
+# BASIC_ADVANCED_HIGH_COST_FC_PARAMETERS: dict = {
+#     **BASIC_ADVANCED_FC_PARAMETERS,
+#     "approximate_entropy": [
+#         {"m": 2, "r": 0.1}, {"m": 2, "r": 0.3},
+#         {"m": 2, "r": 0.5}, {"m": 2, "r": 0.7},
+#     ],
+#     "spkt_welch_density": [{"coeff": 1}, {"coeff": 2}, {"coeff": 5}],
+#     "variation_coefficient": None,
+# }
 
 
 def _fill_metric_nans(df: pd.DataFrame) -> pd.DataFrame:
@@ -177,7 +251,9 @@ class DefaultBackend(IMLBackend):
         self._classifier = classifier
         self._models: dict[str, ClassifierMixin] = {}
         self._feature_cols: dict[str, list[str]] = {}
-        self._fc_params = EfficientFCParameters()
+        self._fc_params = BASIC_FC_PARAMETERS
+        # self._fc_params = BASIC_ADVANCED_FC_PARAMETERS
+        # self._fc_params = BASIC_ADVANCED_HIGH_COST_FC_PARAMETERS
 
     # ------------------------------------------------------------------
     # Training
@@ -381,7 +457,7 @@ class DefaultBackend(IMLBackend):
         backend = cls(classifier=data.get("classifier", _DEFAULT_CLASSIFIER))
         backend._models = data["models"]
         backend._feature_cols = data["feature_cols"]
-        backend._fc_params = data.get("fc_params", EfficientFCParameters())
+        backend._fc_params = data.get("fc_params", BASIC_FC_PARAMETERS)
         logger.info(
             "Backend loaded from %s (%d classifiers).", path, len(backend._models)
         )

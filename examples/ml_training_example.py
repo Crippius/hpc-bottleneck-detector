@@ -99,7 +99,7 @@ def example_train_direct(csv_paths: list[Path]) -> DefaultBackend:
     The backend:
       1. Slides windows of ``WINDOW_SIZE`` intervals (step ``STEP_SIZE``) over
          every job in the labelled CSVs.
-      2. Extracts tsfresh features (EfficientFCParameters) per window.
+      2. Extracts tsfresh features (BASIC_FC_PARAMETERS by default) per window.
       3. Selects the statistically significant features per BottleneckType.
       4. Fits one RandomForestClassifier per BottleneckType.
     """

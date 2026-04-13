@@ -46,9 +46,11 @@ from hpc_bottleneck_detector.ml.backends.default_backend import (
     _window_labels,
     _LABEL_COLS,
     _NON_METRIC_COLS,
+    BASIC_FC_PARAMETERS,
+    # BASIC_ADVANCED_FC_PARAMETERS,
+    # BASIC_ADVANCED_HIGH_COST_FC_PARAMETERS,
 )
 from tsfresh import extract_features
-from tsfresh.feature_extraction import EfficientFCParameters
 from tsfresh.utilities.dataframe_functions import impute
 
 logging.basicConfig(
@@ -139,7 +141,7 @@ def _build_windows_from_csvs(
     window_size: int,
     step_size: int,
     severity_threshold: float,
-    fc_params: EfficientFCParameters,
+    fc_params: dict,
 ) -> tuple[pd.DataFrame, dict[str, pd.Series]]:
     """
     Load all CSVs, build tsfresh long-format DataFrame + label Series per type.
@@ -209,7 +211,9 @@ def main() -> None:
     csv_paths = _collect_csv_paths(args.data_dir)
     logger.info("Found %d labelled CSV(s): %s", len(csv_paths), csv_paths)
 
-    fc_params = EfficientFCParameters()
+    fc_params = BASIC_FC_PARAMETERS
+    # fc_params = BASIC_ADVANCED_FC_PARAMETERS
+    # fc_params = BASIC_ADVANCED_HIGH_COST_FC_PARAMETERS
 
     if args.no_eval:
         # Train on everything, no held-out set
