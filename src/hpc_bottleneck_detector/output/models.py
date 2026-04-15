@@ -46,7 +46,6 @@ class BottleneckType(Enum):
 
     # Memory-bound
     CACHE_PRESSURE                  = "CACHE_PRESSURE"
-    MEMORY_BANDWIDTH                = "MEMORY_BANDWIDTH"
 
     # Communication / load balance
     INTRA_NODE_LOAD_IMBALANCE       = "INTRA_NODE_LOAD_IMBALANCE"
@@ -65,7 +64,6 @@ class BottleneckType(Enum):
             BottleneckType.PRECISION_WASTE:               MacroCategoryType.COMPUTE_BOUND,
             BottleneckType.BRANCH_MISPREDICTION:          MacroCategoryType.COMPUTE_BOUND,
             BottleneckType.CACHE_PRESSURE:                MacroCategoryType.MEMORY_BOUND,
-            BottleneckType.MEMORY_BANDWIDTH:              MacroCategoryType.MEMORY_BOUND,
             BottleneckType.INTRA_NODE_LOAD_IMBALANCE:     MacroCategoryType.LOAD_IMBALANCE,
             BottleneckType.INTER_NODE_LOAD_IMBALANCE:     MacroCategoryType.LOAD_IMBALANCE,
             BottleneckType.NONE:                          MacroCategoryType.NONE,

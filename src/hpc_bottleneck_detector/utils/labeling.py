@@ -39,7 +39,6 @@ BOTTLENECK_COLUMNS: List[BottleneckType] = [
     BottleneckType.PRECISION_WASTE,
     BottleneckType.BRANCH_MISPREDICTION,
     BottleneckType.CACHE_PRESSURE,
-    BottleneckType.MEMORY_BANDWIDTH,
     BottleneckType.INTRA_NODE_LOAD_IMBALANCE,
     BottleneckType.INTER_NODE_LOAD_IMBALANCE,
 ]
