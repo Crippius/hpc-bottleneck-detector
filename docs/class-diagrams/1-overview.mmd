@@ -3,10 +3,14 @@ classDiagram
     %% HIGH-LEVEL OVERVIEW
     %% Focus: Main Components & Flow
     %% ============================================
-    
+
     class AnalysisOrchestrator {
-        +run_pipeline(job_id: str) list~WindowDiagnosis~
-        +load_from_config(config_path: str)
+        +data_source: IDataSource
+        +strategy: IAnalysisStrategy
+        +window_size: int
+        +step_size: int
+        +from_config(config_path: str) AnalysisOrchestrator$
+        +run_pipeline(job_id: str) List~WindowDiagnosis~
     }
 
     class IDataSource {
@@ -14,36 +18,44 @@ classDiagram
         +fetch_job_data(job_id: str) DataManager
     }
 
+    class CSVDataSource {
+        +fetch_job_data(job_id: str) DataManager
+    }
+
+    class XBATDataSource {
+        +from_env(env_file: str) XBATDataSource$
+        +fetch_job_data(job_id: str) DataManager
+    }
+
     class DataManager {
-        +get_metric(metric_id: str) float
-        +get_feature_vector(metrics: list~str~) FeatureVector
-        +iterate_windows() Generator~DataManager~
+        +job_data: DataFrame
+        +job_id: str
+        +job_context: Optional~JobContext~
+        +get_metric(group: str, metric: str, trace: str) Series
+        +get_flat_dataframe() DataFrame
+        +iterate_windows(window_size: int, step_size: int) Generator
     }
 
     class IAnalysisStrategy {
         <<interface>>
-        +diagnose(data_mgr: DataManager) list~Diagnosis~
-        +analyze_job(data_mgr: DataManager) list~WindowDiagnosis~
+        +diagnose(data_mgr: DataManager) List~Diagnosis~
+        +get_required_metrics() List~str~
     }
 
     class HeuristicStrategy {
-        +diagnose(data_mgr: DataManager) list~Diagnosis~
+        +diagnose(data_mgr: DataManager) List~Diagnosis~
     }
 
     class SupervisedMLStrategy {
-        +diagnose(data_mgr: DataManager) list~Diagnosis~
-    }
-
-    class HybridStrategy {
-        +diagnose(data_mgr: DataManager) list~Diagnosis~
-        -apply_ml(data_mgr: DataManager) list~Diagnosis~
-        -apply_heuristic(ml_diagnoses: list~Diagnosis~, data_mgr: DataManager) list~Diagnosis~
+        +diagnose(data_mgr: DataManager) List~Diagnosis~
     }
 
     class WindowDiagnosis {
         <<dataclass>>
         +window_index: int
-        +diagnoses: list~Diagnosis~
+        +start_interval: int
+        +end_interval: int
+        +diagnoses: List~Diagnosis~
         +has_bottlenecks() bool
     }
 
@@ -52,20 +64,21 @@ classDiagram
         +bottleneck_type: BottleneckType
         +severity_score: float
         +confidence: float
-        +recommendation: str
+        +source: str
+        +is_healthy: bool
     }
-
 
     %% Relationships
     AnalysisOrchestrator --> IDataSource : uses
     AnalysisOrchestrator o-- IAnalysisStrategy : strategy
     AnalysisOrchestrator --> WindowDiagnosis : produces
 
+    IDataSource <|.. CSVDataSource : implements
+    IDataSource <|.. XBATDataSource : implements
     IDataSource --> DataManager : creates
 
-    IAnalysisStrategy <|.. HeuristicStrategy
-    IAnalysisStrategy <|.. SupervisedMLStrategy
-    IAnalysisStrategy <|.. HybridStrategy
+    IAnalysisStrategy <|.. HeuristicStrategy : implements
+    IAnalysisStrategy <|.. SupervisedMLStrategy : implements
 
     IAnalysisStrategy --> DataManager : uses
     IAnalysisStrategy --> WindowDiagnosis : produces

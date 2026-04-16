@@ -1,96 +1,75 @@
 classDiagram
     %% ============================================
     %% DATA LAYER VIEW
-    %% Focus: Data Sources → Windowing → Features
+    %% Focus: Data Sources → DataManager → JobContext
     %% ============================================
-    
+
     class IDataSource {
         <<interface>>
         +fetch_job_data(job_id: str) DataManager
     }
 
     class CSVDataSource {
-        -file_path: str
-        -delimiter: str
+        +file_path: Path
+        +delimiter: str
         +__init__(file_path: str, delimiter: str)
         +fetch_job_data(job_id: str) DataManager
+        -_read_csv_robust() DataFrame
+        -_intra_node_imbalance_row(job_id: str, df: DataFrame)$ Optional~dict~
     }
 
-    class RestAPIDataSource {
-        -api_endpoint: str
-        -auth_token: str
-        +__init__(api_endpoint: str, auth_token: str)
+    class XBATDataSource {
+        +api_base: str
+        +username: str
+        +group: str
+        +metric: str
+        +level: str
+        +node: str
+        +session: Session
+        +__init__(api_base: str, username: str, password: str, client_id: str, ...)
+        +from_env(env_file: str, ...) XBATDataSource$
         +fetch_job_data(job_id: str) DataManager
-    }
-
-    class DatabaseDataSource {
-        -connection_string: str
-        +__init__(connection_string: str)
-        +fetch_job_data(job_id: str) DataManager
-    }
-
-    class WindowProvider {
-        -full_job_data: DataFrame
-        -window_size: int
-        -step_size: int
-        +__init__(full_job_data: DataFrame, window_size: int, step_size: int)
-        +generate_windows() Generator~DataFrame~
-        +get_window_at(index: int) DataFrame
-        +get_total_windows() int
-    }
-
-    class JobContext {
-        -job_metadata: dict
-        -job_id: str
-        -config: dict
-        +__init__(job_id: str, job_metadata: dict, config: dict)
-        +get_metadata(key: str) any
-        +get_job_id() str
-    }
-
-    class FeatureService {
-        -feature_extractor: FeatureExtractor
-        +__init__(feature_extractor: FeatureExtractor)
-        +extract_features(window: DataFrame, metrics: list~str~) FeatureVector
-        +get_feature_vector(window: DataFrame) FeatureVector
-    }
-
-    class FeatureExtractor {
-        +__init__()
-        +calculate_statistics(df: DataFrame) FeatureVector
-        +extract_features(metrics: list~str~, window: DataFrame) FeatureVector
-        -compute_mean(values: Series) float
-        -compute_std_dev(values: Series) float
-        -compute_skewness(values: Series) float
-        -compute_kurtosis(values: Series) float
-    }
-
-    class FeatureVector {
-        -features: dict~str, float~
-        -timestamp: datetime
-        +__init__(features: dict, timestamp: datetime)
-        +get_feature(name: str) float
-        +to_array() ndarray
+        -_get_authenticated(url: str) Response
+        -_validate_token() bool
+        -_request_new_token() None
+        -_build_url(job_id: str) str
     }
 
     class DataManager {
-        -current_window: DataFrame
-        +__init__(window_provider: WindowProvider, feature_service: FeatureService, job_context: JobContext)
-        +get_metric(metric_id: str) float
-        +get_metrics(metric_ids: list~str~) dict
-        +get_feature_vector(metrics: list~str~) FeatureVector
-        +iterate_windows() Generator~DataManager~
+        +job_data: DataFrame
+        +job_id: str
+        +job_context: Optional~JobContext~
+        +__init__(job_data: DataFrame, job_context: Optional~JobContext~)
+        +get_metric(group: str, metric: str, trace: Optional~str~) Series
+        +get_metrics(metric_specs: List~dict~) DataFrame
+        +list_available_metrics() DataFrame
+        +has_metric(group: str, metric: str, trace: Optional~str~) bool
+        +get_time_series_length() int
+        +get_all_time_series() DataFrame
+        +get_flat_dataframe(interval_seconds: int) DataFrame
+        +slice_window(start: int, end: int) DataManager
+        +iterate_windows(window_size: int, step_size: int) Generator
+    }
+
+    class JobContext {
+        +job_id: str
+        +job_metadata: dict
+        +node_hardware: dict
+        +__init__(job_id: str, job_metadata: dict, node_hardware: dict)
+        +from_xbat(job_id: str, job_entry: dict, node_hardware_raw: dict) JobContext$
+        +get_job_id() str
+        +get_metadata(key: str, default: Any) Any
+        +get_node_hashes() List~str~
+        +get_node_info(node_hash: str) Optional~dict~
+        +get_benchmark(key: str, aggregate: str) Optional~float~
+        +get_cpu_info(key: str) Optional~Any~
+        +get_memory_info(key: str) Optional~Any~
     }
 
     %% Relationships
-    IDataSource <|.. CSVDataSource
-    IDataSource <|.. RestAPIDataSource
-    IDataSource <|.. DatabaseDataSource
+    IDataSource <|.. CSVDataSource : implements
+    IDataSource <|.. XBATDataSource : implements
     IDataSource --> DataManager : creates
 
-    DataManager o-- WindowProvider : uses
-    DataManager o-- FeatureService : uses
-    DataManager o-- JobContext : uses
-
-    FeatureService *-- FeatureExtractor : uses
-    FeatureExtractor --> FeatureVector : produces
+    DataManager o-- JobContext : job_context
+    XBATDataSource --> JobContext : builds

@@ -3,50 +3,42 @@ classDiagram
     %% HEURISTIC COMPONENTS VIEW
     %% Focus: Decision Tree-Based Diagnosis
     %% ============================================
-    
+
     class HeuristicStrategy {
-        -strategy_trees: list~StrategyTree~
-        -model_path: str
-        -required_metrics: list~str~
-        +__init__(strategy_trees: list~StrategyTree~, model_path: str)
-        +diagnose(data_mgr: DataManager) list~Diagnosis~
-        +analyze_job(data_mgr: DataManager) list~WindowDiagnosis~
-        +get_required_metrics() list~str~
-        -run_all_trees(data_mgr: DataManager) list~Diagnosis~
-        +load_model(model_path: str)
+        +strategy_folder: Optional~Path~
+        -_strategy_trees: List~StrategyTree~
+        +__init__(strategy_folder: Optional~str~)
+        +diagnose(data_mgr: DataManager) List~Diagnosis~
+        +get_required_metrics() List~str~
+        -_load_trees(folder: Path) None
     }
 
     class StrategyTree {
-        -root_node: PropertyNode
-        -config_path: str
-        -tree_name: str
-        +__init__(config_path: str, tree_name: str)
-        +load_from_yaml(path: str)
+        +tree_name: str
+        +description: str
+        +root_node: PropertyNode
+        +config_path: str
+        +__init__(tree_name: str, description: str, root_node: PropertyNode, required_metrics: List~dict~, config_path: str)
+        +load_from_yaml(path: str) StrategyTree$
         +traverse(data_mgr: DataManager) Diagnosis
-        +evaluate(data_mgr: DataManager) Diagnosis
-        +get_required_metrics() list~str~
+        +get_required_metrics() List~dict~
+        -_missing_metrics(data_mgr: DataManager) List~str~
     }
 
     class PropertyNode {
-        -node_id: str
-        -metric_id: str
-        -threshold: float
-        -severity_formula: str
-        -diagnosis: Diagnosis
-        -children: list~PropertyNode~
-        +__init__(node_id: str, metric_id: str, threshold: float)
-        +evaluate(data_mgr: DataManager) bool
-        +calculate_severity(data_mgr: DataManager) float
-        +get_child() PropertyNode
+        +node_id: str
+        +description: str
+        +__init__(config: dict)
         +is_leaf() bool
-        +get_diagnosis() Diagnosis
+        +evaluate(data_mgr: DataManager) Tuple~bool, float, float~
+        +get_child(branch: bool) PropertyNode
+        +get_diagnosis(source: str, triggered_metrics: List~str~, metric_value: float) Diagnosis
     }
 
     class DataManager {
-        +get_metric(metric_id: str) float
-        +get_metric_series(metric_id: str) Series
-        +get_metrics(metric_ids: list~str~) dict
-        +has_metric(metric_id: str) bool
+        +get_metric(group: str, metric: str, trace: Optional~str~) Series
+        +has_metric(group: str, metric: str, trace: Optional~str~) bool
+        +job_context: Optional~JobContext~
     }
 
     class Diagnosis {
@@ -54,20 +46,24 @@ classDiagram
         +bottleneck_type: BottleneckType
         +severity_score: float
         +confidence: float
-        +triggered_properties: list~str~
-        +recommendation: str
+        +recommendation: Optional~str~
         +source: str
-        +__init__(bottleneck_type: BottleneckType, severity_score: float, confidence: float, source: str)
+        +triggered_metrics: List~str~
+        +is_healthy: bool
+        +is_unknown: bool
     }
 
     class BottleneckType {
         <<enumeration>>
-        DATA_LOCALITY
-        DATA_LEVEL_PARALLELISM
+        PIPELINE_STALL
+        COMPUTE_UNDERUTILIZATION
+        PRECISION_WASTE
         BRANCH_MISPREDICTION
+        CACHE_PRESSURE
+        INTRA_NODE_LOAD_IMBALANCE
         INTER_NODE_LOAD_IMBALANCE
         NONE
-        +get_recommendation() str
+        UNKNOWN
         +get_macro_category() MacroCategoryType
     }
 
@@ -75,13 +71,14 @@ classDiagram
         <<enumeration>>
         COMPUTE_BOUND
         MEMORY_BOUND
-        IO_BOUND
+        LOAD_IMBALANCE
         OTHER
         NONE
+        UNKNOWN
     }
 
     %% Relationships
-    HeuristicStrategy o-- StrategyTree : uses
+    HeuristicStrategy o-- StrategyTree : _strategy_trees
     HeuristicStrategy --> DataManager : uses
     HeuristicStrategy --> Diagnosis : produces
 
@@ -89,9 +86,8 @@ classDiagram
     StrategyTree --> DataManager : uses
     StrategyTree --> Diagnosis : produces
 
-    PropertyNode --> PropertyNode : children
-    PropertyNode *-- Diagnosis : diagnosis
-    PropertyNode --> DataManager : queries
+    PropertyNode --> PropertyNode : if_true / if_false
+    PropertyNode --> Diagnosis : produces
 
     Diagnosis --> BottleneckType : has
-    BottleneckType --> MacroCategoryType : belongs to
+    BottleneckType --> MacroCategoryType : get_macro_category
