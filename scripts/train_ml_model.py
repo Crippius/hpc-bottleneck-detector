@@ -48,7 +48,6 @@ from hpc_bottleneck_detector.ml.backends.default_backend import (
     _NON_METRIC_COLS,
     BASIC_FC_PARAMETERS,
     # BASIC_ADVANCED_FC_PARAMETERS,
-    # BASIC_ADVANCED_HIGH_COST_FC_PARAMETERS,
 )
 from tsfresh import extract_features
 from tsfresh.utilities.dataframe_functions import impute
@@ -127,7 +126,7 @@ def _parse_args(config: dict) -> argparse.Namespace:
 
 
 def _collect_csv_paths(data_dir: str) -> list[str]:
-    paths = sorted(Path(data_dir).glob("*.csv"))
+    paths = sorted(Path(data_dir).rglob("*.csv"))
     if not paths:
         raise FileNotFoundError(
             f"No CSV files found in '{data_dir}'. "
@@ -213,7 +212,6 @@ def main() -> None:
 
     fc_params = BASIC_FC_PARAMETERS
     # fc_params = BASIC_ADVANCED_FC_PARAMETERS
-    # fc_params = BASIC_ADVANCED_HIGH_COST_FC_PARAMETERS
 
     if args.no_eval:
         # Train on everything, no held-out set

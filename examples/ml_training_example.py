@@ -58,7 +58,7 @@ SEVERITY_THRESHOLD = 0.0   # severity > 0 → positive label
 # =============================================================================
 
 def _find_labelled_csvs(data_dir: Path) -> list[Path]:
-    paths = sorted(data_dir.glob("*.csv"))
+    paths = sorted(data_dir.rglob("*.csv"))
     if not paths:
         raise FileNotFoundError(
             f"No labelled CSVs found in '{data_dir}'.\n"
