@@ -46,10 +46,8 @@ _NON_METRIC_COLS = {"id", "time"} | set(_LABEL_COLS)
 # ---------------------------------------------------------------------------
 # Feature-extraction parameter sets
 # ---------------------------------------------------------------------------
-# Switch between sets by uncommenting the desired assignment for _fc_params in
-# DefaultBackend.__init__ (and mirroring the change in train_ml_model.py).
 
-# 1. Basic — lightweight descriptive statistics, suitable for fast iteration.
+# 1. Basic - lightweight descriptive statistics
 BASIC_FC_PARAMETERS: dict = {
     "minimum": None,
     "maximum": None,
@@ -61,17 +59,16 @@ BASIC_FC_PARAMETERS: dict = {
     "skewness": None,
     "kurtosis": None,
     "agg_autocorrelation": [
-        {"f_agg": "mean",   "maxlag": 40},
-        {"f_agg": "median", "maxlag": 40},
-        {"f_agg": "var",    "maxlag": 40},
+        {"f_agg": "mean",   "maxlag": 3},
+        {"f_agg": "median", "maxlag": 3},
+        {"f_agg": "var",    "maxlag": 3},
     ],
     "agg_linear_trend": [
-        {"attr": "slope",     "chunk_len": 5,  "f_agg": "mean"},
-        {"attr": "intercept", "chunk_len": 5,  "f_agg": "mean"},
-        {"attr": "rvalue",    "chunk_len": 5,  "f_agg": "mean"},
-        {"attr": "slope",     "chunk_len": 10, "f_agg": "mean"},
-        {"attr": "intercept", "chunk_len": 10, "f_agg": "mean"},
-        {"attr": "rvalue",    "chunk_len": 10, "f_agg": "mean"},
+        {"attr": "slope",     "chunk_len": 5, "f_agg": "mean"},
+        {"attr": "intercept", "chunk_len": 5, "f_agg": "mean"},
+        {"attr": "rvalue",    "chunk_len": 5, "f_agg": "mean"},
+        {"attr": "slope",     "chunk_len": 2, "f_agg": "mean"},
+        {"attr": "intercept", "chunk_len": 2, "f_agg": "mean"},
     ],
 }
 
@@ -91,12 +88,7 @@ BASIC_FC_PARAMETERS: dict = {
 #     "cid_ce": [{"normalize": True}, {"normalize": False}],
 #     "c3": [{"lag": 1}, {"lag": 2}, {"lag": 3}],
 #     "ar_coefficient": [
-#         {"coeff": 0, "k": 10}, {"coeff": 1, "k": 10}, {"coeff": 2, "k": 10},
-#         {"coeff": 3, "k": 10}, {"coeff": 4, "k": 10},
-#     ],
-#     "augmented_dickey_fuller": [
-#         {"attr": "teststat", "autolag": "AIC"},
-#         {"attr": "pvalue",   "autolag": "AIC"},
+#         {"coeff": 0, "k": 3}, {"coeff": 1, "k": 3}, {"coeff": 2, "k": 3},
 #     ],
 #     "fft_coefficient": [
 #         {"coeff": 0, "attr": "real"},
@@ -106,17 +98,6 @@ BASIC_FC_PARAMETERS: dict = {
 #     ],
 # }
 
-# 3. Basic + Advanced + High-Cost — adds entropy and spectral density features;
-#    significantly slower to compute, use only when compute budget allows.
-# BASIC_ADVANCED_HIGH_COST_FC_PARAMETERS: dict = {
-#     **BASIC_ADVANCED_FC_PARAMETERS,
-#     "approximate_entropy": [
-#         {"m": 2, "r": 0.1}, {"m": 2, "r": 0.3},
-#         {"m": 2, "r": 0.5}, {"m": 2, "r": 0.7},
-#     ],
-#     "spkt_welch_density": [{"coeff": 1}, {"coeff": 2}, {"coeff": 5}],
-#     "variation_coefficient": None,
-# }
 
 
 def _fill_metric_nans(df: pd.DataFrame) -> pd.DataFrame:
@@ -253,7 +234,6 @@ class DefaultBackend(IMLBackend):
         self._feature_cols: dict[str, list[str]] = {}
         self._fc_params = BASIC_FC_PARAMETERS
         # self._fc_params = BASIC_ADVANCED_FC_PARAMETERS
-        # self._fc_params = BASIC_ADVANCED_HIGH_COST_FC_PARAMETERS
 
     # ------------------------------------------------------------------
     # Training
