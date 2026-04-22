@@ -1,0 +1,6 @@
+outs:
+- md5: afe093546c8a1ab1190b249988590cab.dir
+  size: 1688396
+  nfiles: 1
+  hash: md5
+  path: models

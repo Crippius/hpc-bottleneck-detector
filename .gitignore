@@ -212,3 +212,4 @@ __marimo__/
 # Other files to ignore
 my_docs/
 labelled_data/
+/models
