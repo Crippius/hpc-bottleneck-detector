@@ -5,11 +5,30 @@ This module provides the DataManager class that serves as the main interface
 for accessing job metrics data.
 """
 
+import logging
+
 import pandas as pd
 import numpy as np
 from typing import Dict, Generator, List, Optional, Tuple, Union
 
 from .job_context import JobContext
+
+logger = logging.getLogger(__name__)
+
+# Maps flat-DataFrame column names to benchmark keys in JobContext.
+# Columns present in this map are divided by the corresponding peak value
+# when a JobContext is available.  Adjust keys to match your XBAT instance.
+METRIC_BENCHMARK_MAP: dict[str, str] = {
+    "cpu_FLOPS_SP":            "peakflops_sp",
+    "cpu_FLOPS_DP":            "peakflops_dp",
+    "cpu_FLOPS_AVX_SP":        "peakflops_avx_sp",
+    "cpu_FLOPS_AVX_DP":        "peakflops_avx_dp",
+    "cpu_FLOPS_AVX512_SP":     "peakflops_avx512_sp",
+    "cpu_FLOPS_AVX512_DP":     "peakflops_avx512_dp",
+    "memory_Bandwidth_total":  "bandwidth_mem",
+    "memory_Bandwidth_read":   "bandwidth_mem",
+    "memory_Bandwidth_write":  "bandwidth_mem",
+}
 
 
 class DataManager:
@@ -159,6 +178,11 @@ class DataManager:
         - One column per metric, named ``<group>_<metric>`` or
           ``<group>_<metric>_<trace>`` (spaces replaced by underscores).
 
+        When a :class:`JobContext` is attached, columns listed in
+        :data:`METRIC_BENCHMARK_MAP` are divided by their corresponding
+        hardware peak (obtained via :meth:`JobContext.get_benchmark`).
+        Columns whose benchmark value is unavailable or zero are left as-is.
+
         To extract features with tsfresh pass::
 
             tsfresh.extract_features(
@@ -193,7 +217,42 @@ class DataManager:
 
             cols[col_name] = row[interval_cols].values
 
-        return pd.DataFrame(cols)
+        df = pd.DataFrame(cols)
+
+        if self.job_context is not None:
+            df = self._apply_benchmark_normalization(df)
+
+        return df
+
+    def _apply_benchmark_normalization(self, df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Divide metric columns by their hardware peak from ``job_context``.
+
+        Only columns listed in :data:`METRIC_BENCHMARK_MAP` are touched.
+        If the benchmark value is absent or zero, the column is left unchanged.
+        """
+        df = df.copy()
+        normalized: list[str] = []
+        skipped: list[str] = []
+
+        for col, benchmark_key in METRIC_BENCHMARK_MAP.items():
+            if col not in df.columns:
+                continue
+            peak = self.job_context.get_benchmark(benchmark_key)
+            if peak and peak > 0:
+                df[col] = df[col] / peak
+                normalized.append(col)
+            else:
+                skipped.append(col)
+
+        if normalized:
+            logger.debug("Normalized by benchmark peak: %s", normalized)
+        if skipped:
+            logger.debug(
+                "Benchmark peak unavailable for (left raw): %s", skipped
+            )
+
+        return df
 
     # ------------------------------------------------------------------
     # Windowing helpers

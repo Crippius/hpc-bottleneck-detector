@@ -6,11 +6,16 @@ to entirely unseen code.
 
 Protocol
 --------
-1. Lock a static test set (first *test_size* apps) — never seen during training.
+1. Lock a static test set (last *test_size* apps) — never seen during training.
 2. The remaining apps form the training pool.
-3. Train at each step k in --steps (default 2 4 6 8 10) apps.
-4. At every step evaluate on the same fixed test set.
+3. For each step k in --steps, train on ALL C(pool, k) subsets of k apps.
+4. Average metrics across all subsets → low-variance estimate of "what k apps buys".
 5. Plot per-BottleneckType F1 + macro-average F1 vs number of training apps.
+
+Speed note
+----------
+tsfresh feature extraction is done ONCE per app (pre-cached).  Each combination
+only re-runs the fast sklearn feature-selection + classifier fit.
 
 Usage
 -----
@@ -24,6 +29,7 @@ Usage
 from __future__ import annotations
 
 import argparse
+import itertools
 import logging
 import sys
 import warnings
@@ -31,12 +37,17 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+from sklearn.base import clone
+from sklearn.ensemble import RandomForestClassifier
 from sklearn.exceptions import UndefinedMetricWarning
+from sklearn.feature_selection import SelectKBest, f_classif
+from tsfresh import select_features as tsfresh_select_features
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 
 from hpc_bottleneck_detector.ml.backends.default_backend import (
     DefaultBackend,
+    _FALLBACK_K_FEATURES,
     _LABEL_COLS,
     _NON_METRIC_COLS,
     _build_window_dataframe,
@@ -54,8 +65,16 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-REPO_ROOT = Path(__file__).parent.parent.parent
-DATA_DIR  = REPO_ROOT / "data" / "labelled_data" / "miniapps"
+REPO_ROOT  = Path(__file__).parent.parent.parent
+TRAIN_DIR  = REPO_ROOT / "data" / "labelled_data" / "miniapps"
+TEST_DIR   = REPO_ROOT / "data" / "labelled_data" / "demo"
+
+_DEFAULT_CLASSIFIER = RandomForestClassifier(
+    n_estimators=200,
+    class_weight="balanced",
+    random_state=42,
+    n_jobs=-1,
+)
 
 _BT_SHORT: dict[str, str] = {
     "PIPELINE_STALL":            "Pipeline Stall",
@@ -94,40 +113,40 @@ def _count_windows(csv_path: Path, window_size: int, step_size: int) -> int:
     return total
 
 
-def _extract_features_and_labels(
-    csv_paths: list[Path],
+def _extract_features_for_app(
+    csv_path: Path,
     window_size: int,
     step_size: int,
     severity_threshold: float,
 ) -> tuple[pd.DataFrame, dict[str, pd.Series]]:
+    """Extract tsfresh features and labels for a single labelled CSV."""
     from tsfresh import extract_features
     from tsfresh.utilities.dataframe_functions import impute
+
+    df = pd.read_csv(csv_path)
+    metric_cols = [c for c in df.columns if c not in _NON_METRIC_COLS]
 
     all_fragments:  list[pd.DataFrame] = []
     all_window_ids: list[str] = []
     all_labels: dict[str, list] = {col: [] for col in _LABEL_COLS}
 
-    for csv_path in csv_paths:
-        df = pd.read_csv(csv_path)
-        metric_cols = [c for c in df.columns if c not in _NON_METRIC_COLS]
+    for job_id, job_df in df.groupby("id"):
+        job_df    = job_df.sort_values("time").reset_index(drop=True)
+        unique_id = f"{csv_path.stem}__{job_id}"
 
-        for job_id, job_df in df.groupby("id"):
-            job_df    = job_df.sort_values("time").reset_index(drop=True)
-            unique_id = f"{csv_path.stem}__{job_id}"
+        long_df, window_ids = _build_window_dataframe(
+            job_df, metric_cols, unique_id, window_size, step_size
+        )
+        labels = _window_labels(job_df, window_size, step_size, severity_threshold)
 
-            long_df, window_ids = _build_window_dataframe(
-                job_df, metric_cols, unique_id, window_size, step_size
-            )
-            labels = _window_labels(job_df, window_size, step_size, severity_threshold)
-
-            all_fragments.append(long_df)
-            all_window_ids.extend(window_ids)
-            for col in _LABEL_COLS:
-                all_labels[col].extend(labels[col])
+        all_fragments.append(long_df)
+        all_window_ids.extend(window_ids)
+        for col in _LABEL_COLS:
+            all_labels[col].extend(labels[col])
 
     tsfresh_df = _fill_metric_nans(pd.concat(all_fragments, ignore_index=True))
 
-    X_full = extract_features(
+    X = extract_features(
         tsfresh_df,
         column_id="id",
         column_sort="time",
@@ -135,8 +154,8 @@ def _extract_features_and_labels(
         impute_function=impute,
         disable_progressbar=True,
     )
-    X_full = X_full.reindex(all_window_ids)
-    X_full = X_full.apply(pd.to_numeric, errors="coerce").fillna(0.0)
+    X = X.reindex(all_window_ids)
+    X = X.apply(pd.to_numeric, errors="coerce").fillna(0.0)
 
     y_dict: dict[str, pd.Series] = {}
     for col in _LABEL_COLS:
@@ -145,7 +164,44 @@ def _extract_features_and_labels(
         if valid.sum() > 0:
             y_dict[col] = y[valid].astype(int)
 
-    return X_full, y_dict
+    return X, y_dict
+
+
+def _train_classifiers(
+    X_train: pd.DataFrame,
+    y_dict_train: dict[str, pd.Series],
+    classifier,
+) -> tuple[dict, dict]:
+    """Feature selection + fit. Returns (models, feature_cols)."""
+    models: dict = {}
+    feature_cols: dict = {}
+
+    for col in _LABEL_COLS:
+        if col not in y_dict_train:
+            continue
+        y = y_dict_train[col]
+        X_clean = X_train.reindex(index=y.index, fill_value=0.0).fillna(0.0)
+
+        if y.nunique() < 2:
+            continue
+
+        try:
+            X_selected = tsfresh_select_features(X_clean, y)
+        except Exception:
+            X_selected = pd.DataFrame()
+
+        if X_selected.shape[1] == 0:
+            k = min(_FALLBACK_K_FEATURES, X_clean.shape[1])
+            selector = SelectKBest(f_classif, k=k)
+            selector.fit(X_clean, y)
+            X_selected = X_clean.iloc[:, selector.get_support(indices=True)]
+
+        feature_cols[col] = X_selected.columns.tolist()
+        clf = clone(classifier)
+        clf.fit(X_selected, y)
+        models[col] = clf
+
+    return models, feature_cols
 
 
 def _metrics_from_arrays(y_true: np.ndarray, y_pred: np.ndarray) -> dict[str, float]:
@@ -169,91 +225,87 @@ def _metrics_from_arrays(y_true: np.ndarray, y_pred: np.ndarray) -> dict[str, fl
             "tp": tp, "fp": fp, "fn": fn, "tn": tn}
 
 
-def _evaluate_backend(
-    backend: DefaultBackend,
-    X_test: pd.DataFrame,
-    y_dict: dict[str, pd.Series],
-    prob_threshold: float,
-) -> dict[str, dict[str, float]]:
-    results: dict[str, dict[str, float]] = {}
-    for col, clf in backend._models.items():
-        if col not in y_dict:
-            continue
-        feature_cols = backend._feature_cols[col]
-        valid_idx    = y_dict[col].index
-        X_aligned    = X_test.reindex(index=valid_idx, columns=feature_cols, fill_value=0.0)
-        probs        = clf.predict_proba(X_aligned)[:, 1]
-        y_pred       = (probs >= prob_threshold).astype(int)
-        results[col] = _metrics_from_arrays(y_dict[col].values, y_pred)
-    return results
-
-
 # ---------------------------------------------------------------------------
-# Gradual scaling driver
+# Exhaustive gradual scaling driver
 # ---------------------------------------------------------------------------
 
 def run_gradual_scaling(
+    app_features: list[tuple[pd.DataFrame, dict[str, pd.Series]]],
     train_pool: list[Path],
     steps: list[int],
     X_test: pd.DataFrame,
     y_dict_test: dict[str, pd.Series],
-    window_size: int,
-    step_size: int,
-    severity_threshold: float,
     prob_threshold: float,
+    classifier,
 ) -> pd.DataFrame:
+    """
+    For each step k, iterate over ALL C(pool, k) subsets, train on each,
+    evaluate on the fixed test set, and record every result.
+    Averaging over all subsets at step k gives a low-variance estimate.
+    """
     records: list[dict] = []
+    n_pool = len(app_features)
 
     for k in steps:
-        if k > len(train_pool):
-            logger.warning("Step k=%d exceeds training pool size %d — skipping.", k, len(train_pool))
+        if k > n_pool:
+            logger.warning("Step k=%d exceeds pool size %d — skipping.", k, n_pool)
             continue
 
-        subset    = train_pool[:k]
-        app_names = [p.stem.replace("_labelled", "") for p in subset]
+        combos = list(itertools.combinations(range(n_pool), k))
         print(f"\n{'─'*65}")
-        print(f"  Step k={k:>2}  |  Training on: {app_names}")
+        print(f"  Step k={k:>2}  |  {len(combos)} combinations")
         print(f"{'─'*65}")
 
-        backend = DefaultBackend()
-        try:
-            backend.train(
-                labelled_csv_paths=[str(p) for p in subset],
-                window_size=window_size,
-                step_size=step_size,
-                severity_threshold=severity_threshold,
-            )
-        except (ValueError, RuntimeError) as exc:
-            logger.warning("  k=%d — training failed (%s); skipping.", k, exc)
-            continue
+        f1_by_col: dict[str, list[float]] = {}
 
-        if not backend._models:
-            logger.warning("  k=%d — no classifiers trained; skipping.", k)
-            continue
+        for combo_idx, combo in enumerate(combos):
+            app_names = [train_pool[i].stem.replace("_labelled", "") for i in combo]
 
-        eval_results = _evaluate_backend(backend, X_test, y_dict_test, prob_threshold)
+            X_train = pd.concat([app_features[i][0] for i in combo]).fillna(0.0)
+            y_dict_train: dict[str, pd.Series] = {}
+            for col in _LABEL_COLS:
+                parts = [app_features[i][1][col] for i in combo
+                         if col in app_features[i][1]]
+                if parts:
+                    y_dict_train[col] = pd.concat(parts)
 
-        f1_vals: list[float] = []
-        for col, m in eval_results.items():
-            n_features = len(backend._feature_cols[col])
-            f1_vals.append(m["f1"])
+            models, feat_cols = _train_classifiers(X_train, y_dict_train, classifier)
+            if not models:
+                continue
+
+            for col, clf in models.items():
+                if col not in y_dict_test:
+                    continue
+                fc        = feat_cols[col]
+                valid_idx = y_dict_test[col].index
+                X_aligned = X_test.reindex(index=valid_idx, columns=fc, fill_value=0.0)
+                probs     = clf.predict_proba(X_aligned)[:, 1]
+                y_pred    = (probs >= prob_threshold).astype(int)
+                m         = _metrics_from_arrays(y_dict_test[col].values, y_pred)
+
+                f1_by_col.setdefault(col, []).append(m["f1"])
+                records.append({
+                    "n_train_apps":    k,
+                    "combo_idx":       combo_idx,
+                    "train_apps":      str(app_names),
+                    "bottleneck_type": col,
+                    **m,
+                })
+
+        # Per-step summary
+        all_avg_f1: list[float] = []
+        for col in sorted(f1_by_col):
+            vals      = [v for v in f1_by_col[col] if not np.isnan(v)]
+            avg       = float(np.mean(vals)) if vals else float("nan")
+            std       = float(np.std(vals))  if vals else float("nan")
+            all_avg_f1.append(avg)
             print(
                 f"    {col:<42}  "
-                f"F1={m['f1']:.3f}  "
-                f"FAR={m['false_alarm_rate']:.3f}  "
-                f"MR={m['miss_rate']:.3f}  "
-                f"feat={n_features}"
+                f"avg F1={avg:.3f}  std={std:.3f}  "
+                f"(n={len(vals)} combos)"
             )
-            records.append({
-                "n_train_apps":    k,
-                "train_apps":      str(app_names),
-                "bottleneck_type": col,
-                "n_features":      n_features,
-                **m,
-            })
-
-        macro_f1 = float(np.nanmean(f1_vals)) if f1_vals else float("nan")
-        print(f"    {'[MACRO F1]':<42}  {macro_f1:.3f}")
+        macro = float(np.nanmean(all_avg_f1)) if all_avg_f1 else float("nan")
+        print(f"    {'[MACRO AVG F1]':<42}  {macro:.3f}")
 
     return pd.DataFrame(records)
 
@@ -278,18 +330,25 @@ def plot_results(
         print("[WARN] matplotlib not available — skipping plot.")
         return
 
-    bt_types  = sorted(results["bottleneck_type"].unique())
-    x_vals    = sorted(results["n_train_apps"].unique())
+    # Average over all combinations at each (n_train_apps, bottleneck_type)
+    summary = (
+        results.groupby(["n_train_apps", "bottleneck_type"])["f1"]
+        .mean()
+        .reset_index()
+    )
+
+    bt_types  = sorted(summary["bottleneck_type"].unique())
+    x_vals    = sorted(summary["n_train_apps"].unique())
     bt_colors = cm.tab10(np.linspace(0, 0.9, len(bt_types)))
 
     fig, ax = plt.subplots(figsize=(10, 6))
     fig.suptitle(
-        "Gradual Scaling Hold-Out",
+        "Gradual Scaling Hold-Out  (exhaustive combinations, averaged)",
         fontsize=13, fontweight="bold",
     )
 
     for bt, color in zip(bt_types, bt_colors):
-        bt_df = results[results["bottleneck_type"] == bt].set_index("n_train_apps")
+        bt_df = summary[summary["bottleneck_type"] == bt].set_index("n_train_apps")
         y = [bt_df.loc[x, "f1"] if x in bt_df.index else float("nan") for x in x_vals]
         ax.plot(
             x_vals, y,
@@ -297,11 +356,28 @@ def plot_results(
             markersize=4, label=_BT_SHORT.get(bt, bt),
         )
 
-    macro_f1: list[float] = []
-    for x in x_vals:
-        vals = results.loc[results["n_train_apps"] == x, "f1"].dropna()
-        macro_f1.append(float(vals.mean()) if len(vals) > 0 else float("nan"))
+    # Per-combo macro F1 = mean F1 across bt types for that combo
+    combo_macro = (
+        results.groupby(["n_train_apps", "combo_idx"])["f1"]
+        .mean()
+        .reset_index()
+        .rename(columns={"f1": "macro_f1"})
+    )
+    macro_stats = (
+        combo_macro.groupby("n_train_apps")["macro_f1"]
+        .agg(["mean", "std"])
+        .reindex(x_vals)
+    )
+    macro_f1  = macro_stats["mean"].tolist()
+    macro_std = macro_stats["std"].fillna(0).tolist()
 
+    macro_lo = [max(0.0, m - s) for m, s in zip(macro_f1, macro_std)]
+    macro_hi = [min(1.0, m + s) for m, s in zip(macro_f1, macro_std)]
+
+    ax.fill_between(
+        x_vals, macro_lo, macro_hi,
+        color="black", alpha=0.12, zorder=5, label="Macro ± 1 std",
+    )
     ax.plot(
         x_vals, macro_f1,
         color="black", linewidth=3.0, linestyle="-", marker="o", markersize=7,
@@ -320,7 +396,7 @@ def plot_results(
     ax.set_xticks(x_vals)
     ax.set_xticklabels([f"{k} apps" for k in x_vals], fontsize=9)
     ax.set_xlabel("Number of Training Applications", fontsize=11)
-    ax.set_ylabel("F1-Score", fontsize=11)
+    ax.set_ylabel("F1-Score (avg over all subsets)", fontsize=11)
     ax.set_ylim(-0.05, 1.10)
     ax.set_yticks(np.arange(0, 1.1, 0.1))
     ax.grid(True, linestyle=":", alpha=0.5)
@@ -347,14 +423,13 @@ def plot_results(
 
 def _parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(
-        description="Gradual Scaling Hold-Out: F1 vs. number of training apps."
+        description="Gradual Scaling Hold-Out: F1 vs. number of training apps "
+                    "(exhaustive subset enumeration)."
     )
     p.add_argument(
         "--steps", nargs="+", type=int, default=[2, 4, 6, 8, 10],
         help="Training set sizes to evaluate (default: 2 4 6 8 10).",
     )
-    p.add_argument("--test-size",          type=int,   default=3,   dest="test_size",
-                   help="Apps reserved as fixed test set (default: 3).")
     p.add_argument("--window-size",        type=int,   default=10,  dest="window_size")
     p.add_argument("--step-size",          type=int,   default=10,  dest="step_size")
     p.add_argument("--severity-threshold", type=float, default=0.0, dest="severity_threshold")
@@ -372,28 +447,25 @@ def _parse_args() -> argparse.Namespace:
 if __name__ == "__main__":
     args = _parse_args()
 
-    csv_paths = _find_labelled_csvs(DATA_DIR)
-    n         = len(csv_paths)
-
-    if args.test_size >= n:
-        print(f"[ERROR] --test-size ({args.test_size}) must be < total apps ({n}).")
-        sys.exit(1)
-
-    # First test_size apps = fixed test set, rest = training pool
-    test_set       = csv_paths[n-args.test_size:]
-    train_pool     = csv_paths[:n-args.test_size]
+    train_pool = sorted(
+        _find_labelled_csvs(TRAIN_DIR),
+        key=lambda p: _count_windows(p, args.window_size, args.step_size),
+    )
+    test_set       = _find_labelled_csvs(TEST_DIR)
     test_app_names = [p.stem.replace("_labelled", "") for p in test_set]
 
     steps = sorted(set(args.steps))
     if max(steps) > len(train_pool):
         print(
             f"[WARN] Largest step ({max(steps)}) exceeds training pool "
-            f"({len(train_pool)}) — it will be clamped."
+            f"({len(train_pool)}) — it will be skipped."
         )
 
-    print(f"\n[INFO] {n} total apps")
-    print(f"  Fixed test set  ({len(test_set)}): {test_app_names}")
-    print(f"  Training pool  ({len(train_pool)}):")
+    # Combination counts
+    from math import comb
+    print(f"\n[INFO] Training pool (miniapps): {len(train_pool)} apps")
+    print(f"[INFO] Test set      (demo):     {len(test_set)} apps → {test_app_names}")
+    print(f"  Training pool — sorted by #windows:")
     cumulative = 0
     for i, p in enumerate(train_pool):
         wc  = _count_windows(p, args.window_size, args.step_size)
@@ -402,43 +474,79 @@ if __name__ == "__main__":
         print(f"    [{i+1:>2}] {app:<20}  {wc:>4} windows")
     print(f"         {'TOTAL':<20}  {cumulative:>4} windows")
 
-    print(f"\n[INFO] Extracting test-set features (once, reused at every step) …")
-    X_test, y_dict_test = _extract_features_and_labels(
-        test_set, args.window_size, args.step_size, args.severity_threshold
+    total_combos = sum(
+        comb(len(train_pool), k) for k in steps if k <= len(train_pool)
     )
+    print(f"\n[INFO] Steps: {steps}")
+    print(f"[INFO] Total combinations to train: {total_combos}")
+
+    # --- Pre-extract features once per training app ---
+    print(f"\n[INFO] Pre-extracting features for {len(train_pool)} training apps …")
+    app_features: list[tuple[pd.DataFrame, dict[str, pd.Series]]] = []
+    for i, p in enumerate(train_pool):
+        app = p.stem.replace("_labelled", "")
+        print(f"  [{i+1}/{len(train_pool)}] {app} …", end=" ", flush=True)
+        X_app, y_app = _extract_features_for_app(
+            p, args.window_size, args.step_size, args.severity_threshold
+        )
+        app_features.append((X_app, y_app))
+        print(f"{X_app.shape[0]} windows")
+
+    # --- Extract test features (once) ---
+    print(f"\n[INFO] Extracting test-set features (once, reused at every step) …")
+    test_X_parts: list[pd.DataFrame] = []
+    test_y_parts: dict[str, list[pd.Series]] = {col: [] for col in _LABEL_COLS}
+    for p in test_set:
+        X_t, y_t = _extract_features_for_app(
+            p, args.window_size, args.step_size, args.severity_threshold
+        )
+        test_X_parts.append(X_t)
+        for col in _LABEL_COLS:
+            if col in y_t:
+                test_y_parts[col].append(y_t[col])
+
+    X_test = pd.concat(test_X_parts)
+    y_dict_test: dict[str, pd.Series] = {}
+    for col in _LABEL_COLS:
+        if test_y_parts[col]:
+            y_dict_test[col] = pd.concat(test_y_parts[col])
+
     print(
         f"[INFO] Test set: {X_test.shape[0]} windows  |  "
         f"label types: {list(y_dict_test.keys())}"
     )
 
-    print(f"\n[INFO] Running steps: {steps}\n")
+    # --- Run exhaustive scaling ---
     results = run_gradual_scaling(
-        train_pool         = train_pool,
-        steps              = steps,
-        X_test             = X_test,
-        y_dict_test        = y_dict_test,
-        window_size        = args.window_size,
-        step_size          = args.step_size,
-        severity_threshold = args.severity_threshold,
-        prob_threshold     = args.prob_threshold,
+        app_features  = app_features,
+        train_pool    = train_pool,
+        steps         = steps,
+        X_test        = X_test,
+        y_dict_test   = y_dict_test,
+        prob_threshold = args.prob_threshold,
+        classifier    = _DEFAULT_CLASSIFIER,
     )
 
     if results.empty:
         print("[ERROR] No results collected.")
         sys.exit(1)
 
+    # --- Summary ---
     print(f"\n{'='*65}")
     print("  GRADUAL SCALING SUMMARY — Macro-Average F1 per Step")
     print(f"{'='*65}")
-    macro = results.groupby("n_train_apps").agg(
-        macro_f1=("f1",         lambda s: s.dropna().mean()),
-        avg_features=("n_features", lambda s: s.dropna().mean()),
+    macro = (
+        results.groupby(["n_train_apps", "bottleneck_type"])["f1"]
+        .mean()
+        .groupby("n_train_apps")
+        .mean()
     )
-    for k, row in macro.iterrows():
+    for k, avg_f1 in macro.items():
+        n_combos = results[results["n_train_apps"] == k]["combo_idx"].nunique()
         print(
             f"  k={k:>2} apps  →  "
-            f"macro F1 = {row['macro_f1']:.4f}  |  "
-            f"avg features = {row['avg_features']:.1f}"
+            f"macro F1 = {avg_f1:.4f}  |  "
+            f"over {n_combos} combinations"
         )
     print()
 
