@@ -42,6 +42,8 @@ logger = logging.getLogger(__name__)
 _LABEL_COLS = [bt.value for bt in BOTTLENECK_COLUMNS]
 # Columns that are never metric features.
 _NON_METRIC_COLS = {"id", "time"} | set(_LABEL_COLS)
+# Metric column prefixes to exclude from feature extraction.
+EXCLUDE_METRIC_PREFIXES: tuple[str, ...] = ("gpu_")
 
 # ---------------------------------------------------------------------------
 # Feature-extraction parameter sets
@@ -257,7 +259,11 @@ class DefaultBackend(IMLBackend):
             logger.info("Loading labelled CSV: %s", csv_path)
             df = pd.read_csv(csv_path)
 
-            metric_cols = [c for c in df.columns if c not in _NON_METRIC_COLS]
+            metric_cols = [
+                c for c in df.columns
+                if c not in _NON_METRIC_COLS
+                and not any(c.startswith(p) for p in EXCLUDE_METRIC_PREFIXES)
+            ]
 
             for job_id, job_df in df.groupby("id"):
                 job_df = job_df.sort_values("time").reset_index(drop=True)

@@ -46,6 +46,7 @@ from hpc_bottleneck_detector.ml.backends.default_backend import (
     _window_labels,
     _LABEL_COLS,
     _NON_METRIC_COLS,
+    EXCLUDE_METRIC_PREFIXES,
     BASIC_FC_PARAMETERS,
     # BASIC_ADVANCED_FC_PARAMETERS,
 )
@@ -156,7 +157,11 @@ def _build_windows_from_csvs(
     for csv_path in csv_paths:
         logger.info("  Loading %s", csv_path)
         df = pd.read_csv(csv_path)
-        metric_cols = [c for c in df.columns if c not in _NON_METRIC_COLS]
+        metric_cols = [
+            c for c in df.columns
+            if c not in _NON_METRIC_COLS
+            and not any(c.startswith(p) for p in EXCLUDE_METRIC_PREFIXES)
+        ]
 
         for job_id, job_df in df.groupby("id"):
             job_df = job_df.sort_values("time").reset_index(drop=True)
