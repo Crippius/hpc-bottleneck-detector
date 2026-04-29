@@ -1,0 +1,3 @@
+[submodule "aMLLibrary"]
+	path = aMLLibrary
+	url = https://github.com/Crippius/aMLLibrary.git
