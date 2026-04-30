@@ -299,13 +299,16 @@ class AnalysisOrchestrator:
                 raise ValueError(
                     "strategy.model_path must be set for supervised_ml strategy."
                 )
-            backend_type = cfg.get("backend", "tsfresh_sklearn").lower()
-            if backend_type == "tsfresh_sklearn":
+            backend_type = cfg.get("backend", "default").lower()
+            if backend_type == "default":
                 backend = DefaultBackend.load(model_path)
+            elif backend_type == "amllibrary":
+                from .ml.backends.amllibrary_backend import AMLLibraryBackend
+                backend = AMLLibraryBackend.load(model_path)
             else:
                 raise ValueError(
                     f"Unsupported ML backend: '{backend_type}'. "
-                    "Expected 'tsfresh_sklearn'."
+                    "Expected 'default' or 'amllibrary'."
                 )
             return SupervisedMLStrategy(
                 backend=backend,

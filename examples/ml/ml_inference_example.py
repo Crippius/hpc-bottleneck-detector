@@ -241,7 +241,7 @@ def example_via_orchestrator(job_id: int, env_file: str = ".env") -> list[Window
 
         strategy:
           type: supervised_ml
-          backend: tsfresh_sklearn
+          backend: default
           model_path: models/default.pkl
           significance_threshold: 0.3
     """
@@ -259,7 +259,7 @@ def example_via_orchestrator(job_id: int, env_file: str = ".env") -> list[Window
         data_source=XBATDataSource.from_env(env_file=env_file),
         strategy=AnalysisOrchestrator._build_strategy({
             "type": "supervised_ml",
-            "backend": "tsfresh_sklearn",
+            "backend": "default",
             "model_path": str(MODEL_PATH),
             "significance_threshold": THRESHOLD,
         }),

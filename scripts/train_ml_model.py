@@ -16,7 +16,7 @@ Usage
         --data-dir data/labelled_data/ \\
         --window-size 10 \\
         --step-size 10 \\
-        --output models/tsfresh_sklearn.pkl
+        --output models/default.pkl
 
 Output
 ------
@@ -108,7 +108,7 @@ def _parse_args(config: dict) -> argparse.Namespace:
     )
     parser.add_argument(
         "--output",
-        default=output_cfg.get("model_path", "models/tsfresh_sklearn.pkl"),
+        default=output_cfg.get("model_path", "models/default.pkl"),
         help="Output path for the saved backend (.pkl).",
     )
     parser.add_argument(
