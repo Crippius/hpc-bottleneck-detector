@@ -21,7 +21,7 @@ one additional column per real :class:`BottleneckType`:
 from __future__ import annotations
 
 import math
-from typing import Dict, List, Set
+from typing import Dict, List, Optional, Set
 
 import pandas as pd
 
@@ -105,7 +105,7 @@ def label_job(
     strategy: HeuristicStrategy,
     window_size: int,
     step_size: int,
-    interval_seconds: int = 5,
+    interval_seconds: Optional[int] = None,
 ) -> pd.DataFrame:
     """
     Label every time interval in *data_mgr* with bottleneck severity scores.

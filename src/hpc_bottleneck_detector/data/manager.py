@@ -147,12 +147,42 @@ class DataManager:
     def get_time_series_length(self) -> int:
         """
         Get the length of the time series (number of intervals).
-        
+
         Returns:
             Number of time intervals
         """
         interval_cols = [col for col in self.job_data.columns if col.startswith('interval ')]
         return len(interval_cols)
+
+    @property
+    def sampling_interval(self) -> Optional[int]:
+        """
+        Infer the sampling period in seconds from job context.
+
+        Uses ``round(runtime_seconds / n_intervals)`` so a small trailing gap
+        between the last captured metric and the actual job end does not skew
+        the result.  Returns ``None`` when no job context is available or when
+        the runtime cannot be determined.
+
+        ``runtime`` from XBAT is a ``"H:MM:SS"`` string; it is parsed to
+        seconds before dividing.
+        """
+        if self.job_context is None:
+            return None
+        runtime = self.job_context.get_metadata("runtime")
+        if runtime is None:
+            return None
+        n = self.get_time_series_length()
+        if n == 0:
+            return None
+        if isinstance(runtime, str):
+            parts = runtime.split(":")
+            try:
+                h, m, s = int(parts[0]), int(parts[1]), int(parts[2])
+                runtime = h * 3600 + m * 60 + s
+            except (ValueError, IndexError):
+                return None
+        return round(runtime / n)
     
     def get_all_time_series(self) -> pd.DataFrame:
         """
@@ -165,7 +195,7 @@ class DataManager:
         """
         return self.job_data.copy()
 
-    def get_flat_dataframe(self, interval_seconds: int = 5) -> pd.DataFrame:
+    def get_flat_dataframe(self, interval_seconds: Optional[int] = None) -> pd.DataFrame:
         """
         Return a flat (wide) DataFrame version of data.
 
@@ -192,12 +222,26 @@ class DataManager:
             )
 
         Args:
-            interval_seconds: Duration of each interval in seconds.
-                              Defaults to 5.
+            interval_seconds: Duration of each interval in seconds.  When
+                              ``None`` (default), the value is inferred from
+                              ``job_context.runtime`` via the
+                              :attr:`sampling_interval` property.
+
+        Raises:
+            ValueError: If *interval_seconds* is ``None`` and the sampling
+                        interval cannot be inferred from the job context.
 
         Returns:
             DataFrame with shape ``(n_intervals, 2 + n_metrics)``.
         """
+        if interval_seconds is None:
+            interval_seconds = self.sampling_interval
+            if interval_seconds is None:
+                raise ValueError(
+                    "interval_seconds must be provided when no job context "
+                    "with runtime information is available."
+                )
+
         interval_cols = self._interval_columns()
         n_intervals = len(interval_cols)
 
