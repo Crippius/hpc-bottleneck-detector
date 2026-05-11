@@ -68,7 +68,6 @@ root:
       benchmark: peakflops
       fraction: 0.1
       aggregate: mean
-      fallback: 10.0
 
     if_true:
       node_id: good_cpi_and_flops

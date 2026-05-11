@@ -95,19 +95,19 @@ def _resolve_threshold(threshold_cfg: Any, data_mgr: "DataManager") -> float:
         benchmark: bandwidth_mem
         fraction:  0.85
         aggregate: mean          # optional, default 'mean'
-        fallback:  40.0          # used when JobContext is unavailable
 
-    Returns:
-        Concrete threshold value.
+    Raises:
+        ValueError: If a benchmark key is not found in the API or any loaded
+                    hardware profile.  The caller should catch this and return
+                    an UNKNOWN diagnosis rather than silently using a wrong value.
     """
     if isinstance(threshold_cfg, (int, float)):
         return float(threshold_cfg)
 
     if isinstance(threshold_cfg, dict) and "benchmark" in threshold_cfg:
-        key       = threshold_cfg["benchmark"]
-        fraction  = float(threshold_cfg.get("fraction", 1.0))
-        agg       = threshold_cfg.get("aggregate", "mean")
-        fallback  = float(threshold_cfg.get("fallback", 0.0))
+        key      = threshold_cfg["benchmark"]
+        fraction = float(threshold_cfg.get("fraction", 1.0))
+        agg      = threshold_cfg.get("aggregate", "mean")
 
         ctx = data_mgr.job_context
         if ctx is not None:
@@ -115,13 +115,11 @@ def _resolve_threshold(threshold_cfg: Any, data_mgr: "DataManager") -> float:
             if peak is not None:
                 return peak * fraction
 
-        logger.debug(
-            "Benchmark '%s' not available in JobContext; using fallback %.3g.",
-            key, fallback,
+        raise ValueError(
+            f"Benchmark '{key}' not found in XBAT API or any loaded hardware "
+            f"profile. Add it to configs/hardware_profiles/<arch>.yaml."
         )
-        return fallback
 
-    # Shouldn't happen with valid YAML, but be safe
     return float(threshold_cfg)
 
 
@@ -267,6 +265,7 @@ class PropertyNode:
         source: str,
         triggered_metrics: List[str],
         metric_value: Optional[float] = None,
+        resolved_threshold: Optional[float] = None,
     ) -> Diagnosis:
         """
         Build a :class:`~hpc_bottleneck_detector.output.models.Diagnosis`
@@ -289,8 +288,15 @@ class PropertyNode:
             bt = BottleneckType.NONE
 
         # ── Severity ───────────────────────────────────────────────────
-        formula   = str(cfg.get("severity_formula", "0.0"))
-        sev_threshold = float(cfg.get("threshold", 1.0))
+        formula = str(cfg.get("severity_formula", "0.0"))
+
+        raw_threshold = cfg.get("threshold", 1.0)
+        if resolved_threshold is not None:
+            sev_threshold = resolved_threshold
+        elif isinstance(raw_threshold, (int, float)):
+            sev_threshold = float(raw_threshold)
+        else:
+            sev_threshold = 1.0
 
         if metric_value is not None and formula in ("INCREASING", "DECREASING"):
             severity = _compute_severity(formula, metric_value, sev_threshold)

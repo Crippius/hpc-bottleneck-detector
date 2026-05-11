@@ -49,7 +49,6 @@ root:
     benchmark: peakflops
     fraction: 0.15
     aggregate: mean
-    fallback: 10.0
 
   if_false:
     node_id: good_flop_rate_vec

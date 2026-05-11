@@ -175,6 +175,7 @@ class StrategyTree:
             source=self.tree_name,
             triggered_metrics=triggered,
             metric_value=last_value,
+            resolved_threshold=last_threshold,
         )
 
     # ------------------------------------------------------------------

@@ -29,7 +29,6 @@ root:
     benchmark: bandwidth_mem
     fraction: 0.50
     aggregate: mean
-    fallback: 4.023 # GB/s per core, Sandy Bridge-EP STREAM
 
   if_false:
     node_id: not_memory_bound

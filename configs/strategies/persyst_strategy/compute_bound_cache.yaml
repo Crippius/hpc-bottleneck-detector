@@ -30,7 +30,6 @@ root:
     benchmark: bandwidth_l3
     fraction: 0.2
     aggregate: mean
-    fallback: 1.54 # GB/s
 
   if_false:
     node_id: low_l3_activity
