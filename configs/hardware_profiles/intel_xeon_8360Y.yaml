@@ -1,0 +1,33 @@
+# =============================================================================
+# Hardware Profile — Intel Xeon Platinum 8360Y (Ice Lake-SP)
+# =============================================================================
+# All values are in SI units: bandwidth in bytes/s, FLOPS in ops/s.
+#
+# API-provided values are documented here as fallbacks (used only when the
+# XBAT API is unavailable). They take lower priority than the live API call.
+# =============================================================================
+
+name: Intel Xeon Platinum 8360Y (Ice Lake-SP)
+cpu_model_pattern: "Intel.*8360Y"
+
+benchmarks:
+  # --- Supplemental: not available via XBAT API ---
+  bandwidth_upi: 55600000000 # bytes/s — 55,600 MB/s per direction (socket pair)
+
+  # --- API-provided ---
+  bandwidth_l1: 3359902154096.64
+  bandwidth_l2: 2416949162147.84
+  bandwidth_l3: 1055286812999.68
+  bandwidth_mem: 395905744240.64
+  peakflops: 445004000000
+  peakflops_avx: 1727118400000
+  peakflops_avx512: 2978010780000
+  peakflops_avx512_fma: 5954921460000
+  peakflops_avx_fma: 3469380360000
+  peakflops_sp: 445021760000
+  peakflops_sp_avx: 3448064780000
+  peakflops_sp_avx512: 5956533410000
+  peakflops_sp_avx512_fma: 11911165420000
+  peakflops_sp_avx_fma: 7057232190000
+  peakflops_sp_sse: 1779725060000
+  peakflops_sse: 888601800000

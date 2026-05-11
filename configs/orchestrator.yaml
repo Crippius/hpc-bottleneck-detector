@@ -11,6 +11,16 @@
 # Uncomment the block that matches your use-case and comment the others.
 
 # ---------------------------------------------------------------------------
+# Hardware profiles
+# ---------------------------------------------------------------------------
+# Provides benchmark values that the XBAT API cannot supply and optional explicit overrides.
+#
+# profiles_dir   – directory of per-architecture YAML files
+#
+hardware:
+  profiles_dir: configs/hardware_profilesn
+
+# ---------------------------------------------------------------------------
 # Pipeline settings
 # ---------------------------------------------------------------------------
 pipeline:
