@@ -266,12 +266,12 @@ const TREES = /*TREES_JSON*/[
       {
         "id": "memory_bound_upi__check_upi_bandwidth",
         "kind": "decision",
-        "description": "Is UPI (inter-socket) bandwidth high?",
+        "description": "Is UPI (inter-socket) bandwidth above 10% of measured peak?",
         "metric_type": "simple",
         "metric_description": "memory / UPI Bandwidth / total",
         "aggregation": "mean",
         "operator": ">",
-        "threshold": "100000000.0",
+        "threshold": "10% of benchmark(bandwidth_upi)  [fallback 5560000000]",
         "label": "Check Upi Bandwidth"
       },
       {
@@ -279,7 +279,7 @@ const TREES = /*TREES_JSON*/[
         "kind": "leaf",
         "bottleneck_type": "CACHE_PRESSURE",
         "severity_formula": "INCREASING",
-        "threshold": "100000000.0",
+        "threshold": "10% of benchmark(bandwidth_upi)  [fallback 5560000000]",
         "confidence": 1.0,
         "recommendation": "High inter-socket (UPI) bandwidth: data accessed by one socket is frequently fetched from another socket's memory, indicating poor NUMA data locality. Actions:\n  - Check first-touch policy in OpenMP threads: initialise data on the thread\n    that will use it, not in a serial region before the parallel section.\n  - Use numactl or explicit memory binding to pin data to the correct NUMA node.\n  - Avoid strided or irregular access patterns that cross NUMA boundaries.\n  - Consider restructuring data layout (AoS -> SoA) to improve spatial locality.\n  - For MPI+OpenMP codes, ensure thread affinity aligns data placement with compute.",
         "label": "Cache Pressure",

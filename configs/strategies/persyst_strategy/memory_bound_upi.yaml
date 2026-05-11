@@ -39,21 +39,30 @@ root:
 
   if_true:
     node_id: check_upi_bandwidth
-    description: "Is UPI (inter-socket) bandwidth high?"
+    description: "Is UPI (inter-socket) bandwidth above 10% of measured peak?"
     metric:
       group: memory
       metric: UPI Bandwidth
       trace: total
     aggregation: mean
     operator: ">"
-    threshold: 1e+08
+    threshold:
+      benchmark: bandwidth_upi
+      fraction: 0.10
+      aggregate: mean
+      fallback: 5560000000 # bytes/s
 
     if_true:
       node_id: high_upi_bandwidth
       diagnosis:
         bottleneck_type: CACHE_PRESSURE
         severity_formula: INCREASING
-        threshold: 1e+08
+        threshold:
+          benchmark: bandwidth_upi
+          fraction: 0.10
+          aggregate: mean
+          fallback: 5560000000
+
         confidence: 1.0
         recommendation: >
           High inter-socket (UPI) bandwidth: data accessed by one socket is frequently
