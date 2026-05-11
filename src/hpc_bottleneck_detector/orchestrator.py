@@ -25,6 +25,7 @@ from typing import List, Optional
 import yaml
 
 from .data.manager import DataManager
+from .data.hardware_profiles import HardwareProfileLoader
 from .data_sources.interface import IDataSource
 from .data_sources.csv_source import CSVDataSource
 from .data_sources.xbat_source import XBATDataSource
@@ -64,12 +65,14 @@ class AnalysisOrchestrator:
         window_size: int = 10,
         step_size: int = 10,
         output_cfg: Optional[dict] = None,
+        hw_profile_loader: Optional[HardwareProfileLoader] = None,
     ) -> None:
         self.data_source = data_source
         self.strategy = strategy
         self.window_size = window_size
         self.step_size = step_size
         self.output_cfg: dict = output_cfg or {}
+        self._hw_profile_loader = hw_profile_loader
 
     # ------------------------------------------------------------------
     # Factory
@@ -113,6 +116,11 @@ class AnalysisOrchestrator:
         strat_cfg = config.get("strategy", {})
         strategy = cls._build_strategy(strat_cfg)
 
+        # ── hardware profiles ─────────────────────────────────────────
+        hw_cfg = config.get("hardware", {})
+        profiles_dir = hw_cfg.get("profiles_dir")
+        hw_profile_loader = HardwareProfileLoader(profiles_dir) if profiles_dir else None
+
         # ── output ────────────────────────────────────────────────────
         output_cfg = config.get("output", {})
 
@@ -122,6 +130,7 @@ class AnalysisOrchestrator:
             window_size=window_size,
             step_size=step_size,
             output_cfg=output_cfg,
+            hw_profile_loader=hw_profile_loader,
         )
 
     # ------------------------------------------------------------------
@@ -158,6 +167,9 @@ class AnalysisOrchestrator:
             job_id,
         )
 
+        # ── 1b. Inject supplemental benchmarks ────────────────────────
+        self._inject_supplemental_benchmarks(data_mgr)
+
         # ── 2 & 3. Window iteration + strategy ────────────────────────
         window_diagnoses: List[WindowDiagnosis] = []
 
@@ -190,6 +202,29 @@ class AnalysisOrchestrator:
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
+
+    def _inject_supplemental_benchmarks(self, data_mgr: DataManager) -> None:
+        """
+        Populate ``data_mgr.job_context.supplemental_benchmarks`` from the
+        hardware profile and explicit overrides.
+        """
+        ctx = data_mgr.job_context
+        if ctx is None or self._hw_profile_loader is None:
+            return
+
+        cpu_model = ctx.get_cpu_info("Model name") or ""
+        if not cpu_model:
+            logger.debug("No CPU model in JobContext; hardware profile skipped.")
+            return
+
+        profile_vals = self._hw_profile_loader.match(cpu_model)
+        if profile_vals:
+            ctx.supplemental_benchmarks.update(profile_vals)
+            logger.info(
+                "Hardware profile matched for CPU '%s': %s",
+                cpu_model,
+                list(profile_vals.keys()),
+            )
 
     def _apply_filters(
         self, window_diagnoses: List[WindowDiagnosis]

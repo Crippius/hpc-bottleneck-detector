@@ -19,15 +19,16 @@ logger = logging.getLogger(__name__)
 # Columns present in this map are divided by the corresponding peak value
 # when a JobContext is available.  Adjust keys to match your XBAT instance.
 METRIC_BENCHMARK_MAP: dict[str, str] = {
-    "cpu_FLOPS_SP":            "peakflops_sp",
-    "cpu_FLOPS_DP":            "peakflops_dp",
-    "cpu_FLOPS_AVX_SP":        "peakflops_avx_sp",
-    "cpu_FLOPS_AVX_DP":        "peakflops_avx_dp",
-    "cpu_FLOPS_AVX512_SP":     "peakflops_avx512_sp",
-    "cpu_FLOPS_AVX512_DP":     "peakflops_avx512_dp",
-    "memory_Bandwidth_total":  "bandwidth_mem",
-    "memory_Bandwidth_read":   "bandwidth_mem",
-    "memory_Bandwidth_write":  "bandwidth_mem",
+    "cpu_FLOPS_SP":                  "peakflops_sp",
+    "cpu_FLOPS_DP":                  "peakflops_dp",
+    "cpu_FLOPS_AVX_SP":              "peakflops_avx_sp",
+    "cpu_FLOPS_AVX_DP":              "peakflops_avx_dp",
+    "cpu_FLOPS_AVX512_SP":           "peakflops_avx512_sp",
+    "cpu_FLOPS_AVX512_DP":           "peakflops_avx512_dp",
+    "memory_Bandwidth_total":        "bandwidth_mem",
+    "memory_Bandwidth_read":         "bandwidth_mem",
+    "memory_Bandwidth_write":        "bandwidth_mem",
+    "memory_UPI Bandwidth_total":    "bandwidth_upi",
 }
 
 

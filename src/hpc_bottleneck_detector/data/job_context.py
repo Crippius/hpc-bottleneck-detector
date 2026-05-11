@@ -2,9 +2,6 @@
 Job Context Module
 
 Holds static metadata about an HPC job and the hardware nodes it ran on.
-This context complements the time-series measurements stored in DataManager
-with information that is fixed for the lifetime of the job (hardware specs,
-job configuration, benchmark capabilities of the nodes).
 """
 
 from __future__ import annotations
@@ -87,13 +84,15 @@ class JobContext:
     Static context for a single HPC job.
 
     Attributes:
-        job_id:        String job identifier.
-        job_metadata:  Dict extracted from the ``/api/v1/jobs`` response for
-                       this job (runtime, capturetime, jobState, node
-                       hostnames, configuration variant).
-        node_hardware: Dict mapping node hash -> filtered hardware info
-                       (cpu, memory, benchmarks, os).  Nodes that share the
-                       same hardware hash appear under a single entry.
+        job_id:                 String job identifier.
+        job_metadata:           Dict extracted from the api response for
+                                this job (runtime, capturetime, jobState, node
+                                hostnames, configuration variant).
+        node_hardware:          Dict mapping node hash -> filtered hardware info
+                                (cpu, memory, benchmarks, os).  Nodes that share the
+                                same hardware hash appear under a single entry.
+        supplemental_benchmarks: Fallback benchmark values used when the API
+
     """
 
     def __init__(
@@ -101,10 +100,12 @@ class JobContext:
         job_id: str,
         job_metadata: Dict[str, Any],
         node_hardware: Dict[str, Dict[str, Any]],
+        supplemental_benchmarks: Optional[Dict[str, float]] = None,
     ) -> None:
         self.job_id = job_id
         self.job_metadata = job_metadata
         self.node_hardware = node_hardware
+        self.supplemental_benchmarks: Dict[str, float] = supplemental_benchmarks or {}
 
     # ------------------------------------------------------------------
     # Accessors
@@ -128,28 +129,34 @@ class JobContext:
 
     def get_benchmark(self, key: str, aggregate: str = "mean") -> Optional[float]:
         """
-        Return an aggregated benchmark value across all nodes.
+        Return a benchmark value
 
         Args:
             key:       Benchmark name, e.g. ``'bandwidth_mem'``,
-                       ``'peakflops_avx512_fma'``.
+                       ``'bandwidth_upi'``, ``'peakflops_avx512_fma'``.
             aggregate: ``'mean'`` (default), ``'min'``, or ``'max'``.
+                       Applied only to API-provided values (supplemental
+                       values are single scalars).
 
         Returns:
-            Aggregated float, or ``None`` if the key is absent on all nodes.
+            Float value, or ``None`` if the key is absent from all sources.
         """
         values = [
             info["benchmarks"][key]
             for info in self.node_hardware.values()
             if "benchmarks" in info and key in info["benchmarks"]
         ]
-        if not values:
-            return None
-        if aggregate == "min":
-            return min(values)
-        if aggregate == "max":
-            return max(values)
-        return sum(values) / len(values)
+        if values:
+            if aggregate == "min":
+                return min(values)
+            if aggregate == "max":
+                return max(values)
+            return sum(values) / len(values)
+
+        if key in self.supplemental_benchmarks:
+            return float(self.supplemental_benchmarks[key])
+
+        return None
 
     def get_cpu_info(self, key: str) -> Optional[Any]:
         """
