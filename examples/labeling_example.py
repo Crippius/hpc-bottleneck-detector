@@ -22,18 +22,18 @@ from hpc_bottleneck_detector.utils.labeling import label_job, BOTTLENECK_COLUMNS
 
 STRATEGY_FOLDER = Path(__file__).parent.parent / "configs" / "strategies" / "persyst_strategy"
 
-WINDOW_SIZE      = 10   # intervals per analysis window
-STEP_SIZE        = 10   # tumbling windows (set < WINDOW_SIZE for sliding)
-INTERVAL_SECONDS = 5    # seconds per interval
+WINDOW_SIZE = 10   # intervals per analysis window
+STEP_SIZE   = 10   # tumbling windows (set < WINDOW_SIZE for sliding)
 
 
 def label_single_job(job_id: int, source: XBATDataSource, strategy: HeuristicStrategy) -> None:
     print(f"\n[INFO] Fetching job {job_id} …")
     dm = source.fetch_job_data(job_id)
-    print(f"       job_id    : {dm.job_id}")
-    print(f"       intervals : {dm.get_time_series_length()}")
-    print(f"       metrics   : {len(dm.job_data)}")
-    print(f"       context   : {dm.job_context is not None}")
+    print(f"       job_id          : {dm.job_id}")
+    print(f"       intervals       : {dm.get_time_series_length()}")
+    print(f"       metrics         : {len(dm.job_data)}")
+    print(f"       context         : {dm.job_context is not None}")
+    print(f"       sampling_interval: {dm.sampling_interval}s")
 
     # ── Label the job ─────────────────────────────────────────────────────────
     print(f"\n[INFO] Labelling (window={WINDOW_SIZE}, step={STEP_SIZE}) …")
@@ -42,7 +42,6 @@ def label_single_job(job_id: int, source: XBATDataSource, strategy: HeuristicStr
         strategy=strategy,
         window_size=WINDOW_SIZE,
         step_size=STEP_SIZE,
-        interval_seconds=INTERVAL_SECONDS,
     )
     print(f"       output shape : {labelled.shape}  (rows=intervals, cols=metrics+labels)")
 
