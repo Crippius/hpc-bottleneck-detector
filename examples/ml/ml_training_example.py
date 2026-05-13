@@ -23,13 +23,14 @@ Usage:
 
 from __future__ import annotations
 
+import argparse
 import logging
 import sys
 from pathlib import Path
 
 import pandas as pd
 
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
+sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 
 from hpc_bottleneck_detector.ml.backends.default_backend import (
     DefaultBackend,
@@ -44,7 +45,7 @@ logging.basicConfig(
     datefmt="%H:%M:%S",
 )
 
-REPO_ROOT    = Path(__file__).parent.parent
+REPO_ROOT    = Path(__file__).parent.parent.parent
 DATA_DIR     = REPO_ROOT / "data" / "labelled_data"
 MODEL_OUTPUT = REPO_ROOT / "models" / "default.pkl"
 
@@ -158,6 +159,12 @@ def example_save_and_reload(backend: DefaultBackend, output: Path) -> DefaultBac
 # =============================================================================
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Train a DefaultBackend on labelled HPC job CSVs.")
+    parser.add_argument("-o", "--output", default=str(MODEL_OUTPUT),
+                        help=f"Output path for the saved model (.pkl). Default: {MODEL_OUTPUT}")
+    args = parser.parse_args()
+    output_path = Path(args.output)
+
     csv_paths = _find_labelled_csvs(DATA_DIR)
     print(f"[INFO] Found {len(csv_paths)} labelled CSV(s):")
     for p in csv_paths:
@@ -166,10 +173,10 @@ if __name__ == "__main__":
     _print_label_summary(csv_paths)
 
     backend = example_train_direct(csv_paths)
-    example_save_and_reload(backend, MODEL_OUTPUT)
+    example_save_and_reload(backend, output_path)
 
     print("\n" + "=" * 60)
-    print(f"  Done.  Model saved to: {MODEL_OUTPUT}")
+    print(f"  Done.  Model saved to: {output_path}")
     print("=" * 60)
     print()
     print("  Next step → run ml_inference_example.py to use the model.")

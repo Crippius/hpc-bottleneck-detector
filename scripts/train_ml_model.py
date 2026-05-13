@@ -107,7 +107,7 @@ def _parse_args(config: dict) -> argparse.Namespace:
         help="Severity > this value → positive label (default: 0.0).",
     )
     parser.add_argument(
-        "--output",
+        "-o", "--output",
         default=output_cfg.get("model_path", "models/default.pkl"),
         help="Output path for the saved backend (.pkl).",
     )

@@ -29,7 +29,7 @@ from pathlib import Path
 import matplotlib.colors as mcolors
 import numpy as np
 
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
+sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 
 from hpc_bottleneck_detector import AnalysisOrchestrator, BottleneckType, WindowDiagnosis
 from hpc_bottleneck_detector.data_sources.xbat_source import XBATDataSource
@@ -42,7 +42,7 @@ logging.basicConfig(
     datefmt="%H:%M:%S",
 )
 
-REPO_ROOT  = Path(__file__).parent.parent
+REPO_ROOT  = Path(__file__).parent.parent.parent
 MODEL_PATH = REPO_ROOT / "models" / "default.pkl"
 
 WINDOW_SIZE = 10
@@ -297,7 +297,9 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="ML inference example")
     parser.add_argument("--job-id", type=int, default=45719, help="Job ID to run inference on")
     parser.add_argument("--env-file", default=".env", help="Path to .env credentials file (default: .env)")
+    parser.add_argument("-m", "--model", default=str(MODEL_PATH), help="Path to trained model .pkl (default: models/default.pkl)")
     _args = parser.parse_args()
+    MODEL_PATH = Path(_args.model)
 
     # Example 1 — direct API (most transparent, best for debugging)
     results = example_direct(_args.job_id, env_file=_args.env_file)
