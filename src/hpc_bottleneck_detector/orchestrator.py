@@ -168,7 +168,7 @@ class AnalysisOrchestrator:
         )
 
         # ── 1b. Inject supplemental benchmarks ────────────────────────
-        self._inject_supplemental_benchmarks(data_mgr)
+        self.inject_supplemental_benchmarks(data_mgr)
 
         # ── 2 & 3. Window iteration + strategy ────────────────────────
         window_diagnoses: List[WindowDiagnosis] = []
@@ -203,10 +203,10 @@ class AnalysisOrchestrator:
     # Internal helpers
     # ------------------------------------------------------------------
 
-    def _inject_supplemental_benchmarks(self, data_mgr: DataManager) -> None:
+    def inject_supplemental_benchmarks(self, data_mgr: DataManager) -> None:
         """
         Populate ``data_mgr.job_context.supplemental_benchmarks`` from the
-        hardware profile and explicit overrides.
+        hardware profile.
         """
         ctx = data_mgr.job_context
         if ctx is None or self._hw_profile_loader is None:

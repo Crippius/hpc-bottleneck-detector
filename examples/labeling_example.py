@@ -15,20 +15,24 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
+from hpc_bottleneck_detector.data.hardware_profiles import HardwareProfileLoader
 from hpc_bottleneck_detector.data_sources.xbat_source import XBATDataSource
+from hpc_bottleneck_detector.orchestrator import AnalysisOrchestrator
 from hpc_bottleneck_detector.strategies import HeuristicStrategy
 from hpc_bottleneck_detector.utils.labeling import label_job, BOTTLENECK_COLUMNS
 
 
-STRATEGY_FOLDER = Path(__file__).parent.parent / "configs" / "strategies" / "persyst_strategy"
+STRATEGY_FOLDER  = Path(__file__).parent.parent / "configs" / "strategies" / "persyst_strategy"
+HW_PROFILES_DIR  = Path(__file__).parent.parent / "configs" / "hardware_profiles"
 
 WINDOW_SIZE = 10   # intervals per analysis window
 STEP_SIZE   = 10   # tumbling windows (set < WINDOW_SIZE for sliding)
 
 
-def label_single_job(job_id: int, source: XBATDataSource, strategy: HeuristicStrategy) -> None:
+def label_single_job(job_id: int, source: XBATDataSource, strategy: HeuristicStrategy, orchestrator: AnalysisOrchestrator) -> None:
     print(f"\n[INFO] Fetching job {job_id} …")
     dm = source.fetch_job_data(job_id)
+    orchestrator.inject_supplemental_benchmarks(dm)
     print(f"       job_id          : {dm.job_id}")
     print(f"       intervals       : {dm.get_time_series_length()}")
     print(f"       metrics         : {len(dm.job_data)}")
@@ -96,10 +100,18 @@ def main() -> None:
     print(f"       trees loaded : {len(strategy._strategy_trees)}")
     print(f"       tree names   : {[t.tree_name for t in strategy._strategy_trees]}")
 
-    # ── 3. Label each job ─────────────────────────────────────────────────────
+    # ── 3. Build orchestrator ─────────
+    hw_loader    = HardwareProfileLoader(str(HW_PROFILES_DIR))
+    orchestrator = AnalysisOrchestrator(
+        data_source=source,
+        strategy=strategy,
+        hw_profile_loader=hw_loader,
+    )
+
+    # ── 4. Label each job ─────────────────────────────────────────────────────
     for job_id in args.job_ids:
         print("\n" + "=" * 70)
-        label_single_job(job_id, source, strategy)
+        label_single_job(job_id, source, strategy, orchestrator)
 
     print("\n" + "=" * 70)
     print("[INFO] Done.")
