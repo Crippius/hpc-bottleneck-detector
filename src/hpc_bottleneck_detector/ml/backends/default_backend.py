@@ -22,7 +22,6 @@ from pathlib import Path
 from typing import Optional
 
 import joblib
-import numpy as np
 import pandas as pd
 from sklearn.base import ClassifierMixin, clone
 from sklearn.ensemble import RandomForestClassifier
@@ -30,8 +29,12 @@ from sklearn.feature_selection import SelectKBest, f_classif
 from tsfresh import extract_features, select_features
 from tsfresh.utilities.dataframe_functions import impute
 
+# FDR significance level for tsfresh feature selection. Lower (0.01) = stricter, Higher (0.20) = lenient. Default tsfresh value is 0.05
+_FDR_LEVEL = 0.01
 # Number of features to keep when tsfresh's FDR test selects nothing.
 _FALLBACK_K_FEATURES = 100
+# Minimum RF feature importance to keep after FDR selection.
+_IMPORTANCE_THRESHOLD = 1e-6
 
 from ..backend_interface import IMLBackend
 from ...utils.labeling import BOTTLENECK_COLUMNS
@@ -230,8 +233,15 @@ class DefaultBackend(IMLBackend):
         _fc_params:    tsfresh feature-calculation parameters.
     """
 
-    def __init__(self, classifier: ClassifierMixin = _DEFAULT_CLASSIFIER) -> None:
+    def __init__(
+        self,
+        classifier: ClassifierMixin = _DEFAULT_CLASSIFIER,
+        use_fdr: bool = True,
+        use_importance_pruning: bool = True,
+    ) -> None:
         self._classifier = classifier
+        self._use_fdr = use_fdr
+        self._use_importance_pruning = use_importance_pruning
         self._models: dict[str, ClassifierMixin] = {}
         self._feature_cols: dict[str, list[str]] = {}
         self._fc_params = BASIC_FC_PARAMETERS
@@ -323,23 +333,41 @@ class DefaultBackend(IMLBackend):
                 )
                 continue
 
-            # Feature selection — tsfresh FDR test first, then SelectKBest fallback.
-            try:
-                X_selected = select_features(X_clean, y_clean)
-            except Exception as exc:
-                logger.warning(
-                    "  tsfresh select_features failed for %s (%s); falling back to SelectKBest.", col, exc
-                )
-                X_selected = pd.DataFrame()
+            X_selected = X_clean
 
-            if X_selected.shape[1] == 0:
-                k = min(_FALLBACK_K_FEATURES, X_clean.shape[1])
-                logger.warning(
-                    "  tsfresh selected 0 features for %s; using SelectKBest(k=%d).", col, k
+            # tsfresh FDR test: remove statistically irrelevant features.
+            if self._use_fdr:
+                try:
+                    X_selected = select_features(X_clean, y_clean, fdr_level=_FDR_LEVEL)
+                except Exception as exc:
+                    logger.warning(
+                        "  tsfresh select_features failed for %s (%s); falling back to SelectKBest.", col, exc
+                    )
+                    X_selected = pd.DataFrame()
+
+                if X_selected.shape[1] == 0:
+                    k = min(_FALLBACK_K_FEATURES, X_clean.shape[1])
+                    logger.warning(
+                        "  tsfresh selected 0 features for %s; using SelectKBest(k=%d).", col, k
+                    )
+                    selector = SelectKBest(f_classif, k=k)
+                    selector.fit(X_clean, y_clean)
+                    X_selected = X_clean.iloc[:, selector.get_support(indices=True)]
+
+                logger.info("  FDR: %d → %d features.", X_clean.shape[1], X_selected.shape[1])
+
+            # importance-based pruning: fit a preliminary clf,
+            # drop features below _IMPORTANCE_THRESHOLD, then refit on pruned set.
+            if self._use_importance_pruning:
+                prelim_clf = clone(self._classifier)
+                prelim_clf.fit(X_selected, y_clean)
+                mask = prelim_clf.feature_importances_ >= _IMPORTANCE_THRESHOLD
+                n_before = X_selected.shape[1]
+                X_selected = X_selected.loc[:, mask]
+                logger.info(
+                    "  Importance pruning: %d → %d features (threshold=%.2e).",
+                    n_before, X_selected.shape[1], _IMPORTANCE_THRESHOLD,
                 )
-                selector = SelectKBest(f_classif, k=k)
-                selector.fit(X_clean, y_clean)
-                X_selected = X_clean.iloc[:, selector.get_support(indices=True)]
 
             self._feature_cols[col] = X_selected.columns.tolist()
 
@@ -423,6 +451,8 @@ class DefaultBackend(IMLBackend):
                 "models": self._models,
                 "feature_cols": self._feature_cols,
                 "fc_params": self._fc_params,
+                "use_fdr": self._use_fdr,
+                "use_importance_pruning": self._use_importance_pruning,
             },
             out,
         )
@@ -440,7 +470,11 @@ class DefaultBackend(IMLBackend):
             Fully restored :class:`DefaultBackend` ready for inference.
         """
         data = joblib.load(path)
-        backend = cls(classifier=data.get("classifier", _DEFAULT_CLASSIFIER))
+        backend = cls(
+            classifier=data.get("classifier", _DEFAULT_CLASSIFIER),
+            use_fdr=data.get("use_fdr", True),
+            use_importance_pruning=data.get("use_importance_pruning", True),
+        )
         backend._models = data["models"]
         backend._feature_cols = data["feature_cols"]
         backend._fc_params = data.get("fc_params", BASIC_FC_PARAMETERS)
