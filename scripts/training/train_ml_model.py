@@ -38,7 +38,7 @@ from sklearn.metrics import classification_report
 from sklearn.model_selection import train_test_split
 
 # Allow running from repo root without installation.
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
+sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 
 from hpc_bottleneck_detector.ml.backends.default_backend import (
     DefaultBackend,
@@ -60,7 +60,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-DEFAULT_CONFIG = Path(__file__).parent.parent / "configs" / "ml_training.yaml"
+DEFAULT_CONFIG = Path(__file__).parent.parent.parent / "configs" / "ml_training.yaml"
 
 
 def _load_config(config_path: Path) -> dict:

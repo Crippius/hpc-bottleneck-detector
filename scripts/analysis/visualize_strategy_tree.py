@@ -43,7 +43,7 @@ except ImportError:
 # YAML parsing
 # ---------------------------------------------------------------------------
 
-_REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent
+_REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent.parent
 
 
 def _format_threshold(threshold) -> str:

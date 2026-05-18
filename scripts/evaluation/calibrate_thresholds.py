@@ -28,7 +28,7 @@ import pandas as pd
 import yaml
 
 # -- path setup ----------------------------------------------------------------
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
+sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 
 from hpc_bottleneck_detector.data.manager import DataManager
 from hpc_bottleneck_detector.data_sources import XBATDataSource
@@ -47,7 +47,7 @@ DEFAULT_JOB_IDS: List[str] = []
 WINDOW_SIZE: int = 10  # intervals per window (matches orchestrator default)
 
 STRATEGY_DIR: Path = (
-    Path(__file__).parent.parent / "configs" / "strategies" / "persyst_strategy"
+    Path(__file__).parent.parent.parent / "configs" / "strategies" / "persyst_strategy"
 )
 
 OUTPUT_CSV: Path = Path("calibration_results.csv")

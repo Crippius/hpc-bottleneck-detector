@@ -6,14 +6,14 @@ where each row is a time interval and each bottleneck type has its own
 severity column.  The result is saved as a CSV file ready for ML training.
 
 Usage:
-    python examples/labeling_example.py [--job-ids JOB_ID [JOB_ID ...]]
+    python scripts/training/label_jobs.py [--job-ids JOB_ID [JOB_ID ...]]
 """
 
 import argparse
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
+sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 
 from hpc_bottleneck_detector.data.hardware_profiles import HardwareProfileLoader
 from hpc_bottleneck_detector.data_sources.xbat_source import XBATDataSource
@@ -22,8 +22,8 @@ from hpc_bottleneck_detector.strategies import HeuristicStrategy
 from hpc_bottleneck_detector.utils.labeling import label_job, BOTTLENECK_COLUMNS
 
 
-STRATEGY_FOLDER  = Path(__file__).parent.parent / "configs" / "strategies" / "persyst_strategy"
-HW_PROFILES_DIR  = Path(__file__).parent.parent / "configs" / "hardware_profiles"
+STRATEGY_FOLDER  = Path(__file__).parent.parent.parent / "configs" / "strategies" / "persyst_strategy"
+HW_PROFILES_DIR  = Path(__file__).parent.parent.parent / "configs" / "hardware_profiles"
 
 WINDOW_SIZE = 10   # intervals per analysis window
 STEP_SIZE   = 10   # tumbling windows (set < WINDOW_SIZE for sliding)
@@ -70,7 +70,7 @@ def label_single_job(job_id: int, source: XBATDataSource, strategy: HeuristicStr
     print(labelled[preview_cols].head().to_string(index=False))
 
     # ── Save to CSV ───────────────────────────────────────────────────────────
-    out_path = Path(__file__).parent.parent / "data" / "labelled_data" / f"{dm.job_id}_labelled.csv"
+    out_path = Path(__file__).parent.parent.parent / "data" / "labelled_data" / f"{dm.job_id}_labelled.csv"
     labelled.to_csv(out_path, index=False)
     print(f"\n[INFO] Saved labelled CSV → {out_path}")
 
