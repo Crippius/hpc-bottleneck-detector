@@ -1,18 +1,13 @@
 """
-Training Script — Supervised ML Model
+Training Script - Supervised ML Model
 
-Trains a :class:`DefaultBackend` on labelled CSVs produced by
-``label_job()`` and saves the result to disk.
+Trains a :class:`DefaultBackend` on labelled CSVs produced by label_jobs.py
+and saves the result to disk.
 
 Usage
 -----
-    python scripts/train_ml_model.py [options]
-
-    # Use all defaults from configs/ml_training.yaml:
-    python scripts/train_ml_model.py
-
-    # Override specific options:
-    python scripts/train_ml_model.py \\
+    python scripts/training/train_ml_model.py
+    python scripts/training/train_ml_model.py \\
         --data-dir data/labelled_data/ \\
         --window-size 10 \\
         --step-size 10 \\
@@ -20,7 +15,7 @@ Usage
 
 Output
 ------
-- A ``.pkl`` file loadable with ``DefaultBackend.load(path)``.
+- A .pkl file loadable with DefaultBackend.load(path).
 - A per-type classification report printed to stdout.
 """
 
@@ -33,11 +28,9 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-import yaml
 from sklearn.metrics import classification_report
 from sklearn.model_selection import train_test_split
 
-# Allow running from repo root without installation.
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 
 from hpc_bottleneck_detector.ml.backends.default_backend import (
@@ -60,69 +53,25 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-DEFAULT_CONFIG = Path(__file__).parent.parent.parent / "configs" / "ml_training.yaml"
 
-
-def _load_config(config_path: Path) -> dict:
-    if config_path.exists():
-        with config_path.open() as fh:
-            return yaml.safe_load(fh) or {}
-    return {}
-
-
-def _parse_args(config: dict) -> argparse.Namespace:
-    training_cfg = config.get("training", {})
-    backend_cfg = config.get("backend", {})
-    output_cfg = config.get("output", {})
-
+def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Train a DefaultBackend on labelled HPC job CSVs."
     )
-    parser.add_argument(
-        "--config",
-        default=str(DEFAULT_CONFIG),
-        help="Path to ml_training.yaml (default: configs/ml_training.yaml).",
-    )
-    parser.add_argument(
-        "--data-dir",
-        default=training_cfg.get("data_dir", "data/labelled_data/"),
-        help="Directory containing labelled CSV files.",
-    )
-    parser.add_argument(
-        "--window-size",
-        type=int,
-        default=int(training_cfg.get("window_size", 10)),
-        help="Number of intervals per analysis window.",
-    )
-    parser.add_argument(
-        "--step-size",
-        type=int,
-        default=int(training_cfg.get("step_size", 10)),
-        help="Interval advance between successive windows.",
-    )
-    parser.add_argument(
-        "--severity-threshold",
-        type=float,
-        default=float(training_cfg.get("severity_threshold", 0.0)),
-        help="Severity > this value → positive label (default: 0.0).",
-    )
-    parser.add_argument(
-        "-o", "--output",
-        default=output_cfg.get("model_path", "models/default.pkl"),
-        help="Output path for the saved backend (.pkl).",
-    )
-    parser.add_argument(
-        "--test-size",
-        type=float,
-        default=float(training_cfg.get("test_size", 0.2)),
-        help="Fraction of windows held out for evaluation (default: 0.2).",
-    )
-    parser.add_argument(
-        "--no-eval",
-        action="store_true",
-        default=False,
-        help="Skip the held-out evaluation and train on all data.",
-    )
+    parser.add_argument("--data-dir", default="data/labelled_data/",
+        help="Directory containing labelled CSV files.")
+    parser.add_argument("--window-size", type=int, default=10,
+        help="Number of intervals per analysis window.")
+    parser.add_argument("--step-size", type=int, default=10,
+        help="Interval advance between successive windows.")
+    parser.add_argument("--severity-threshold", type=float, default=0.0,
+        help="Severity > this value → positive label.")
+    parser.add_argument("-o", "--output", default="models/default.pkl",
+        help="Output path for the saved backend (.pkl).")
+    parser.add_argument("--test-size", type=float, default=0.2,
+        help="Fraction of windows held out for evaluation.")
+    parser.add_argument("--no-eval", action="store_true",
+        help="Skip the held-out evaluation and train on all data.")
     return parser.parse_args()
 
 
@@ -199,8 +148,7 @@ def _build_windows_from_csvs(
 
 def main() -> None:
     # ── Config + args ─────────────────────────────────────────────────────────
-    config = _load_config(DEFAULT_CONFIG)
-    args = _parse_args(config)
+    args = _parse_args()
 
     logger.info("=" * 60)
     logger.info("Training DefaultBackend")
