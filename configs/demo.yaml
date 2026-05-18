@@ -1,0 +1,52 @@
+# =============================================================================
+# Demo configuration
+# =============================================================================
+#
+# Run:  python examples/demo.py --job-id <JOB_ID>
+#
+# Switch strategy by uncommenting the relevant block below.
+
+hardware:
+  profiles_dir: configs/hardware_profiles
+
+pipeline:
+  window_size: 10
+  step_size: 10
+
+# ---------------------------------------------------------------------------
+# Data source — XBAT REST API
+# ---------------------------------------------------------------------------
+# Credentials are read from the .env file (copy .env.example -> .env).
+data_source:
+  type: xbat
+  env_file: .env
+  group: ""
+  metric: ""
+  level: job
+  token_file: examples/.env.xbat
+
+# ---------------------------------------------------------------------------
+# Strategy: HEURISTIC
+# Rule-based decision trees from configs/strategies/persyst_strategy/
+# ---------------------------------------------------------------------------
+strategy:
+  type: heuristic
+  strategy_folder: configs/strategies/persyst_strategy
+
+# ---------------------------------------------------------------------------
+# Strategy: SUPERVISED ML (requires a trained model)
+# Train one first:  python scripts/training/train_ml_model.py
+# ---------------------------------------------------------------------------
+# strategy:
+#   type: supervised_ml
+#   model_path: models/default.pkl
+#   significance_threshold: 0.3
+
+# ---------------------------------------------------------------------------
+# Output
+# ---------------------------------------------------------------------------
+output:
+  format: print
+  show_healthy_windows: false # only show windows with detected bottlenecks
+  min_severity: 0.3
+  min_confidence: 0.3
