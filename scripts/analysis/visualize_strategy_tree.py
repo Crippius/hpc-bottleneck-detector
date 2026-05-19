@@ -51,8 +51,7 @@ def _format_threshold(threshold) -> str:
     if isinstance(threshold, dict):
         bm   = threshold.get("benchmark", "?")
         frac = threshold.get("fraction", "?")
-        fb   = threshold.get("fallback", "N/A")
-        return f"{frac*100:.0f}% of benchmark({bm})  [fallback {fb}]"
+        return f"{frac*100:.0f}% of benchmark({bm})"
     try:
         return str(round(float(threshold), 6))
     except (TypeError, ValueError):
@@ -197,6 +196,7 @@ def parse_tree_yaml(path: pathlib.Path) -> dict:
 
     return {
         "tree_name":        raw.get("tree_name", path.stem),
+        "family":           raw.get("family", ""),
         "description":      raw.get("description", ""),
         "required_metrics": raw.get("required_metrics", []),
         "thresholds":       raw.get("thresholds", {}),
@@ -210,18 +210,30 @@ def parse_tree_yaml(path: pathlib.Path) -> dict:
 # ---------------------------------------------------------------------------
 
 _GROUP_META: dict[str, tuple[str, str]] = {
-    "memory_bound":  ("Memory Bound Analysis",  "virtual_memory_bound_root"),
-    "compute_bound": ("Compute Bound Analysis", "virtual_compute_bound_root"),
-    "load_imbalance": ("Load Imbalance Analysis", "virtual_compute_bound_root")
+    "memory_bound":   ("Memory Bound Analysis",   "virtual_memory_bound_root"),
+    "compute_bound":  ("Compute Bound Analysis",  "virtual_compute_bound_root"),
+    "load_imbalance": ("Load Imbalance Analysis", "virtual_load_imbalance_root"),
 }
+
+
+def _load_family_gate(families_yaml: pathlib.Path, family_name: str) -> dict | None:
+    """Load the gate definition for *family_name* from *families_yaml*, or None."""
+    if not families_yaml.is_file():
+        return None
+    with open(families_yaml, encoding="utf-8") as fh:
+        cfg = yaml.safe_load(fh) or {}
+    return cfg.get("families", {}).get(family_name)
 
 
 def group_and_merge_trees(
     parsed: list[tuple[pathlib.Path, dict]]
 ) -> list[dict]:
-    """Group memory_bound_* compute_bound_* and load_imbalance_* files under a single virtual root.
+    """Group memory_bound_*, compute_bound_*, and load_imbalance_* files under a
+    single virtual root.  When a group has a shared family gate (defined in
+    families.yaml), one gate node is created for the whole group and all
+    per-tree sub-trees hang from it.  All other trees are kept as standalone
+    entries.
 
-    All other trees are kept as standalone entries.
     Returns a list of tree dicts ready for the HTML viewer.
     """
     groups: dict[str, list[tuple[pathlib.Path, dict]]] = {}
@@ -240,11 +252,12 @@ def group_and_merge_trees(
 
     result: list[dict] = []
 
-    for group_key, items in _GROUP_META.items():
+    for group_key, (label, root_id) in _GROUP_META.items():
         if group_key not in groups:
             continue
 
-        label, root_id = items
+        items = groups[group_key]
+
         virtual_root = {
             "id":          root_id,
             "kind":        "root",
@@ -255,20 +268,63 @@ def group_and_merge_trees(
         merged_nodes: list[dict] = [virtual_root]
         merged_edges: list[dict] = []
 
-        for _path, tree in groups[group_key]:
-            # Nodes that have no incoming edge within this sub-tree are its roots
-            targets_in_tree = {e["target"] for e in tree["edges"]}
-            sub_roots = [n for n in tree["nodes"] if n["id"] not in targets_in_tree]
+        # Try to load a family gate for this group (families.yaml sits next to the YAMLs)
+        families_yaml = items[0][0].parent / "families.yaml"
+        fam_def = _load_family_gate(families_yaml, group_key)
 
-            merged_nodes.extend(tree["nodes"])
-            merged_edges.extend(tree["edges"])
+        if fam_def:
+            # ── Shared gate: one node for the whole group ──────────────
+            gate_raw  = fam_def["gate"]
+            gate_id   = f"{group_key}__family_gate"
+            gate_op   = gate_raw.get("operator", ">")
 
-            for sub_root in sub_roots:
-                merged_edges.append({
-                    "source": root_id,
-                    "target": sub_root["id"],
-                    "label":  "",          # unlabeled arrows from virtual root
-                })
+            gate_node: dict = {
+                "id":                 gate_id,
+                "kind":               "decision",
+                "is_family_gate":     True,
+                "label":              gate_raw["node_id"].replace("_", " ").title(),
+                "description":        gate_raw.get("description", ""),
+                "metric_type":        gate_raw.get("metric", {}).get("type", "simple"),
+                "metric_description": _format_metric_description(gate_raw.get("metric", {})),
+                "aggregation":        gate_raw.get("aggregation", "mean"),
+                "operator":           gate_op,
+                "threshold":          _format_threshold(gate_raw.get("threshold")),
+            }
+            merged_nodes.append(gate_node)
+
+            # virtual root → gate (unlabelled)
+            merged_edges.append({"source": root_id, "target": gate_id, "label": ""})
+
+            # gate → each tree's root (if_true branch, unlabelled)
+            for _path, tree in items:
+                targets_in_tree = {e["target"] for e in tree["edges"]}
+                sub_roots = [n for n in tree["nodes"] if n["id"] not in targets_in_tree]
+
+                merged_nodes.extend(tree["nodes"])
+                merged_edges.extend(tree["edges"])
+
+                for sub_root in sub_roots:
+                    merged_edges.append({
+                        "source": gate_id,
+                        "target": sub_root["id"],
+                        "label":  "",
+                    })
+
+        else:
+            # ── No family gate: original behaviour ────────────────────
+            for _path, tree in items:
+                targets_in_tree = {e["target"] for e in tree["edges"]}
+                sub_roots = [n for n in tree["nodes"] if n["id"] not in targets_in_tree]
+
+                merged_nodes.extend(tree["nodes"])
+                merged_edges.extend(tree["edges"])
+
+                for sub_root in sub_roots:
+                    merged_edges.append({
+                        "source": root_id,
+                        "target": sub_root["id"],
+                        "label":  "",
+                    })
 
         result.append({
             "tree_name":        label,
@@ -365,10 +421,13 @@ def main() -> None:
     for f in files:
         try:
             tree = parse_tree_yaml(f)
+            if not tree["nodes"]:  # skip non-tree YAMLs (e.g. families.yaml)
+                print(f"  -  {f.name}  (skipped — no tree root)")
+                continue
             parsed.append((f, tree))
-            print(f"  ✓  {f.name}  ({len(tree['nodes'])} nodes)")
+            print(f"  +  {f.name}  ({len(tree['nodes'])} nodes)")
         except Exception as exc:
-            print(f"  ✗  {f.name}: {exc}", file=sys.stderr)
+            print(f"  X  {f.name}: {exc}", file=sys.stderr)
 
     if not parsed:
         sys.exit("No trees could be parsed.")
@@ -376,7 +435,7 @@ def main() -> None:
     trees = group_and_merge_trees(parsed)
     print(f"\nGrouped into {len(trees)} view(s):")
     for t in trees:
-        print(f"  • {t['tree_name']}  ({len(t['nodes'])} nodes, {len(t['edges'])} edges)")
+        print(f"  - {t['tree_name']}  ({len(t['nodes'])} nodes, {len(t['edges'])} edges)")
 
     # Load template and inject JSON
     trees_json = json.dumps(trees, ensure_ascii=False, indent=2)

@@ -23,28 +23,25 @@
   svg#tree-svg{width:100%;height:100%;display:block;background:#fff}
 
   /* ---- detail panel ---- */
-  #detail{width:360px;min-width:280px;background:#fff;border-left:2px solid #e2e8f0;overflow-y:auto;padding:20px 18px;flex-shrink:0;transition:width .2s;box-shadow:-3px 0 12px rgba(0,0,0,.06)}
-  #detail.collapsed{width:0;padding:0;overflow:hidden}
+  #detail{position:relative;width:360px;min-width:280px;background:#fff;border-left:2px solid #e2e8f0;overflow-y:auto;padding:20px 18px;flex-shrink:0;box-shadow:-3px 0 12px rgba(0,0,0,.06)}
+  #detail.collapsed{display:none}
   #detail h2{font-size:14.5px;font-weight:700;margin-bottom:14px;color:#1d4ed8;word-break:break-all;padding-right:26px;line-height:1.4;font-family:'Computer Modern','CMU Serif',Georgia,serif}
   .detail-section{margin-bottom:16px}
   .detail-section h3{font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:#94a3b8;margin-bottom:6px;font-weight:600;font-family:'Segoe UI',system-ui,sans-serif}
   .detail-section p{font-size:12.5px;line-height:1.65;color:#374151;font-family:'Computer Modern','CMU Serif',Georgia,serif}
   .detail-section pre{font-size:11.5px;line-height:1.6;color:#374151;white-space:pre-wrap;word-break:break-word;background:#f8fafc;padding:10px 12px;border-radius:6px;border:1px solid #e2e8f0;font-family:'Cascadia Code','Fira Mono',monospace}
-  .metric-expr{font-size:11.5px;line-height:1.6;color:#5b21b6;font-family:'Cascadia Code','Fira Mono',monospace;background:#faf5ff;padding:10px 12px;border-radius:6px;border:1px solid #e9d5ff;white-space:pre-wrap;word-break:break-word}
+  .metric-expr{font-size:11.5px;line-height:1.6;color:#1d4ed8;font-family:'Cascadia Code','Fira Mono',monospace;background:#eff6ff;padding:10px 12px;border-radius:6px;border:1px solid #bfdbfe;white-space:pre-wrap;word-break:break-word}
   .badge{display:inline-block;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;margin-bottom:8px;letter-spacing:.02em;font-family:'Segoe UI',system-ui,sans-serif}
   .badge-none{background:#dcfce7;color:#14532d}
   .badge-bottleneck{background:#fee2e2;color:#7f1d1d}
   .badge-decision{background:#dbeafe;color:#1e3a8a}
   .badge-root{background:#fef9c3;color:#713f12}
-  .badge-type{background:#f1f5f9;color:#5b21b6;font-weight:500;font-size:10px;padding:1px 7px;border-radius:3px;vertical-align:middle;margin-left:5px;font-family:'Segoe UI',system-ui,sans-serif}
+  .badge-type{background:#eff6ff;color:#1e3a8a;font-weight:500;font-size:10px;padding:1px 7px;border-radius:3px;vertical-align:middle;margin-left:5px;font-family:'Segoe UI',system-ui,sans-serif}
   #close-btn{position:absolute;top:18px;right:16px;cursor:pointer;font-size:17px;line-height:1;color:#94a3b8;background:none;border:none;padding:2px 5px;border-radius:4px}
   #close-btn:hover{background:#f1f5f9;color:#374151}
   .kv{display:flex;gap:8px;margin-bottom:4px}
   .kv-key{color:#94a3b8;font-size:12px;min-width:90px;flex-shrink:0;font-weight:500;font-family:'Segoe UI',system-ui,sans-serif}
   .kv-val{color:#374151;font-size:12px;word-break:break-all;font-family:'Computer Modern','CMU Serif',Georgia,serif}
-
-  /* ---- hint overlay ---- */
-  #hint{position:absolute;bottom:14px;left:14px;font-size:11px;color:#94a3b8;pointer-events:none;line-height:1.8;background:rgba(255,255,255,.85);padding:6px 10px;border-radius:6px;backdrop-filter:blur(4px);font-family:'Segoe UI',system-ui,sans-serif}
 
   /* ---- node highlight (CSS overrides SVG presentation attrs) ---- */
   .node-highlight .node-shape{stroke:#1d4ed8 !important;stroke-width:2.5px !important;filter:drop-shadow(0 0 8px rgba(29,78,216,.3)) !important}
@@ -56,12 +53,6 @@
 <div id="main">
   <div id="canvas-wrap">
     <svg id="tree-svg"></svg>
-    <div id="hint">
-      scroll / pinch → zoom &nbsp;|&nbsp;
-      drag canvas → pan &nbsp;|&nbsp;
-      drag node → move &nbsp;|&nbsp;
-      click node → details
-    </div>
   </div>
   <div id="detail" class="collapsed">
     <button id="close-btn" title="Close">&#x2715;</button>
@@ -88,15 +79,16 @@ const TREES = /*TREES_JSON*/[
         "description": ""
       },
       {
-        "id": "memory_bound_data_locality__check_memory_bound_gate",
+        "id": "memory_bound__family_gate",
         "kind": "decision",
+        "is_family_gate": true,
+        "label": "Check Memory Bound Gate",
         "description": "Is DRAM bandwidth above 50% of peak (memory-bound regime)?",
         "metric_type": "simple",
         "metric_description": "memory / Bandwidth / total",
         "aggregation": "mean",
         "operator": ">",
-        "threshold": "50% of benchmark(bandwidth_mem)  [fallback N/A]",
-        "label": "Check Memory Bound Gate"
+        "threshold": "50% of benchmark(bandwidth_mem)"
       },
       {
         "id": "memory_bound_data_locality__check_l3_miss_ratio",
@@ -132,28 +124,6 @@ const TREES = /*TREES_JSON*/[
         "description": ""
       },
       {
-        "id": "memory_bound_data_locality__not_memory_bound",
-        "kind": "leaf",
-        "bottleneck_type": "NONE",
-        "severity_formula": "0.0",
-        "threshold": "",
-        "confidence": 1.0,
-        "recommendation": "",
-        "label": "OK",
-        "description": ""
-      },
-      {
-        "id": "memory_bound_loads_stores__check_memory_bound_gate",
-        "kind": "decision",
-        "description": "Is DRAM bandwidth above 50% of peak (memory-bound regime)?",
-        "metric_type": "simple",
-        "metric_description": "memory / Bandwidth / total",
-        "aggregation": "mean",
-        "operator": ">",
-        "threshold": "50% of benchmark(bandwidth_mem)  [fallback N/A]",
-        "label": "Check Memory Bound Gate"
-      },
-      {
         "id": "memory_bound_loads_stores__check_loads_to_stores",
         "kind": "decision",
         "description": "Is the loads-to-stores ratio HIGH (data loaded but underused)?",
@@ -185,28 +155,6 @@ const TREES = /*TREES_JSON*/[
         "recommendation": "",
         "label": "OK",
         "description": ""
-      },
-      {
-        "id": "memory_bound_loads_stores__not_memory_bound",
-        "kind": "leaf",
-        "bottleneck_type": "NONE",
-        "severity_formula": "0.0",
-        "threshold": "",
-        "confidence": 1.0,
-        "recommendation": "",
-        "label": "OK",
-        "description": ""
-      },
-      {
-        "id": "memory_bound_precision__check_memory_bound_gate",
-        "kind": "decision",
-        "description": "Is DRAM bandwidth above 50% of peak (memory-bound regime)?",
-        "metric_type": "simple",
-        "metric_description": "memory / Bandwidth / total",
-        "aggregation": "mean",
-        "operator": ">",
-        "threshold": "50% of benchmark(bandwidth_mem)  [fallback N/A]",
-        "label": "Check Memory Bound Gate"
       },
       {
         "id": "memory_bound_precision__check_sp_dp_ratio",
@@ -242,28 +190,6 @@ const TREES = /*TREES_JSON*/[
         "description": ""
       },
       {
-        "id": "memory_bound_precision__not_memory_bound",
-        "kind": "leaf",
-        "bottleneck_type": "NONE",
-        "severity_formula": "0.0",
-        "threshold": "",
-        "confidence": 1.0,
-        "recommendation": "",
-        "label": "OK",
-        "description": ""
-      },
-      {
-        "id": "memory_bound_upi__check_memory_bound_gate",
-        "kind": "decision",
-        "description": "Is DRAM bandwidth above 50% of peak (memory-bound regime)?",
-        "metric_type": "simple",
-        "metric_description": "memory / Bandwidth / total",
-        "aggregation": "mean",
-        "operator": ">",
-        "threshold": "50% of benchmark(bandwidth_mem)  [fallback N/A]",
-        "label": "Check Memory Bound Gate"
-      },
-      {
         "id": "memory_bound_upi__check_upi_bandwidth",
         "kind": "decision",
         "description": "Is UPI (inter-socket) bandwidth above 10% of measured peak?",
@@ -271,7 +197,7 @@ const TREES = /*TREES_JSON*/[
         "metric_description": "memory / UPI Bandwidth / total",
         "aggregation": "mean",
         "operator": ">",
-        "threshold": "10% of benchmark(bandwidth_upi)  [fallback N/A]",
+        "threshold": "10% of benchmark(bandwidth_upi)",
         "label": "Check Upi Bandwidth"
       },
       {
@@ -295,24 +221,13 @@ const TREES = /*TREES_JSON*/[
         "recommendation": "",
         "label": "OK",
         "description": ""
-      },
-      {
-        "id": "memory_bound_upi__not_memory_bound",
-        "kind": "leaf",
-        "bottleneck_type": "NONE",
-        "severity_formula": "0.0",
-        "threshold": "",
-        "confidence": 1.0,
-        "recommendation": "",
-        "label": "OK",
-        "description": ""
       }
     ],
     "edges": [
       {
-        "source": "memory_bound_data_locality__check_memory_bound_gate",
-        "target": "memory_bound_data_locality__check_l3_miss_ratio",
-        "label": "High"
+        "source": "virtual_memory_bound_root",
+        "target": "memory_bound__family_gate",
+        "label": ""
       },
       {
         "source": "memory_bound_data_locality__check_l3_miss_ratio",
@@ -325,19 +240,9 @@ const TREES = /*TREES_JSON*/[
         "label": "Low"
       },
       {
-        "source": "memory_bound_data_locality__check_memory_bound_gate",
-        "target": "memory_bound_data_locality__not_memory_bound",
-        "label": "Low"
-      },
-      {
-        "source": "virtual_memory_bound_root",
-        "target": "memory_bound_data_locality__check_memory_bound_gate",
+        "source": "memory_bound__family_gate",
+        "target": "memory_bound_data_locality__check_l3_miss_ratio",
         "label": ""
-      },
-      {
-        "source": "memory_bound_loads_stores__check_memory_bound_gate",
-        "target": "memory_bound_loads_stores__check_loads_to_stores",
-        "label": "High"
       },
       {
         "source": "memory_bound_loads_stores__check_loads_to_stores",
@@ -350,19 +255,9 @@ const TREES = /*TREES_JSON*/[
         "label": "Low"
       },
       {
-        "source": "memory_bound_loads_stores__check_memory_bound_gate",
-        "target": "memory_bound_loads_stores__not_memory_bound",
-        "label": "Low"
-      },
-      {
-        "source": "virtual_memory_bound_root",
-        "target": "memory_bound_loads_stores__check_memory_bound_gate",
+        "source": "memory_bound__family_gate",
+        "target": "memory_bound_loads_stores__check_loads_to_stores",
         "label": ""
-      },
-      {
-        "source": "memory_bound_precision__check_memory_bound_gate",
-        "target": "memory_bound_precision__check_sp_dp_ratio",
-        "label": "High"
       },
       {
         "source": "memory_bound_precision__check_sp_dp_ratio",
@@ -375,19 +270,9 @@ const TREES = /*TREES_JSON*/[
         "label": "High"
       },
       {
-        "source": "memory_bound_precision__check_memory_bound_gate",
-        "target": "memory_bound_precision__not_memory_bound",
-        "label": "Low"
-      },
-      {
-        "source": "virtual_memory_bound_root",
-        "target": "memory_bound_precision__check_memory_bound_gate",
+        "source": "memory_bound__family_gate",
+        "target": "memory_bound_precision__check_sp_dp_ratio",
         "label": ""
-      },
-      {
-        "source": "memory_bound_upi__check_memory_bound_gate",
-        "target": "memory_bound_upi__check_upi_bandwidth",
-        "label": "High"
       },
       {
         "source": "memory_bound_upi__check_upi_bandwidth",
@@ -400,13 +285,8 @@ const TREES = /*TREES_JSON*/[
         "label": "Low"
       },
       {
-        "source": "memory_bound_upi__check_memory_bound_gate",
-        "target": "memory_bound_upi__not_memory_bound",
-        "label": "Low"
-      },
-      {
-        "source": "virtual_memory_bound_root",
-        "target": "memory_bound_upi__check_memory_bound_gate",
+        "source": "memory_bound__family_gate",
+        "target": "memory_bound_upi__check_upi_bandwidth",
         "label": ""
       }
     ]
@@ -422,6 +302,18 @@ const TREES = /*TREES_JSON*/[
         "kind": "root",
         "label": "Compute Bound Analysis",
         "description": ""
+      },
+      {
+        "id": "compute_bound__family_gate",
+        "kind": "decision",
+        "is_family_gate": true,
+        "label": "Check Compute Bound Gate",
+        "description": "Is total FLOP rate (SP + DP) above 10% of peak (compute-bound regime)?",
+        "metric_type": "sum",
+        "metric_description": "SUM(\n  cpu / FLOPS / SP,\n  cpu / FLOPS / DP\n)",
+        "aggregation": "mean",
+        "operator": ">",
+        "threshold": "10% of benchmark(peakflops)"
       },
       {
         "id": "compute_bound_branch__check_branch_mis_rate",
@@ -486,7 +378,7 @@ const TREES = /*TREES_JSON*/[
         "metric_description": "cache / Bandwidth / L3 bandwidth",
         "aggregation": "mean",
         "operator": ">",
-        "threshold": "20% of benchmark(bandwidth_l3)  [fallback N/A]",
+        "threshold": "20% of benchmark(bandwidth_l3)",
         "label": "Check L3 Bandwidth"
       },
       {
@@ -585,7 +477,7 @@ const TREES = /*TREES_JSON*/[
         "metric_description": "SUM(\n  cpu / FLOPS / SP,\n  cpu / FLOPS / DP\n)",
         "aggregation": "mean",
         "operator": ">",
-        "threshold": "10% of benchmark(peakflops)  [fallback N/A]",
+        "threshold": "10% of benchmark(peakflops)",
         "label": "Check Flop Rate For Cpi"
       },
       {
@@ -666,17 +558,6 @@ const TREES = /*TREES_JSON*/[
         "description": ""
       },
       {
-        "id": "compute_bound_flops_precision__check_total_flop_rate_prec",
-        "kind": "decision",
-        "description": "Is total FLOP rate (SP + DP) a small fraction of peak?",
-        "metric_type": "sum",
-        "metric_description": "SUM(\n  cpu / FLOPS / SP,\n  cpu / FLOPS / DP\n)",
-        "aggregation": "mean",
-        "operator": "<",
-        "threshold": "10% of benchmark(peakflops)  [fallback N/A]",
-        "label": "Check Total Flop Rate Prec"
-      },
-      {
         "id": "compute_bound_flops_precision__check_sp_to_dp_ratio",
         "kind": "decision",
         "description": "Is the SP/DP FLOPS ratio low (code is predominantly DP)?",
@@ -694,7 +575,7 @@ const TREES = /*TREES_JSON*/[
         "severity_formula": "DECREASING",
         "threshold": "0.035",
         "confidence": 1.0,
-        "recommendation": "Total FP rate is a small fraction of peak and the code is predominantly double-precision. If the application's accuracy requirements allow:\n  - Migrate hot kernels to single precision to halve the register and memory footprint, and double the SIMD lane count.\n  - Mixed-precision strategies: use FP32 for intermediate results and FP64 only for accumulation where precision matters.\n  - In memory-bound sub-problems, SP also halves memory bandwidth consumption, potentially shifting those paths to compute-bound.\nVerify numerical accuracy requirements before applying this change.",
+        "recommendation": "Total FP rate is high and the code is predominantly double-precision. If the application's accuracy requirements allow:\n  - Migrate hot kernels to single precision to halve the register and memory footprint, and double the SIMD lane count.\n  - Mixed-precision strategies: use FP32 for intermediate results and FP64 only for accumulation where precision matters.\n  - In memory-bound sub-problems, SP also halves memory bandwidth consumption, potentially shifting those paths to compute-bound.\nVerify numerical accuracy requirements before applying this change.",
         "label": "Precision Waste",
         "description": ""
       },
@@ -705,31 +586,9 @@ const TREES = /*TREES_JSON*/[
         "severity_formula": "DECREASING",
         "threshold": "0.035",
         "confidence": 1.0,
-        "recommendation": "Total FP rate is low but the SP/DP ratio is not dominated by double-precision. No precision inefficiency detected. Investigate other compute-bound root causes:\n  - Check vectorisation quality.\n  - Check CPI and pipeline stalls.\n  - Use Intel VTune Top-Down Microarchitecture Analysis for fine-grained diagnosis.",
+        "recommendation": "Total FP rate is high but the SP/DP ratio is not dominated by double-precision. No precision inefficiency detected. Investigate other compute-bound root causes:\n  - Check vectorisation quality.\n  - Check CPI and pipeline stalls.\n  - Use Intel VTune Top-Down Microarchitecture Analysis for fine-grained diagnosis.",
         "label": "Compute Underutilization",
         "description": ""
-      },
-      {
-        "id": "compute_bound_flops_precision__good_flop_rate_prec",
-        "kind": "leaf",
-        "bottleneck_type": "NONE",
-        "severity_formula": "0.0",
-        "threshold": "",
-        "confidence": 1.0,
-        "recommendation": "",
-        "label": "OK",
-        "description": ""
-      },
-      {
-        "id": "compute_bound_flops_vectorization__check_total_flop_rate",
-        "kind": "decision",
-        "description": "Is total FLOP rate (SP + DP) a small fraction of peak?",
-        "metric_type": "sum",
-        "metric_description": "SUM(\n  cpu / FLOPS / SP,\n  cpu / FLOPS / DP\n)",
-        "aggregation": "mean",
-        "operator": "<",
-        "threshold": "15% of benchmark(peakflops)  [fallback N/A]",
-        "label": "Check Total Flop Rate"
       },
       {
         "id": "compute_bound_flops_vectorization__check_vec_to_scalar",
@@ -749,7 +608,7 @@ const TREES = /*TREES_JSON*/[
         "severity_formula": "DECREASING",
         "threshold": "0.01",
         "confidence": 1.0,
-        "recommendation": "Total FP rate is low and nearly all DP operations are scalar — no data-level parallelism exploited. Actions:\n  - Identify data-parallel loops and enable auto-vectorisation: -O2 -ftree-vectorize (GCC), or use Intel compiler -qopt-report.\n  - Remove loop-carried dependencies that block vectorisation.\n  - Restructure data from Array of Structures (AoS) to Structure of Arrays (SoA) for better SIMD alignment.\n  - AVX-512: up to 16 SP or 8 DP ops per cycle.",
+        "recommendation": "Total FP rate is high and nearly all DP operations are scalar — no data-level parallelism exploited. Actions:\n  - Identify data-parallel loops and enable auto-vectorisation: -O2 -ftree-vectorize (GCC), or use Intel compiler -qopt-report.\n  - Remove loop-carried dependencies that block vectorisation.\n  - Restructure data from Array of Structures (AoS) to Structure of Arrays (SoA) for better SIMD alignment.\n  - AVX-512: up to 16 SP or 8 DP ops per cycle.",
         "label": "Compute Underutilization",
         "description": ""
       },
@@ -780,21 +639,10 @@ const TREES = /*TREES_JSON*/[
         "kind": "leaf",
         "bottleneck_type": "COMPUTE_UNDERUTILIZATION",
         "severity_formula": "DECREASING",
-        "threshold": "0.15",
+        "threshold": "0.042",
         "confidence": 1.0,
-        "recommendation": "FP rate is a small fraction of peak despite good AVX vectorisation. A micro-architectural bottleneck is limiting throughput. Recommended in-depth analysis:\n  - Check execution port utilisation with Intel VTune (TMA).\n  - Look for serialising instructions (CPUID, RDTSC, fences) in hot loops preventing out-of-order execution.\n  - Check for register pressure causing spills.\n  - Cross-reference with compute_bound_cache and\n    compute_bound_cpi trees for memory and pipeline signals.",
+        "recommendation": "FP rate is high with good AVX vectorisation. A micro-architectural bottleneck is limiting throughput. Recommended in-depth analysis:\n  - Check execution port utilisation with Intel VTune (TMA).\n  - Look for serialising instructions (CPUID, RDTSC, fences) in hot loops preventing out-of-order execution.\n  - Check for register pressure causing spills.\n  - Cross-reference with compute_bound_cache and\n    compute_bound_cpi trees for memory and pipeline signals.",
         "label": "Compute Underutilization",
-        "description": ""
-      },
-      {
-        "id": "compute_bound_flops_vectorization__good_flop_rate_vec",
-        "kind": "leaf",
-        "bottleneck_type": "NONE",
-        "severity_formula": "0.0",
-        "threshold": "",
-        "confidence": 1.0,
-        "recommendation": "",
-        "label": "OK",
         "description": ""
       },
       {
@@ -833,6 +681,11 @@ const TREES = /*TREES_JSON*/[
     ],
     "edges": [
       {
+        "source": "virtual_compute_bound_root",
+        "target": "compute_bound__family_gate",
+        "label": ""
+      },
+      {
         "source": "compute_bound_branch__check_branch_mis_rate",
         "target": "compute_bound_branch__check_branch_mis_ratio",
         "label": "High"
@@ -853,7 +706,7 @@ const TREES = /*TREES_JSON*/[
         "label": "Low"
       },
       {
-        "source": "virtual_compute_bound_root",
+        "source": "compute_bound__family_gate",
         "target": "compute_bound_branch__check_branch_mis_rate",
         "label": ""
       },
@@ -888,7 +741,7 @@ const TREES = /*TREES_JSON*/[
         "label": "Low"
       },
       {
-        "source": "virtual_compute_bound_root",
+        "source": "compute_bound__family_gate",
         "target": "compute_bound_cache__check_l3_bandwidth",
         "label": ""
       },
@@ -913,7 +766,7 @@ const TREES = /*TREES_JSON*/[
         "label": "Low"
       },
       {
-        "source": "virtual_compute_bound_root",
+        "source": "compute_bound__family_gate",
         "target": "compute_bound_cpi__check_cpi",
         "label": ""
       },
@@ -938,14 +791,9 @@ const TREES = /*TREES_JSON*/[
         "label": "High"
       },
       {
-        "source": "virtual_compute_bound_root",
+        "source": "compute_bound__family_gate",
         "target": "compute_bound_expensive_instructions__check_l3_miss_ratio_low",
         "label": ""
-      },
-      {
-        "source": "compute_bound_flops_precision__check_total_flop_rate_prec",
-        "target": "compute_bound_flops_precision__check_sp_to_dp_ratio",
-        "label": "Low"
       },
       {
         "source": "compute_bound_flops_precision__check_sp_to_dp_ratio",
@@ -958,19 +806,9 @@ const TREES = /*TREES_JSON*/[
         "label": "High"
       },
       {
-        "source": "compute_bound_flops_precision__check_total_flop_rate_prec",
-        "target": "compute_bound_flops_precision__good_flop_rate_prec",
-        "label": "High"
-      },
-      {
-        "source": "virtual_compute_bound_root",
-        "target": "compute_bound_flops_precision__check_total_flop_rate_prec",
+        "source": "compute_bound__family_gate",
+        "target": "compute_bound_flops_precision__check_sp_to_dp_ratio",
         "label": ""
-      },
-      {
-        "source": "compute_bound_flops_vectorization__check_total_flop_rate",
-        "target": "compute_bound_flops_vectorization__check_vec_to_scalar",
-        "label": "Low"
       },
       {
         "source": "compute_bound_flops_vectorization__check_vec_to_scalar",
@@ -993,13 +831,8 @@ const TREES = /*TREES_JSON*/[
         "label": "High"
       },
       {
-        "source": "compute_bound_flops_vectorization__check_total_flop_rate",
-        "target": "compute_bound_flops_vectorization__good_flop_rate_vec",
-        "label": "High"
-      },
-      {
-        "source": "virtual_compute_bound_root",
-        "target": "compute_bound_flops_vectorization__check_total_flop_rate",
+        "source": "compute_bound__family_gate",
+        "target": "compute_bound_flops_vectorization__check_vec_to_scalar",
         "label": ""
       },
       {
@@ -1013,7 +846,7 @@ const TREES = /*TREES_JSON*/[
         "label": "Low"
       },
       {
-        "source": "virtual_compute_bound_root",
+        "source": "compute_bound__family_gate",
         "target": "compute_bound_stall_cycles__check_stall_rate",
         "label": ""
       }
@@ -1026,7 +859,7 @@ const TREES = /*TREES_JSON*/[
     "thresholds": {},
     "nodes": [
       {
-        "id": "virtual_compute_bound_root",
+        "id": "virtual_load_imbalance_root",
         "kind": "root",
         "label": "Load Imbalance Analysis",
         "description": ""
@@ -1110,7 +943,7 @@ const TREES = /*TREES_JSON*/[
         "label": "Low"
       },
       {
-        "source": "virtual_compute_bound_root",
+        "source": "virtual_load_imbalance_root",
         "target": "load_imbalance_inter_node__check_inter_node_imbalance",
         "label": ""
       },
@@ -1125,7 +958,7 @@ const TREES = /*TREES_JSON*/[
         "label": "Low"
       },
       {
-        "source": "virtual_compute_bound_root",
+        "source": "virtual_load_imbalance_root",
         "target": "load_imbalance_intra_node__check_intra_node_imbalance",
         "label": ""
       }
@@ -1185,7 +1018,7 @@ const detail      = document.getElementById('detail');
 const detailBody  = document.getElementById('detail-body');
 const detailTitle = document.getElementById('detail-title');
 
-document.getElementById('close-btn').addEventListener('click', closeDetail);
+document.getElementById('close-btn').addEventListener('click', e => { e.stopPropagation(); closeDetail(); });
 
 function closeDetail() {
   detail.classList.add('collapsed');
@@ -1321,6 +1154,13 @@ function renderTree(idx) {
 
   // Swap axes: tree grows left → right
   root.each(d => { const t = d.x; d.x = d.y; d.y = t; });
+
+  // Pull family-gate nodes flush against the virtual root
+  root.descendants().forEach(d => {
+    if (d.data.is_family_gate && d.parent) {
+      d.x = d.parent.x + NODE_W + 30;
+    }
+  });
 
   const g = svg.append('g').attr('class', 'canvas');
 
