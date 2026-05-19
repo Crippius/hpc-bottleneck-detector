@@ -2,6 +2,7 @@
 # Strategy Tree — Compute-Bound: Expensive Instructions
 # =============================================================================
 tree_name: compute_bound_expensive_instructions
+family: compute_bound
 description: >
   Detects expensive instruction overhead (divisions, square roots, exponentials)
   by first ruling out cache pressure via the L3 miss ratio, then checking for

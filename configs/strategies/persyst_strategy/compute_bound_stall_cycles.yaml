@@ -3,6 +3,7 @@
 # =============================================================================
 
 tree_name: compute_bound_stall_cycles
+family: compute_bound
 description: >
   Detects pipeline stall overhead in compute-bound code.
 

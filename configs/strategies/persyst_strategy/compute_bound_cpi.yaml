@@ -3,6 +3,7 @@
 # =============================================================================
 
 tree_name: compute_bound_cpi
+family: compute_bound
 description: >
   Evaluates CPI vs total FLOP rate: high CPI -> pipeline bottleneck; low CPI + low FLOP rate -> object instantiation overhead.
 

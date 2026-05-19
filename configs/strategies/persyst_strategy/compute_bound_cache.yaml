@@ -3,6 +3,7 @@
 # =============================================================================
 
 tree_name: compute_bound_cache
+family: compute_bound
 description: >
   Detects L3 cache pressure and poor data locality in compute-bound code.
 

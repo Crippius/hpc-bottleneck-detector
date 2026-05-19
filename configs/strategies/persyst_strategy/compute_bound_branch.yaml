@@ -3,6 +3,7 @@
 # =============================================================================
 
 tree_name: compute_bound_branch
+family: compute_bound
 description: >
   Detects branch misprediction overhead in compute-bound code.
 

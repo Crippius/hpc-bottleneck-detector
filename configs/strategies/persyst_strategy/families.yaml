@@ -1,0 +1,66 @@
+# =============================================================================
+# Family Gate Definitions
+# =============================================================================
+# Maps each family name to a shared gate node that is automatically prepended
+# as the root of every strategy tree that declares `family: <name>`.
+
+families:
+  memory_bound:
+    gate:
+      node_id: check_memory_bound_gate
+      description: "Is DRAM bandwidth above 50% of peak (memory-bound regime)?"
+      metric:
+        group: memory
+        metric: Bandwidth
+        trace: total
+      aggregation: mean
+      operator: ">"
+      threshold:
+        benchmark: bandwidth_mem
+        fraction: 0.50
+        aggregate: mean
+    if_false:
+      node_id: not_memory_bound
+      diagnosis:
+        bottleneck_type: NONE
+        severity_formula: "0.0"
+        confidence: 1.0
+        recommendation: null
+    required_metrics:
+      - group: memory
+        metric: Bandwidth
+        trace: total
+
+  compute_bound:
+    gate:
+      node_id: check_compute_bound_gate
+      description: "Is total FLOP rate (SP + DP) above 10% of peak (compute-bound regime)?"
+      metric:
+        type: sum
+        operands:
+          - group: cpu
+            metric: FLOPS
+            trace: SP
+          - group: cpu
+            metric: FLOPS
+            trace: DP
+      aggregation: mean
+      operator: ">"
+      threshold:
+        benchmark: peakflops
+        fraction: 0.10
+        aggregate: mean
+    if_false:
+      node_id: not_compute_bound
+      diagnosis:
+        bottleneck_type: NONE
+        severity_formula: "0.0"
+        confidence: 1.0
+        recommendation: null
+    required_metrics:
+      - group: cpu
+        metric: FLOPS
+        trace: SP
+      - group: cpu
+        metric: FLOPS
+        trace: DP

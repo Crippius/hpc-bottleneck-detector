@@ -12,6 +12,7 @@ the first matching leaf and returns a fully evaluated
 
 from __future__ import annotations
 
+import copy
 import logging
 from pathlib import Path
 from typing import List, TYPE_CHECKING
@@ -80,8 +81,45 @@ class StrategyTree:
 
         tree_name   = config.get("tree_name", p.stem)
         description = config.get("description", "").strip()
-        req_metrics = config.get("required_metrics", [])
-        root_node   = PropertyNode(config["root"])
+        req_metrics = list(config.get("required_metrics", []))
+
+        # ── Family gate injection ──────────────────────────────────────
+        family = config.get("family")
+        if family:
+            families_path = p.parent / "families.yaml"
+            if families_path.exists():
+                with families_path.open("r", encoding="utf-8") as fam_fh:
+                    families_cfg = yaml.safe_load(fam_fh) or {}
+                fam_def = families_cfg.get("families", {}).get(family)
+                if fam_def:
+                    gate_cfg = copy.deepcopy(fam_def["gate"])
+                    gate_cfg["if_true"]  = config["root"]
+                    gate_cfg["if_false"] = fam_def["if_false"]
+                    config["root"] = gate_cfg
+                    existing_keys = {
+                        (m.get("group"), m.get("metric"), m.get("trace"))
+                        for m in req_metrics
+                    }
+                    prepend = []
+                    for m in fam_def.get("required_metrics", []):
+                        key = (m.get("group"), m.get("metric"), m.get("trace"))
+                        if key not in existing_keys:
+                            prepend.append(m)
+                            existing_keys.add(key)
+                    req_metrics = prepend + req_metrics
+                else:
+                    logger.warning(
+                        "StrategyTree '%s': unknown family '%s' in families.yaml.",
+                        tree_name, family,
+                    )
+            else:
+                logger.warning(
+                    "StrategyTree '%s': family '%s' declared but families.yaml "
+                    "not found at '%s'.",
+                    tree_name, family, families_path,
+                )
+
+        root_node = PropertyNode(config["root"])
 
         logger.debug("Loaded strategy tree '%s' from '%s'.", tree_name, path)
 
