@@ -40,11 +40,38 @@ _PAGE_H_PX = 1122
 
 _PRINT_CSS = f"""
 <style id="print-overrides">
-  @page {{ size: A3 landscape; margin: 10mm; }}
-  #tab-bar, #detail, #hint {{ display: none !important; }}
+  @page {{ size: A3 landscape; margin: 0mm; }}
+  #tab-bar, #detail {{ display: none !important; }}
   #main {{ height: 100vh !important; }}
-  html, body {{ overflow: visible !important; }}
-</style>"""
+  html, body {{ overflow: hidden !important; }}
+</style>
+<script id="print-fit">
+window.addEventListener('load', function() {{
+  var pad = 20;
+  var svgEl = document.getElementById('tree-svg');
+  var W = svgEl.clientWidth, H = svgEl.clientHeight;
+  var nodeEls = Array.from(document.querySelectorAll('g.canvas g.node'));
+  if (!nodeEls.length) return;
+  var xs = [], ys = [];
+  nodeEls.forEach(function(el) {{
+    var t = el.getAttribute('transform') || '';
+    var i = t.indexOf('('), j = t.indexOf(')');
+    if (i < 0 || j < 0) return;
+    var parts = t.slice(i + 1, j).split(',');
+    xs.push(+parts[0]);
+    ys.push(+parts[1]);
+  }});
+  if (!xs.length) return;
+  var minX = Math.min.apply(null, xs);
+  var maxX = Math.max.apply(null, xs) + NODE_W;
+  var minY = Math.min.apply(null, ys);
+  var maxY = Math.max.apply(null, ys) + NODE_H;
+  var sc = Math.min((W - pad * 2) / (maxX - minX), (H - pad * 2) / (maxY - minY));
+  var tx = pad - minX * sc + (W - pad * 2 - (maxX - minX) * sc) / 2;
+  var ty = pad - minY * sc + (H - pad * 2 - (maxY - minY) * sc) / 2;
+  d3.select('g.canvas').attr('transform', 'translate(' + tx + ',' + ty + ') scale(' + sc + ')');
+}});
+</script>"""
 
 
 def make_print_html(tree: dict) -> str:

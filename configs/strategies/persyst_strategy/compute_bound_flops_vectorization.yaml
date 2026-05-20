@@ -101,15 +101,7 @@ root:
     if_false:
       node_id: vectorised_but_low_rate
       diagnosis:
-        bottleneck_type: COMPUTE_UNDERUTILIZATION
-        severity_formula: DECREASING
-        threshold: 0.042
+        bottleneck_type: NONE
+        severity_formula: "0.0"
         confidence: 1.0
-        recommendation: >
-          FP rate is high with good AVX vectorisation. A micro-architectural bottleneck is limiting throughput.
-          Recommended in-depth analysis:
-            - Check execution port utilisation with Intel VTune (TMA).
-            - Look for serialising instructions (CPUID, RDTSC, fences) in hot loops preventing out-of-order execution.
-            - Check for register pressure causing spills.
-            - Cross-reference with compute_bound_cache and
-              compute_bound_cpi trees for memory and pipeline signals.
+        recommendation: null

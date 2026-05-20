@@ -91,18 +91,9 @@ root:
                 will process it (NUMA affinity).
 
       if_false:
-        node_id: cache_pressure_indepth
+        node_id: l3_miss_ratio_ok
         diagnosis:
-          bottleneck_type: COMPUTE_UNDERUTILIZATION
-          severity_formula: INCREASING
-          threshold: 0.6
+          bottleneck_type: NONE
+          severity_formula: "0.0"
           confidence: 1.0
-          recommendation: >
-            L3 bandwidth and L3 miss rate are elevated but the miss ratio is below 0.741
-            (hits-to-misses still acceptable). Hardware prefetching may be partially hiding latency.
-            In-depth analysis recommended:
-              - Profile with Intel VTune or perf to identify the specific functions driving L3 traffic.
-              - Apply loop tiling to the hottest data-access kernels.
-              - Check prefetch distances and verify hardware prefetchers are not thrashing.
-              - Cross-reference with compute_bound_cpi tree: elevated CPI alongside this signal
-                confirms memory-latency root cause.
+          recommendation: null

@@ -415,14 +415,14 @@ const TREES = /*TREES_JSON*/[
         "description": ""
       },
       {
-        "id": "compute_bound_cache__cache_pressure_indepth",
+        "id": "compute_bound_cache__l3_miss_ratio_ok",
         "kind": "leaf",
-        "bottleneck_type": "COMPUTE_UNDERUTILIZATION",
-        "severity_formula": "INCREASING",
-        "threshold": "0.6",
+        "bottleneck_type": "NONE",
+        "severity_formula": "0.0",
+        "threshold": "",
         "confidence": 1.0,
-        "recommendation": "L3 bandwidth and L3 miss rate are elevated but the miss ratio is below 0.741 (hits-to-misses still acceptable). Hardware prefetching may be partially hiding latency. In-depth analysis recommended:\n  - Profile with Intel VTune or perf to identify the specific functions driving L3 traffic.\n  - Apply loop tiling to the hottest data-access kernels.\n  - Check prefetch distances and verify hardware prefetchers are not thrashing.\n  - Cross-reference with compute_bound_cpi tree: elevated CPI alongside this signal\n    confirms memory-latency root cause.",
-        "label": "Compute Underutilization",
+        "recommendation": "",
+        "label": "OK",
         "description": ""
       },
       {
@@ -470,18 +470,7 @@ const TREES = /*TREES_JSON*/[
         "description": ""
       },
       {
-        "id": "compute_bound_cpi__check_flop_rate_for_cpi",
-        "kind": "decision",
-        "description": "With CPI normal, is the total FLOP rate also above threshold?",
-        "metric_type": "sum",
-        "metric_description": "SUM(\n  cpu / FLOPS / SP,\n  cpu / FLOPS / DP\n)",
-        "aggregation": "mean",
-        "operator": ">",
-        "threshold": "10% of benchmark(peakflops)",
-        "label": "Check Flop Rate For Cpi"
-      },
-      {
-        "id": "compute_bound_cpi__good_cpi_and_flops",
+        "id": "compute_bound_cpi__low_cpi",
         "kind": "leaf",
         "bottleneck_type": "NONE",
         "severity_formula": "0.0",
@@ -489,17 +478,6 @@ const TREES = /*TREES_JSON*/[
         "confidence": 1.0,
         "recommendation": "",
         "label": "OK",
-        "description": ""
-      },
-      {
-        "id": "compute_bound_cpi__object_instantiation_overhead",
-        "kind": "leaf",
-        "bottleneck_type": "PIPELINE_STALL",
-        "severity_formula": "DECREASING",
-        "threshold": "0.1",
-        "confidence": 1.0,
-        "recommendation": "CPI is within normal range but the total FLOP rate is a small fraction of peak. The processor is executing instructions efficiently but doing very little floating-point work. Typical causes:\n  - Heavy C++ object construction/destruction in hot paths (constructor chains, std::vector reallocations, move semantics).\n  - Frequent virtual function dispatch or RTTI in inner loops.\n  - Excessive dynamic memory allocation (malloc/free/new/delete) triggering allocator overhead and cache misses.\nRecommended actions:\n  - Profile with perf or VTune focusing on instruction mix: a high fraction of integer/control instructions vs FP points to non-computational hot paths.\n  - Use object pools or arena allocators to eliminate allocator overhead in performance-critical sections.\n  - Replace virtual dispatch with CRTP or policy-based templates in inner loops to allow inlining.",
-        "label": "Pipeline Stall",
         "description": ""
       },
       {
@@ -580,14 +558,14 @@ const TREES = /*TREES_JSON*/[
         "description": ""
       },
       {
-        "id": "compute_bound_flops_precision__precision_balance_indepth",
+        "id": "compute_bound_flops_precision__precision_ok",
         "kind": "leaf",
-        "bottleneck_type": "COMPUTE_UNDERUTILIZATION",
-        "severity_formula": "DECREASING",
-        "threshold": "0.035",
+        "bottleneck_type": "NONE",
+        "severity_formula": "0.0",
+        "threshold": "",
         "confidence": 1.0,
-        "recommendation": "Total FP rate is high but the SP/DP ratio is not dominated by double-precision. No precision inefficiency detected. Investigate other compute-bound root causes:\n  - Check vectorisation quality.\n  - Check CPI and pipeline stalls.\n  - Use Intel VTune Top-Down Microarchitecture Analysis for fine-grained diagnosis.",
-        "label": "Compute Underutilization",
+        "recommendation": "",
+        "label": "OK",
         "description": ""
       },
       {
@@ -637,12 +615,12 @@ const TREES = /*TREES_JSON*/[
       {
         "id": "compute_bound_flops_vectorization__vectorised_but_low_rate",
         "kind": "leaf",
-        "bottleneck_type": "COMPUTE_UNDERUTILIZATION",
-        "severity_formula": "DECREASING",
-        "threshold": "0.042",
+        "bottleneck_type": "NONE",
+        "severity_formula": "0.0",
+        "threshold": "",
         "confidence": 1.0,
-        "recommendation": "FP rate is high with good AVX vectorisation. A micro-architectural bottleneck is limiting throughput. Recommended in-depth analysis:\n  - Check execution port utilisation with Intel VTune (TMA).\n  - Look for serialising instructions (CPUID, RDTSC, fences) in hot loops preventing out-of-order execution.\n  - Check for register pressure causing spills.\n  - Cross-reference with compute_bound_cache and\n    compute_bound_cpi trees for memory and pipeline signals.",
-        "label": "Compute Underutilization",
+        "recommendation": "",
+        "label": "OK",
         "description": ""
       },
       {
@@ -727,7 +705,7 @@ const TREES = /*TREES_JSON*/[
       },
       {
         "source": "compute_bound_cache__check_l3_miss_ratio",
-        "target": "compute_bound_cache__cache_pressure_indepth",
+        "target": "compute_bound_cache__l3_miss_ratio_ok",
         "label": "Low"
       },
       {
@@ -752,17 +730,7 @@ const TREES = /*TREES_JSON*/[
       },
       {
         "source": "compute_bound_cpi__check_cpi",
-        "target": "compute_bound_cpi__check_flop_rate_for_cpi",
-        "label": "Low"
-      },
-      {
-        "source": "compute_bound_cpi__check_flop_rate_for_cpi",
-        "target": "compute_bound_cpi__good_cpi_and_flops",
-        "label": "High"
-      },
-      {
-        "source": "compute_bound_cpi__check_flop_rate_for_cpi",
-        "target": "compute_bound_cpi__object_instantiation_overhead",
+        "target": "compute_bound_cpi__low_cpi",
         "label": "Low"
       },
       {
@@ -802,7 +770,7 @@ const TREES = /*TREES_JSON*/[
       },
       {
         "source": "compute_bound_flops_precision__check_sp_to_dp_ratio",
-        "target": "compute_bound_flops_precision__precision_balance_indepth",
+        "target": "compute_bound_flops_precision__precision_ok",
         "label": "High"
       },
       {
