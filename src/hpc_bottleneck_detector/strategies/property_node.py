@@ -3,9 +3,9 @@ Property Node
 
 A single node in a heuristic decision tree.  Nodes are either:
 
-- **Decision nodes** — compare an aggregated metric against a threshold
+- **Decision nodes** - compare an aggregated metric against a threshold
   and branch to ``if_true`` or ``if_false`` child nodes.
-- **Leaf nodes** — carry a :class:`~hpc_bottleneck_detector.output.models.Diagnosis`
+- **Leaf nodes** - carry a :class:`~hpc_bottleneck_detector.output.models.Diagnosis`
   configuration and terminate the traversal.
 
 The recursive tree is built directly from the YAML representation by
@@ -38,9 +38,9 @@ def _get_series(metric_cfg: dict, data_mgr: "DataManager") -> pd.Series:
 
     Handles three cases:
 
-    * **simple** ``{group, metric, trace}`` — direct DataManager lookup.
-    * **sum** ``{type: sum, operands: [...]}`` — element-wise sum of operands.
-    * **ratio** ``{type: ratio, numerator: ..., denominator: ...}`` —
+    * **simple** ``{group, metric, trace}`` - direct DataManager lookup.
+    * **sum** ``{type: sum, operands: [...]}`` - element-wise sum of operands.
+    * **ratio** ``{type: ratio, numerator: ..., denominator: ...}`` -
       element-wise division; zeros in denominator become NaN.
 
     Raises:
@@ -148,9 +148,9 @@ def _compute_severity(
 
     Supported formulas:
 
-    * ``INCREASING`` — ``min(1, max(0, value / threshold - 1))``
+    * ``INCREASING`` - ``min(1, max(0, value / threshold - 1))``
       Higher metric value → higher severity.
-    * ``DECREASING`` — ``min(1, max(0, 1 - value / threshold))``
+    * ``DECREASING`` - ``min(1, max(0, 1 - value / threshold))``
       Lower metric value → higher severity.
     * Any other string is interpreted as a Python float literal (e.g. ``"0.0"``).
     """

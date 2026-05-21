@@ -1,5 +1,5 @@
 # =============================================================================
-# Strategy Tree — Memory-Bound: Data Locality (Loads to Stores Ratio)
+# Strategy Tree - Memory-Bound: Data Locality (Loads to Stores Ratio)
 # =============================================================================
 tree_name: memory_bound_loads_stores
 family: memory_bound

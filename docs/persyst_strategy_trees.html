@@ -509,7 +509,7 @@ const TREES = /*TREES_JSON*/[
         "severity_formula": "INCREASING",
         "threshold": "10.0",
         "confidence": 1.0,
-        "recommendation": "High CPI with low L3 miss ratio: cache pressure is not the bottleneck, suggesting expensive instructions (divisions, square roots, exponentials, etc.) are dominating the compute kernel. Actions:\n  - Replace divisions by a known constant with its reciprocal and use\n    multiplication. The Intel compiler flag -no-prec-div hints the compiler\n    to do this automatically.\n  - Move expensive operations (exp, sqrt, pow) outside the inner loop\n    where possible.\n  - If moving the operation is not possible, consider a look-up table (LUT)\n    pre-computed once and accessed within the loop — evaluate the trade-off\n    between instruction latency and memory access cost carefully.\n  - Use Intel VTune or perf stat to confirm the instruction mix and identify\n    the specific expensive operations in the hot loop.",
+        "recommendation": "High CPI with low L3 miss ratio: cache pressure is not the bottleneck, suggesting expensive instructions (divisions, square roots, exponentials, etc.) are dominating the compute kernel. Actions:\n  - Replace divisions by a known constant with its reciprocal and use\n    multiplication. The Intel compiler flag -no-prec-div hints the compiler\n    to do this automatically.\n  - Move expensive operations (exp, sqrt, pow) outside the inner loop\n    where possible.\n  - If moving the operation is not possible, consider a look-up table (LUT)\n    pre-computed once and accessed within the loop - evaluate the trade-off\n    between instruction latency and memory access cost carefully.\n  - Use Intel VTune or perf stat to confirm the instruction mix and identify\n    the specific expensive operations in the hot loop.",
         "label": "Pipeline Stall",
         "description": ""
       },
@@ -586,7 +586,7 @@ const TREES = /*TREES_JSON*/[
         "severity_formula": "DECREASING",
         "threshold": "0.01",
         "confidence": 1.0,
-        "recommendation": "Total FP rate is high and nearly all DP operations are scalar — no data-level parallelism exploited. Actions:\n  - Identify data-parallel loops and enable auto-vectorisation: -O2 -ftree-vectorize (GCC), or use Intel compiler -qopt-report.\n  - Remove loop-carried dependencies that block vectorisation.\n  - Restructure data from Array of Structures (AoS) to Structure of Arrays (SoA) for better SIMD alignment.\n  - AVX-512: up to 16 SP or 8 DP ops per cycle.",
+        "recommendation": "Total FP rate is high and nearly all DP operations are scalar - no data-level parallelism exploited. Actions:\n  - Identify data-parallel loops and enable auto-vectorisation: -O2 -ftree-vectorize (GCC), or use Intel compiler -qopt-report.\n  - Remove loop-carried dependencies that block vectorisation.\n  - Restructure data from Array of Structures (AoS) to Structure of Arrays (SoA) for better SIMD alignment.\n  - AVX-512: up to 16 SP or 8 DP ops per cycle.",
         "label": "Compute Underutilization",
         "description": ""
       },
@@ -641,7 +641,7 @@ const TREES = /*TREES_JSON*/[
         "severity_formula": "INCREASING",
         "threshold": "85.0",
         "confidence": 1.0,
-        "recommendation": "High stall rate: most cycles are spent stalling, indicating the pipeline is not being fed with useful work — likely due to memory-latency or dependency chains. Actions:\n  - Enable Simultaneous Multi-Threading (SMT / Hyper-Threading) to fill idle\n    pipeline slots with work from sibling threads during stalls.\n  - Cross-reference with compute_bound_cache: if L3 miss rate is also elevated,\n    the root cause is memory latency (prefetch or data-locality fix needed).\n  - Use software prefetching (__builtin_prefetch) to hide memory latency for\n    irregular access patterns that hardware prefetchers cannot learn.\n  - Profile with Intel VTune Top-Down Microarchitecture Analysis to distinguish\n    front-end bound (instruction fetch stalls) from back-end bound (execution stalls).\n  - Check for long dependency chains in hot loops (e.g. sequential accumulation);\n    use multiple accumulators to expose instruction-level parallelism.",
+        "recommendation": "High stall rate: most cycles are spent stalling, indicating the pipeline is not being fed with useful work - likely due to memory-latency or dependency chains. Actions:\n  - Enable Simultaneous Multi-Threading (SMT / Hyper-Threading) to fill idle\n    pipeline slots with work from sibling threads during stalls.\n  - Cross-reference with compute_bound_cache: if L3 miss rate is also elevated,\n    the root cause is memory latency (prefetch or data-locality fix needed).\n  - Use software prefetching (__builtin_prefetch) to hide memory latency for\n    irregular access patterns that hardware prefetchers cannot learn.\n  - Profile with Intel VTune Top-Down Microarchitecture Analysis to distinguish\n    front-end bound (instruction fetch stalls) from back-end bound (execution stalls).\n  - Check for long dependency chains in hot loops (e.g. sequential accumulation);\n    use multiple accumulators to expose instruction-level parallelism.",
         "label": "Pipeline Stall",
         "description": ""
       },

@@ -203,10 +203,10 @@ def main() -> None:
 
             n_pos = int(y_clean.sum())
             n_neg = int((y_clean == 0).sum())
-            logger.info("\n%s — %d windows (%d pos, %d neg)", col, len(y_clean), n_pos, n_neg)
+            logger.info("\n%s - %d windows (%d pos, %d neg)", col, len(y_clean), n_pos, n_neg)
 
             if y_clean.nunique() < 2:
-                logger.warning("  Skipping — only one class present.")
+                logger.warning("  Skipping - only one class present.")
                 continue
 
             X_train, X_test, y_train, y_test = train_test_split(

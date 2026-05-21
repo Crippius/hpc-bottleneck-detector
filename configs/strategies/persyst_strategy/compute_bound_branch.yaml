@@ -1,5 +1,5 @@
 # =============================================================================
-# Strategy Tree — Compute-Bound: Branch Misprediction
+# Strategy Tree - Compute-Bound: Branch Misprediction
 # =============================================================================
 
 tree_name: compute_bound_branch
@@ -17,7 +17,7 @@ required_metrics:
 
 root:
   node_id: check_branch_mis_rate
-  description: "Is the branch misprediction rate (mispredictions/instructions) above threshold?"
+  description: "Is the branch misprediction rate above threshold?"
   metric:
     group: cpu
     metric: Branching
@@ -36,7 +36,7 @@ root:
 
   if_true:
     node_id: check_branch_mis_ratio
-    description: "Is the branch misprediction ratio (mispredictions/branches) above threshold?"
+    description: "Is the branch misprediction ratio above threshold?"
     metric:
       group: cpu
       metric: Branching

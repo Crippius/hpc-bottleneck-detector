@@ -1,5 +1,5 @@
 # =============================================================================
-# Strategy Tree — Compute-Bound: Stall Cycles
+# Strategy Tree - Compute-Bound: Stall Cycles
 # =============================================================================
 
 tree_name: compute_bound_stall_cycles
@@ -14,7 +14,7 @@ required_metrics:
 
 root:
   node_id: check_stall_rate
-  description: "Is the cycle stall rate above 85% (pipeline not being fed)?"
+  description: "Is the code experiencing high pipeline stalls?"
   metric:
     group: cpu
     metric: Stalls
@@ -40,7 +40,7 @@ root:
       confidence: 1.0
       recommendation: >
         High stall rate: most cycles are spent stalling, indicating
-        the pipeline is not being fed with useful work — likely due to memory-latency or
+        the pipeline is not being fed with useful work - likely due to memory-latency or
         dependency chains.
         Actions:
           - Enable Simultaneous Multi-Threading (SMT / Hyper-Threading) to fill idle

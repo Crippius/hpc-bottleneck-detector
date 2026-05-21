@@ -1,5 +1,5 @@
 # =============================================================================
-# Strategy Tree — Compute-Bound: L3 Cache Pressure & Data Locality
+# Strategy Tree - Compute-Bound: L3 Cache Pressure & Data Locality
 # =============================================================================
 
 tree_name: compute_bound_cache
@@ -42,7 +42,7 @@ root:
 
   if_true:
     node_id: check_l3_miss_rate
-    description: "Is the L3 miss rate (misses/instructions) above threshold?"
+    description: "Is the L3 miss rate above threshold?"
     metric:
       group: cache
       metric: Miss Rate
@@ -62,7 +62,7 @@ root:
 
     if_true:
       node_id: check_l3_miss_ratio
-      description: "Is the L3 miss ratio HIGH (poor cache hit rate)?"
+      description: "Is the L3 miss ratio high?"
       metric:
         group: cache
         metric: Miss Ratio

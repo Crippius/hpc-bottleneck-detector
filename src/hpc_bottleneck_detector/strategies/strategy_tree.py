@@ -159,7 +159,7 @@ class StrategyTree:
         missing = self._missing_metrics(data_mgr)
         if missing:
             logger.debug(
-                "Tree '%s': cannot evaluate — missing metrics: %s.",
+                "Tree '%s': cannot evaluate - missing metrics: %s.",
                 self.tree_name, missing,
             )
             return Diagnosis(

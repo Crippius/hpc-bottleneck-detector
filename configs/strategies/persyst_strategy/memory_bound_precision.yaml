@@ -1,5 +1,5 @@
 # =============================================================================
-# Strategy Tree — Memory-Bound: Precision Inefficiency (SP/DP Ratio)
+# Strategy Tree - Memory-Bound: Precision Inefficiency (SP/DP Ratio)
 # =============================================================================
 tree_name: memory_bound_precision
 family: memory_bound

@@ -65,7 +65,7 @@ def _load_imbalance_factor(matrix: np.ndarray) -> np.ndarray:
     Compute the Load Imbalance Factor per interval from a 2-D matrix.
 
     Args:
-        matrix: Shape ``(n_entities, n_intervals)`` — total FLOPS/s per
+        matrix: Shape ``(n_entities, n_intervals)`` - total FLOPS/s per
                 entity (core or node) at each interval.
 
     Returns:
@@ -263,7 +263,7 @@ class XBATDataSource(IDataSource):
 
         if response.status_code == 404:
             raise ValueError(
-                f"404 Not Found — request URL: {url}"
+                f"404 Not Found - request URL: {url}"
             )
         if response.status_code != 200:
             raise IOError(

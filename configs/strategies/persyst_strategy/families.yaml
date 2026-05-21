@@ -1,9 +1,6 @@
 # =============================================================================
 # Family Gate Definitions
 # =============================================================================
-# Maps each family name to a shared gate node that is automatically prepended
-# as the root of every strategy tree that declares `family: <name>`.
-
 families:
   memory_bound:
     gate:

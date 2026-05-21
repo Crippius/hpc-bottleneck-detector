@@ -388,7 +388,7 @@ def collect_yaml_files(args: list[str]) -> list[pathlib.Path]:
         elif p.is_file():
             paths.append(p)
         else:
-            print(f"Warning: {arg!r} is neither a file nor a directory — skipped.",
+            print(f"Warning: {arg!r} is neither a file nor a directory - skipped.",
                   file=sys.stderr)
 
     if not paths:
@@ -422,7 +422,7 @@ def main() -> None:
         try:
             tree = parse_tree_yaml(f)
             if not tree["nodes"]:  # skip non-tree YAMLs (e.g. families.yaml)
-                print(f"  -  {f.name}  (skipped — no tree root)")
+                print(f"  -  {f.name}  (skipped - no tree root)")
                 continue
             parsed.append((f, tree))
             print(f"  +  {f.name}  ({len(tree['nodes'])} nodes)")

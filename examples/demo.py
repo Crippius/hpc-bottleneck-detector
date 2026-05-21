@@ -1,19 +1,15 @@
 """
-HPC Bottleneck Detector — end-to-end demo
+HPC Bottleneck Detector demo
 
 Runs the full pipeline for a single HPC job:
   1. Load config from configs/demo.yaml
   2. Connect to XBAT and fetch job data
   3. Slide an analysis window over the time series
-  4. Run the configured strategy (heuristic or supervised ML)
+  4. Run the configured strategy
   5. Print a severity heatmap and per-window diagnosis summary
 
 Usage:
     python examples/demo.py --job-id <JOB_ID>
-
-Switch strategy by editing configs/demo.yaml.
-To use supervised ML, train a model first:
-    python scripts/training/train_ml_model.py
 """
 
 from __future__ import annotations
@@ -104,7 +100,7 @@ def main() -> None:
     print(f"With bottlenecks  : {len(bottleneck_windows)}")
 
     if not results:
-        print("No windows returned — check your config and job ID.")
+        print("No windows returned - check your config and job ID.")
         return
 
     print("\n── Severity heatmap ──────────────────────────────────────────")

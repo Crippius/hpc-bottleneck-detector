@@ -63,7 +63,7 @@ def _to_print(windows: List[WindowDiagnosis]) -> str:
     lines: List[str] = []
 
     lines.append("=" * 70)
-    lines.append(f"  HPC BOTTLENECK DETECTOR — {len(windows)} window(s)")
+    lines.append(f"  HPC BOTTLENECK DETECTOR - {len(windows)} window(s)")
     lines.append("=" * 70)
 
     for wd in windows:

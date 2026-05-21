@@ -21,15 +21,15 @@ class IMLBackend(ABC):
 
     Contract
     --------
-    Training — call :meth:`train` once with the paths to labelled CSVs
+    Training - call :meth:`train` once with the paths to labelled CSVs
     (produced by ``label_job()``), the window size, and the step size.
     The backend extracts features, selects the most relevant ones, trains one
     binary classifier per ``BottleneckType``, and stores everything in memory.
 
-    Persistence — call :meth:`save` to save  to disk models and the selected feature columns).  
+    Persistence - call :meth:`save` to save  to disk models and the selected feature columns).  
     Use :meth:`load` to restore a previously saved backend.
 
-    Inference — call :meth:`predict_probabilities` with a raw window
+    Inference - call :meth:`predict_probabilities` with a raw window
     DataFrame (``DataManager.get_flat_dataframe()`` output).  The backend
     applies the same feature-extraction and column-alignment steps used during
     training and returns a probability per bottleneck type.

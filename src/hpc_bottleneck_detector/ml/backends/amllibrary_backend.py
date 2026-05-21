@@ -168,7 +168,7 @@ class AMLLibraryBackend(IMLBackend):
         """Train one MTSRegressor per BottleneckType via aMLLibrary."""
         frames = [pd.read_csv(p) for p in labelled_csv_paths]
         if not frames:
-            raise ValueError("No data loaded — check labelled_csv_paths.")
+            raise ValueError("No data loaded - check labelled_csv_paths.")
         merged = pd.concat(frames, ignore_index=True)
 
         metric_cols = [
@@ -193,13 +193,13 @@ class AMLLibraryBackend(IMLBackend):
             n_total = len(train_df)
             n_pos = int((train_df[col] > severity_threshold).sum())
             logger.info(
-                "Training %s — %d labelled intervals (%d positive at threshold=%.2f).",
+                "Training %s - %d labelled intervals (%d positive at threshold=%.2f).",
                 col, n_total, n_pos, severity_threshold,
             )
 
             if n_total < window_size:
                 logger.warning(
-                    "Skipping %s — fewer labelled intervals (%d) than window_size (%d).",
+                    "Skipping %s - fewer labelled intervals (%d) than window_size (%d).",
                     col, n_total, window_size,
                 )
                 continue

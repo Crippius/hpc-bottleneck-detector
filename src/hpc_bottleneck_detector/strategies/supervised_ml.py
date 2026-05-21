@@ -53,7 +53,7 @@ class SupervisedMLStrategy(IAnalysisStrategy):
         try:
             probs = self.backend.predict_probabilities(window_df)
         except Exception as exc:
-            logger.warning("ML inference failed: %s — returning UNKNOWN.", exc)
+            logger.warning("ML inference failed: %s - returning UNKNOWN.", exc)
             return [
                 Diagnosis(
                     bottleneck_type=BottleneckType.UNKNOWN,
@@ -94,6 +94,6 @@ class SupervisedMLStrategy(IAnalysisStrategy):
 
     def get_required_metrics(self) -> List[str]:
         """
-        Returns an empty list — (ML backend determines its own feature set at runtime)
+        Returns an empty list - (ML backend determines its own feature set at runtime)
         """
         return []

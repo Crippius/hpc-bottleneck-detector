@@ -14,7 +14,7 @@ pipeline:
   step_size: 10
 
 # ---------------------------------------------------------------------------
-# Data source — XBAT REST API
+# Data source - XBAT REST API
 # ---------------------------------------------------------------------------
 # Credentials are read from the .env file (copy .env.example -> .env).
 data_source:

@@ -11,9 +11,9 @@ by rotating through all 13 labelled CSVs:
 
 Reported metrics (averaged across all N folds):
   - F1-score      : harmonic mean of precision and recall
-  - False Alarm Rate (FPR) : FP / (FP + TN)  — fraction of healthy windows
+  - False Alarm Rate (FPR) : FP / (FP + TN)  - fraction of healthy windows
                              incorrectly flagged as bottleneck
-  - Anomaly Miss Rate (FNR): FN / (FN + TP)  — fraction of real bottleneck
+  - Anomaly Miss Rate (FNR): FN / (FN + TP)  - fraction of real bottleneck
                              windows not detected
 
 Usage:
@@ -142,7 +142,7 @@ def _metrics_from_arrays(
     """
     Compute F1, False Alarm Rate, and Anomaly Miss Rate from binary arrays.
 
-    Uses safe division — returns NaN when the denominator is zero.
+    Uses safe division - returns NaN when the denominator is zero.
     """
     tp = int(((y_pred == 1) & (y_true == 1)).sum())
     fp = int(((y_pred == 1) & (y_true == 0)).sum())
@@ -203,7 +203,7 @@ def run_loo(
         )
 
         if not backend._models:
-            logger.warning("  No classifiers trained for fold %d — skipping.", fold_idx + 1)
+            logger.warning("  No classifiers trained for fold %d - skipping.", fold_idx + 1)
             continue
 
         # ----- Extract test features -----
@@ -215,7 +215,7 @@ def run_loo(
         # ----- Predict & evaluate per BottleneckType -----
         for col, clf in backend._models.items():
             if col not in y_dict:
-                logger.debug("  %s: no valid labels in test set — skipped.", col)
+                logger.debug("  %s: no valid labels in test set - skipped.", col)
                 continue
 
             feature_cols = backend._feature_cols[col]
@@ -330,7 +330,7 @@ if __name__ == "__main__":
     args = _parse_args()
 
     csv_paths = _find_labelled_csvs(DATA_DIR)
-    print(f"[INFO] Found {len(csv_paths)} labelled CSV(s) — running {len(csv_paths)}-fold LOO CV")
+    print(f"[INFO] Found {len(csv_paths)} labelled CSV(s) - running {len(csv_paths)}-fold LOO CV")
 
     results = run_loo(
         csv_paths        = csv_paths,
@@ -341,7 +341,7 @@ if __name__ == "__main__":
     )
 
     if results.empty:
-        print("[ERROR] No results collected — check that CSVs contain valid labels.")
+        print("[ERROR] No results collected - check that CSVs contain valid labels.")
         sys.exit(1)
 
     _print_summary(results)

@@ -77,7 +77,7 @@ BASIC_FC_PARAMETERS: dict = {
     ],
 }
 
-# 2. Basic + Advanced — adds thresholding, energy, complexity, and frequency
+# 2. Basic + Advanced - adds thresholding, energy, complexity, and frequency
 #    features on top of the basic set.
 # BASIC_ADVANCED_FC_PARAMETERS: dict = {
 #     **BASIC_FC_PARAMETERS,
@@ -173,9 +173,9 @@ def _window_labels(
     For each sliding window compute a binary label per bottleneck column.
 
     Returns a dict ``{col_name: [label, …]}`` where each label is:
-    - ``1``   — max severity in window > threshold (bottleneck present)
-    - ``0``   — all real severities ≤ threshold (no bottleneck)
-    - ``NaN`` — every interval in the window had NaN label (unknown)
+    - ``1``   - max severity in window > threshold (bottleneck present)
+    - ``0``   - all real severities ≤ threshold (no bottleneck)
+    - ``NaN`` - every interval in the window had NaN label (unknown)
     """
     n = len(job_df)
     result: dict[str, list[Optional[float]]] = {col: [] for col in _LABEL_COLS}
@@ -291,7 +291,7 @@ class DefaultBackend(IMLBackend):
                     all_labels[col].extend(labels[col])
 
         if not all_fragments:
-            raise ValueError("No data loaded — check labelled_csv_paths.")
+            raise ValueError("No data loaded - check labelled_csv_paths.")
 
         tsfresh_df = _fill_metric_nans(pd.concat(all_fragments, ignore_index=True))
 
@@ -323,13 +323,13 @@ class DefaultBackend(IMLBackend):
             n_pos = int(y_clean.sum())
             n_neg = int((y_clean == 0).sum())
             logger.info(
-                "  %s — %d windows (%d pos, %d neg)",
+                "  %s - %d windows (%d pos, %d neg)",
                 col, len(y_clean), n_pos, n_neg,
             )
 
             if y_clean.nunique() < 2:
                 logger.warning(
-                    "  Skipping %s — only one class present in training data.", col
+                    "  Skipping %s - only one class present in training data.", col
                 )
                 continue
 

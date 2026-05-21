@@ -1,5 +1,5 @@
 # =============================================================================
-# Strategy Tree — Compute-Bound: Expensive Instructions
+# Strategy Tree - Compute-Bound: Expensive Instructions
 # =============================================================================
 tree_name: compute_bound_expensive_instructions
 family: compute_bound
@@ -37,7 +37,7 @@ root:
 
   if_true:
     node_id: check_cpi_high
-    description: "Is CPI above 10 (pipeline stalling despite healthy cache)?"
+    description: "Is CPI above threshold?"
     metric:
       group: cpu
       metric: CPI
@@ -64,7 +64,7 @@ root:
             - Move expensive operations (exp, sqrt, pow) outside the inner loop
               where possible.
             - If moving the operation is not possible, consider a look-up table (LUT)
-              pre-computed once and accessed within the loop — evaluate the trade-off
+              pre-computed once and accessed within the loop - evaluate the trade-off
               between instruction latency and memory access cost carefully.
             - Use Intel VTune or perf stat to confirm the instruction mix and identify
               the specific expensive operations in the hot loop.

@@ -36,12 +36,12 @@ class MacroCategoryType(Enum):
 class BottleneckType(Enum):
     """Fine-grained bottleneck classification."""
 
-    # Compute-bound — pipeline / instruction efficiency
+    # Compute-bound - pipeline / instruction efficiency
     PIPELINE_STALL                  = "PIPELINE_STALL"
     COMPUTE_UNDERUTILIZATION        = "COMPUTE_UNDERUTILIZATION"
     PRECISION_WASTE                 = "PRECISION_WASTE"
 
-    # Compute-bound — vectorisation / data-level parallelism
+    # Compute-bound - vectorisation / data-level parallelism
     BRANCH_MISPREDICTION            = "BRANCH_MISPREDICTION"
 
     # Memory-bound

@@ -76,7 +76,7 @@ def label_single_job(job_id: int, source: XBATDataSource, strategy: HeuristicStr
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Labeling example — label one or more HPC jobs")
+    parser = argparse.ArgumentParser(description="Labeling example - label one or more HPC jobs")
     parser.add_argument(
         "--job-ids",
         type=int,

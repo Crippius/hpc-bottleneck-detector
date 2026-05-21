@@ -1,5 +1,5 @@
 # =============================================================================
-# Strategy Tree — Compute-Bound: FLOPs Precision Path
+# Strategy Tree - Compute-Bound: FLOPs Precision
 # =============================================================================
 
 tree_name: compute_bound_flops_precision
@@ -18,12 +18,11 @@ required_metrics:
     trace: DP
 
 thresholds:
-  # Hardware-independent:
-  sp_to_dp_ratio: 0.035 # SP FLOPS / DP FLOPS; < 0.035 = predominantly DP
+  sp_to_dp_ratio: 0.035
 
 root:
   node_id: check_sp_to_dp_ratio
-  description: "Is the SP/DP FLOPS ratio low (code is predominantly DP)?"
+  description: "Is the code  predominantly double-precision?"
   metric:
     type: ratio
     numerator:

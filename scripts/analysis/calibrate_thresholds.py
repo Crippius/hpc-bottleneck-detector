@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Threshold Calibration Script — Pareto Rule
+Threshold Calibration Script - Pareto Rule
 ==========================================
 
 Calculates statistically-derived thresholds for the persyst strategy trees

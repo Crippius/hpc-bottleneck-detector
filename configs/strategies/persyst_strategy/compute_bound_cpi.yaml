@@ -1,5 +1,5 @@
 # =============================================================================
-# Strategy Tree — Compute-Bound: CPI & FLOP Rate
+# Strategy Tree - Compute-Bound: CPI & FLOP Rate
 # =============================================================================
 
 tree_name: compute_bound_cpi
@@ -17,7 +17,7 @@ thresholds:
 
 root:
   node_id: check_cpi
-  description: "Is CPI above 10 (pipeline not being fed efficiently)?"
+  description: "Is the pipeline not being fed efficiently?"
   metric:
     group: cpu
     metric: CPI

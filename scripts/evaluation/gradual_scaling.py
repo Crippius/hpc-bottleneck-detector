@@ -6,7 +6,7 @@ to entirely unseen code.
 
 Protocol
 --------
-1. Lock a static test set (last *test_size* apps) — never seen during training.
+1. Lock a static test set (last *test_size* apps) - never seen during training.
 2. The remaining apps form the training pool.
 3. For each step k in --steps, train on ALL C(pool, k) subsets of k apps.
 4. Average metrics across all subsets → low-variance estimate of "what k apps buys".
@@ -248,7 +248,7 @@ def run_gradual_scaling(
 
     for k in steps:
         if k > n_pool:
-            logger.warning("Step k=%d exceeds pool size %d — skipping.", k, n_pool)
+            logger.warning("Step k=%d exceeds pool size %d - skipping.", k, n_pool)
             continue
 
         combos = list(itertools.combinations(range(n_pool), k))
@@ -327,7 +327,7 @@ def plot_results(
         import matplotlib.pyplot as plt
         import matplotlib.cm as cm
     except ImportError:
-        print("[WARN] matplotlib not available — skipping plot.")
+        print("[WARN] matplotlib not available - skipping plot.")
         return
 
     # Average over all combinations at each (n_train_apps, bottleneck_type)
@@ -458,14 +458,14 @@ if __name__ == "__main__":
     if max(steps) > len(train_pool):
         print(
             f"[WARN] Largest step ({max(steps)}) exceeds training pool "
-            f"({len(train_pool)}) — it will be skipped."
+            f"({len(train_pool)}) - it will be skipped."
         )
 
     # Combination counts
     from math import comb
     print(f"\n[INFO] Training pool (miniapps): {len(train_pool)} apps")
     print(f"[INFO] Test set      (demo):     {len(test_set)} apps → {test_app_names}")
-    print(f"  Training pool — sorted by #windows:")
+    print(f"  Training pool - sorted by #windows:")
     cumulative = 0
     for i, p in enumerate(train_pool):
         wc  = _count_windows(p, args.window_size, args.step_size)
@@ -533,7 +533,7 @@ if __name__ == "__main__":
 
     # --- Summary ---
     print(f"\n{'='*65}")
-    print("  GRADUAL SCALING SUMMARY — Macro-Average F1 per Step")
+    print("  GRADUAL SCALING SUMMARY - Macro-Average F1 per Step")
     print(f"{'='*65}")
     macro = (
         results.groupby(["n_train_apps", "bottleneck_type"])["f1"]
