@@ -31,6 +31,7 @@ import yaml
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 
 from hpc_bottleneck_detector.data.manager import DataManager
+from hpc_bottleneck_detector.data.hardware_profiles import HardwareProfileLoader
 from hpc_bottleneck_detector.data_sources import XBATDataSource
 from hpc_bottleneck_detector.strategies.property_node import _aggregate, _get_series
 
@@ -48,6 +49,10 @@ WINDOW_SIZE: int = 10  # intervals per window (matches orchestrator default)
 
 STRATEGY_DIR: Path = (
     Path(__file__).parent.parent.parent / "configs" / "strategies" / "persyst_strategy"
+)
+
+PROFILES_DIR: Path = (
+    Path(__file__).parent.parent.parent / "configs" / "hardware_profiles"
 )
 
 OUTPUT_CSV: Path = Path("calibration_results.csv")
@@ -194,11 +199,25 @@ def _compute_window_values(
     return values
 
 
+def _inject_supplemental_benchmarks(
+    data_mgr: DataManager,
+    hw_loader: HardwareProfileLoader,
+) -> None:
+    ctx = data_mgr.job_context
+    if ctx is None:
+        return
+    cpu_model = ctx.get_cpu_info("Model name") or ""
+    profile_vals = hw_loader.match(cpu_model)
+    if profile_vals:
+        ctx.supplemental_benchmarks.update(profile_vals)
+
+
 def _collect_per_job_means(
     job_ids: List[str],
     data_source: XBATDataSource,
     metric_def: dict,
     window_size: int,
+    hw_loader: HardwareProfileLoader,
 ) -> Tuple[List[float], Dict[str, dict]]:
     """
     For each job compute per-window values, reduce to a single mean, and
@@ -211,6 +230,7 @@ def _collect_per_job_means(
         log.info("  Job %s ...", job_id)
         try:
             data_mgr = data_source.fetch_job_data(job_id)
+            _inject_supplemental_benchmarks(data_mgr, hw_loader)
         except Exception as exc:
             log.warning("  Skipping job %s: %s", job_id, exc)
             continue
@@ -356,6 +376,9 @@ def main(job_ids: List[str]) -> None:
     log.info("Connecting to XBAT (reading .env) ...")
     data_source = XBATDataSource.from_env(env_file=".env")
 
+    # -- Load hardware profiles --
+    hw_loader = HardwareProfileLoader(PROFILES_DIR)
+
     # -- Calibrate each metric -------------------------------------------------
     all_results: List[dict] = []
     all_rows:    List[dict] = []
@@ -365,7 +388,7 @@ def main(job_ids: List[str]) -> None:
         log.info("-- Calibrating '%s'  [%s] --", metric_def["name"], metric_def["direction"])
 
         per_job_means, job_stats = _collect_per_job_means(
-            job_ids, data_source, metric_def, WINDOW_SIZE
+            job_ids, data_source, metric_def, WINDOW_SIZE, hw_loader
         )
         pareto_thr = _pareto_threshold(per_job_means, metric_def["direction"])
 
