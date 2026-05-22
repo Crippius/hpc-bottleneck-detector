@@ -3,7 +3,6 @@
 # =============================================================================
 
 tree_name: compute_bound_flops_vectorization
-family: compute_bound
 description: >
   For compute-bound jobs, investigates vectorisation quality:
   overall scalar vs vector split, then AVX vs SSE split.

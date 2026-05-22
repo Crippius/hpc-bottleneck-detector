@@ -3,7 +3,6 @@
 # =============================================================================
 
 tree_name: compute_bound_cpi
-family: compute_bound
 description: >
   Detects pipeline stall overhead in compute-bound code via CPI.
 

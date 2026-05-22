@@ -3,7 +3,6 @@
 # =============================================================================
 
 tree_name: compute_bound_branch
-family: compute_bound
 description: >
   Detects branch misprediction overhead in compute-bound code.
 
@@ -62,6 +61,7 @@ root:
         bottleneck_type: BRANCH_MISPREDICTION
         severity_formula: INCREASING
         threshold: 9.0
+        severity_threshold: 6.0 # lower than detection threshold so severity starts ~0.5 and reaches 1 earlier
         confidence: 1.0
         recommendation: >
           High branch misprediction rate and ratio: the processor is frequently

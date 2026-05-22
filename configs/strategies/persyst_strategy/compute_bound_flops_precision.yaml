@@ -3,7 +3,6 @@
 # =============================================================================
 
 tree_name: compute_bound_flops_precision
-family: compute_bound
 description: >
   For compute-bound jobs, checks the SP-to-DP ratio.
   If the code is predominantly DP, recommends switching to single precision
