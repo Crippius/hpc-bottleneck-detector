@@ -75,6 +75,7 @@ BASIC_FC_PARAMETERS: dict = {
         {"attr": "slope",     "chunk_len": 2, "f_agg": "mean"},
         {"attr": "intercept", "chunk_len": 2, "f_agg": "mean"},
     ],
+    "absolute_sum_of_changes": None,
 }
 
 # 2. Basic + Advanced - adds thresholding, energy, complexity, and frequency

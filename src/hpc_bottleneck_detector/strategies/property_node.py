@@ -298,6 +298,11 @@ class PropertyNode:
         else:
             sev_threshold = 1.0
 
+        # severity_threshold overrides sev_threshold for the formula only
+        raw_sev_thr = cfg.get("severity_threshold")
+        if raw_sev_thr is not None:
+            sev_threshold = float(raw_sev_thr)
+
         if metric_value is not None and formula in ("INCREASING", "DECREASING"):
             severity = _compute_severity(formula, metric_value, sev_threshold)
         else:
