@@ -36,6 +36,7 @@ root:
       bottleneck_type: PIPELINE_STALL
       severity_formula: INCREASING
       threshold: 85
+      severity_cap: 100
       confidence: 1.0
       recommendation: >
         High stall rate: most cycles are spent stalling, indicating

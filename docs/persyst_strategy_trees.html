@@ -343,7 +343,7 @@ const TREES = /*TREES_JSON*/[
         "severity_formula": "0.0",
         "threshold": "",
         "confidence": 1.0,
-        "recommendation": "Branch misprediction rate is elevated but ratio is within bounds. Mispredictions occur frequently per instruction but branches themselves are mostly predicted correctly. No immediate action required; monitor alongside CPI.",
+        "recommendation": "",
         "label": "OK",
         "description": ""
       },
@@ -420,7 +420,7 @@ const TREES = /*TREES_JSON*/[
         "severity_formula": "0.0",
         "threshold": "",
         "confidence": 1.0,
-        "recommendation": "L3 bandwidth is elevated but L3 miss rate is low. Hardware prefetching is likely masking latency effectively. No immediate action required; monitor for sustained increases.",
+        "recommendation": "",
         "label": "OK",
         "description": ""
       },
@@ -459,61 +459,6 @@ const TREES = /*TREES_JSON*/[
       },
       {
         "id": "compute_bound_cpi__low_cpi",
-        "kind": "leaf",
-        "bottleneck_type": "NONE",
-        "severity_formula": "0.0",
-        "threshold": "",
-        "confidence": 1.0,
-        "recommendation": "",
-        "label": "OK",
-        "description": ""
-      },
-      {
-        "id": "compute_bound_expensive_instructions__check_l3_miss_ratio_low",
-        "kind": "decision",
-        "description": "Is L3 miss ratio LOW (ruling out cache pressure as the CPI cause)?",
-        "metric_type": "simple",
-        "metric_description": "cache / Miss Ratio / L3 miss ratio",
-        "aggregation": "mean",
-        "operator": "<",
-        "threshold": "0.2",
-        "label": "Check L3 Miss Ratio Low"
-      },
-      {
-        "id": "compute_bound_expensive_instructions__check_cpi_high",
-        "kind": "decision",
-        "description": "Is CPI above threshold?",
-        "metric_type": "simple",
-        "metric_description": "cpu / CPI / CPI",
-        "aggregation": "mean",
-        "operator": ">",
-        "threshold": "10.0",
-        "label": "Check Cpi High"
-      },
-      {
-        "id": "compute_bound_expensive_instructions__expensive_instructions",
-        "kind": "leaf",
-        "bottleneck_type": "PIPELINE_STALL",
-        "severity_formula": "INCREASING",
-        "threshold": "10.0",
-        "confidence": 1.0,
-        "recommendation": "High CPI with low L3 miss ratio: cache pressure is not the bottleneck, suggesting expensive instructions (divisions, square roots, exponentials, etc.) are dominating the compute kernel. Actions:\n  - Replace divisions by a known constant with its reciprocal and use\n    multiplication. The Intel compiler flag -no-prec-div hints the compiler\n    to do this automatically.\n  - Move expensive operations (exp, sqrt, pow) outside the inner loop\n    where possible.\n  - If moving the operation is not possible, consider a look-up table (LUT)\n    pre-computed once and accessed within the loop - evaluate the trade-off\n    between instruction latency and memory access cost carefully.\n  - Use Intel VTune or perf stat to confirm the instruction mix and identify\n    the specific expensive operations in the hot loop.",
-        "label": "Pipeline Stall",
-        "description": ""
-      },
-      {
-        "id": "compute_bound_expensive_instructions__no_expensive_instructions",
-        "kind": "leaf",
-        "bottleneck_type": "NONE",
-        "severity_formula": "0.0",
-        "threshold": "",
-        "confidence": 1.0,
-        "recommendation": "",
-        "label": "OK",
-        "description": ""
-      },
-      {
-        "id": "compute_bound_expensive_instructions__cache_pressure_dominates",
         "kind": "leaf",
         "bottleneck_type": "NONE",
         "severity_formula": "0.0",
@@ -719,31 +664,6 @@ const TREES = /*TREES_JSON*/[
       {
         "source": "virtual_compute_bound_root",
         "target": "compute_bound_cpi__check_cpi",
-        "label": ""
-      },
-      {
-        "source": "compute_bound_expensive_instructions__check_l3_miss_ratio_low",
-        "target": "compute_bound_expensive_instructions__check_cpi_high",
-        "label": "Low"
-      },
-      {
-        "source": "compute_bound_expensive_instructions__check_cpi_high",
-        "target": "compute_bound_expensive_instructions__expensive_instructions",
-        "label": "High"
-      },
-      {
-        "source": "compute_bound_expensive_instructions__check_cpi_high",
-        "target": "compute_bound_expensive_instructions__no_expensive_instructions",
-        "label": "Low"
-      },
-      {
-        "source": "compute_bound_expensive_instructions__check_l3_miss_ratio_low",
-        "target": "compute_bound_expensive_instructions__cache_pressure_dominates",
-        "label": "High"
-      },
-      {
-        "source": "virtual_compute_bound_root",
-        "target": "compute_bound_expensive_instructions__check_l3_miss_ratio_low",
         "label": ""
       },
       {

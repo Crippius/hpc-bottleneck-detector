@@ -50,10 +50,7 @@ root:
         bottleneck_type: NONE
         severity_formula: "0.0"
         confidence: 1.0
-        recommendation: >
-          Branch misprediction rate is elevated but ratio is within bounds. Mispredictions occur
-          frequently per instruction but branches themselves are mostly predicted correctly.
-          No immediate action required; monitor alongside CPI.
+        recommendation: null
 
     if_true:
       node_id: branch_misprediction
@@ -61,7 +58,7 @@ root:
         bottleneck_type: BRANCH_MISPREDICTION
         severity_formula: INCREASING
         threshold: 9.0
-        severity_threshold: 6.0 # lower than detection threshold so severity starts ~0.5 and reaches 1 earlier
+        severity_cap: 20.0 # empirical max; severity = 0 at threshold, 1 at cap
         confidence: 1.0
         recommendation: >
           High branch misprediction rate and ratio: the processor is frequently

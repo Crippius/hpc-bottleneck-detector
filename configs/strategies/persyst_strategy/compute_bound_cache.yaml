@@ -56,8 +56,7 @@ root:
         bottleneck_type: NONE
         severity_formula: "0.0"
         confidence: 1.0
-        recommendation: >
-          L3 bandwidth is elevated but L3 miss rate is low. Hardware prefetching is likely masking latency effectively. No immediate action required; monitor for sustained increases.
+        recommendation: null
 
     if_true:
       node_id: check_l3_miss_ratio
@@ -76,6 +75,7 @@ root:
           bottleneck_type: CACHE_PRESSURE
           severity_formula: INCREASING
           threshold: 0.741
+          severity_cap: 1.0
           confidence: 1.0
           recommendation: >
             L3 bandwidth is high, L3 miss rate is elevated, and the L3 miss ratio exceeds 0.741

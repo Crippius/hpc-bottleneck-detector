@@ -142,14 +142,15 @@ def _compute_severity(
     formula: str,
     value: float,
     threshold: float,
+    cap: float | None = None,
 ) -> float:
     """
     Evaluate a severity formula.
 
     Supported formulas:
 
-    * ``INCREASING`` - ``min(1, max(0, value / threshold - 1))``
-      Higher metric value → higher severity.
+    * ``INCREASING`` - severity rises from 0 at threshold to 1 at 2*threshold
+      (or at ``cap`` when provided: ``(value - threshold) / (cap - threshold)``).
     * ``DECREASING`` - ``min(1, max(0, 1 - value / threshold))``
       Lower metric value → higher severity.
     * Any other string is interpreted as a Python float literal (e.g. ``"0.0"``).
@@ -157,6 +158,8 @@ def _compute_severity(
     if formula == "INCREASING":
         if threshold == 0:
             return 0.0
+        if cap is not None and cap != threshold:
+            return float(min(1.0, max(0.0, (value - threshold) / (cap - threshold))))
         return float(min(1.0, max(0.0, value / threshold - 1.0)))
     if formula == "DECREASING":
         if threshold == 0:
@@ -298,15 +301,13 @@ class PropertyNode:
         else:
             sev_threshold = 1.0
 
-        # severity_threshold overrides sev_threshold for the formula only
-        raw_sev_thr = cfg.get("severity_threshold")
-        if raw_sev_thr is not None:
-            sev_threshold = float(raw_sev_thr)
+        raw_cap = cfg.get("severity_cap")
+        sev_cap = float(raw_cap) if raw_cap is not None else None
 
         if metric_value is not None and formula in ("INCREASING", "DECREASING"):
-            severity = _compute_severity(formula, metric_value, sev_threshold)
+            severity = _compute_severity(formula, metric_value, sev_threshold, sev_cap)
         else:
-            severity = _compute_severity(formula, 0.0, sev_threshold)
+            severity = _compute_severity(formula, 0.0, sev_threshold, sev_cap)
 
         # ── Other fields ───────────────────────────────────────────────
         confidence     = float(cfg.get("confidence", 1.0))
