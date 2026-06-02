@@ -45,7 +45,7 @@ log = logging.getLogger(__name__)
 
 DEFAULT_JOB_IDS: List[str] = []
 
-WINDOW_SIZE: int = 10  # intervals per window (matches orchestrator default)
+WINDOW_SIZE: int = 12  # intervals per window (12 × 5 s = 60 s)
 
 STRATEGY_DIR: Path = (
     Path(__file__).parent.parent.parent / "configs" / "strategies" / "persyst_strategy"

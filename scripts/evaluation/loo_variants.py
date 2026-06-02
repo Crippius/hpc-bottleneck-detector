@@ -54,8 +54,8 @@ VARIANTS: list[tuple[str, bool, bool]] = [
 def _parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser()
     p.add_argument("--data-dir", default="data/labelled_data/training_set")
-    p.add_argument("--window-size",        type=int,   default=10)
-    p.add_argument("--step-size",          type=int,   default=10)
+    p.add_argument("--window-size",        type=int,   default=12)
+    p.add_argument("--step-size",          type=int,   default=12)
     p.add_argument("--severity-threshold", type=float, default=0.0)
     p.add_argument("--prob-threshold",     type=float, default=0.5)
     p.add_argument("--output-csv",         default="results/loo_variants.csv")

@@ -10,8 +10,8 @@ Usage
     conda run -n thesisEnv python scripts/training/train_amllibrary_model.py
     conda run -n thesisEnv python scripts/training/train_amllibrary_model.py \\
         --data-dir data/labelled_data/ \\
-        --window-size 10 \\
-        --step-size 10 \\
+        --window-size 12 \\
+        --step-size 12 \\
         --output models/amllibrary.pkl
 
 Output
@@ -44,9 +44,9 @@ def _parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--data-dir", default="data/labelled_data/",
         help="Directory containing labelled CSV files.")
-    parser.add_argument("--window-size", type=int, default=10,
+    parser.add_argument("--window-size", type=int, default=12,
         help="Number of intervals per analysis window.")
-    parser.add_argument("--step-size", type=int, default=10,
+    parser.add_argument("--step-size", type=int, default=12,
         help="Interval advance between successive windows.")
     parser.add_argument("--severity-threshold", type=float, default=0.0,
         help="Severity > this value → positive label.")

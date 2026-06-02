@@ -66,7 +66,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 REPO_ROOT  = Path(__file__).parent.parent.parent
-TRAIN_DIR  = REPO_ROOT / "data" / "labelled_data" / "miniapps"
+TRAIN_DIR  = REPO_ROOT / "data" / "labelled_data" / "training_set"
 TEST_DIR   = REPO_ROOT / "data" / "labelled_data" / "demo"
 
 _DEFAULT_CLASSIFIER = RandomForestClassifier(
@@ -430,8 +430,8 @@ def _parse_args() -> argparse.Namespace:
         "--steps", nargs="+", type=int, default=[2, 4, 6, 8, 10],
         help="Training set sizes to evaluate (default: 2 4 6 8 10).",
     )
-    p.add_argument("--window-size",        type=int,   default=10,  dest="window_size")
-    p.add_argument("--step-size",          type=int,   default=10,  dest="step_size")
+    p.add_argument("--window-size",        type=int,   default=12,  dest="window_size")
+    p.add_argument("--step-size",          type=int,   default=12,  dest="step_size")
     p.add_argument("--severity-threshold", type=float, default=0.0, dest="severity_threshold")
     p.add_argument("--prob-threshold",     type=float, default=0.5, dest="prob_threshold")
     p.add_argument("--output-csv",         type=str,   default=None, dest="output_csv")
@@ -463,7 +463,7 @@ if __name__ == "__main__":
 
     # Combination counts
     from math import comb
-    print(f"\n[INFO] Training pool (miniapps): {len(train_pool)} apps")
+    print(f"\n[INFO] Training pool: {len(train_pool)} apps")
     print(f"[INFO] Test set      (demo):     {len(test_set)} apps → {test_app_names}")
     print(f"  Training pool - sorted by #windows:")
     cumulative = 0

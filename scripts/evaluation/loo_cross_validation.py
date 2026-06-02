@@ -17,7 +17,7 @@ Reported metrics (averaged across all N folds):
                              windows not detected
 
 Usage:
-    python examples/loo_cross_validation.py [--window-size 10] [--step-size 10]
+    python examples/loo_cross_validation.py [--window-size 12] [--step-size 12]
                                             [--threshold 0.5] [--prob-threshold 0.5]
 """
 
@@ -311,8 +311,8 @@ def _parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(
         description="Leave-One-Out cross-validation for the ML bottleneck detector."
     )
-    p.add_argument("--window-size",      type=int,   default=10,  dest="window_size")
-    p.add_argument("--step-size",        type=int,   default=10,  dest="step_size")
+    p.add_argument("--window-size",      type=int,   default=12,  dest="window_size")
+    p.add_argument("--step-size",        type=int,   default=12,  dest="step_size")
     p.add_argument("--severity-threshold", type=float, default=0.0, dest="severity_threshold",
                    help="Severity > this value → positive label (default: 0.0)")
     p.add_argument("--prob-threshold",   type=float, default=0.5, dest="prob_threshold",

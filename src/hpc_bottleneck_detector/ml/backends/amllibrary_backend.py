@@ -26,6 +26,7 @@ logger = logging.getLogger(__name__)
 
 _LABEL_COLS: list[str] = [bt.value for bt in BOTTLENECK_COLUMNS]
 _EXCLUDE_PREFIXES: tuple[str, ...] = ("gpu_",)
+_EXCLUDE_COLS: frozenset[str] = frozenset({"INTER_NODE_LOAD_IMBALANCE"})
 
 _AML_DIR = Path(__file__).parents[4] / "aMLLibrary"
 
@@ -175,6 +176,7 @@ class AMLLibraryBackend(IMLBackend):
             c for c in merged.columns
             if c not in (set(_LABEL_COLS) | {"id", "time"})
             and not any(c.startswith(pfx) for pfx in _EXCLUDE_PREFIXES)
+            and c not in _EXCLUDE_COLS
         ]
 
         self._regressors = {}

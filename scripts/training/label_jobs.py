@@ -25,8 +25,8 @@ from hpc_bottleneck_detector.utils.labeling import label_job, BOTTLENECK_COLUMNS
 STRATEGY_FOLDER  = Path(__file__).parent.parent.parent / "configs" / "strategies" / "persyst_strategy"
 HW_PROFILES_DIR  = Path(__file__).parent.parent.parent / "configs" / "hardware_profiles"
 
-WINDOW_SIZE = 10   # intervals per analysis window
-STEP_SIZE   = 10   # tumbling windows (set < WINDOW_SIZE for sliding)
+WINDOW_SIZE = 12   # intervals per analysis window (12 × 5 s = 60 s)
+STEP_SIZE   = 12   # tumbling windows (set < WINDOW_SIZE for sliding)
 
 
 def label_single_job(job_id: int, source: XBATDataSource, strategy: HeuristicStrategy, orchestrator: AnalysisOrchestrator) -> None:

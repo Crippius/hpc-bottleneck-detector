@@ -46,7 +46,9 @@ _LABEL_COLS = [bt.value for bt in BOTTLENECK_COLUMNS]
 # Columns that are never metric features.
 _NON_METRIC_COLS = {"id", "time"} | set(_LABEL_COLS)
 # Metric column prefixes to exclude from feature extraction.
-EXCLUDE_METRIC_PREFIXES: tuple[str, ...] = ("gpu_")
+EXCLUDE_METRIC_PREFIXES: tuple[str, ...] = ("gpu_",)
+# Exact metric column names to exclude from feature extraction.
+EXCLUDE_METRIC_COLS: frozenset[str] = frozenset({"INTER_NODE_LOAD_IMBALANCE"})
 
 # ---------------------------------------------------------------------------
 # Feature-extraction parameter sets
@@ -225,7 +227,7 @@ class DefaultBackend(IMLBackend):
 
         from sklearn.linear_model import LogisticRegression
         backend = DefaultBackend(classifier=LogisticRegression(max_iter=1000))
-        backend.train(csv_paths, window_size=10, step_size=10)
+        backend.train(csv_paths, window_size=12, step_size=12)
 
     Attributes:
         _classifier:   Unfitted prototype classifier (cloned for each type).
@@ -246,6 +248,7 @@ class DefaultBackend(IMLBackend):
         self._models: dict[str, ClassifierMixin] = {}
         self._feature_cols: dict[str, list[str]] = {}
         self._fc_params = BASIC_FC_PARAMETERS
+        self._window_size: Optional[int] = None
         # self._fc_params = BASIC_ADVANCED_FC_PARAMETERS
 
     # ------------------------------------------------------------------
@@ -274,10 +277,11 @@ class DefaultBackend(IMLBackend):
                 c for c in df.columns
                 if c not in _NON_METRIC_COLS
                 and not any(c.startswith(p) for p in EXCLUDE_METRIC_PREFIXES)
+                and c not in EXCLUDE_METRIC_COLS
             ]
 
             for job_id, job_df in df.groupby("id"):
-                job_df = job_df.sort_values("time").reset_index(drop=True)
+                job_df = job_df.sort_values("time").dropna(subset=metric_cols).reset_index(drop=True)
 
                 long_df, window_ids = _build_window_dataframe(
                     job_df, metric_cols, str(job_id), window_size, step_size
@@ -290,6 +294,8 @@ class DefaultBackend(IMLBackend):
                 all_window_ids.extend(window_ids)
                 for col in _LABEL_COLS:
                     all_labels[col].extend(labels[col])
+
+        self._window_size = window_size
 
         if not all_fragments:
             raise ValueError("No data loaded - check labelled_csv_paths.")
@@ -406,6 +412,13 @@ class DefaultBackend(IMLBackend):
         if not self._models:
             raise RuntimeError("Backend has not been trained or loaded yet.")
 
+        if self._window_size is not None and len(window_df) != self._window_size:
+            raise ValueError(
+                f"Window has {len(window_df)} interval(s) but the model was trained "
+                f"with window_size={self._window_size}. Re-train or adjust the "
+                "orchestrator window_size to match."
+            )
+
         # Drop label columns if they happen to be present (e.g. from labelled CSV)
         infer_df = window_df.drop(
             columns=[c for c in _LABEL_COLS if c in window_df.columns]
@@ -454,6 +467,7 @@ class DefaultBackend(IMLBackend):
                 "fc_params": self._fc_params,
                 "use_fdr": self._use_fdr,
                 "use_importance_pruning": self._use_importance_pruning,
+                "window_size": self._window_size,
             },
             out,
         )
@@ -479,6 +493,7 @@ class DefaultBackend(IMLBackend):
         backend._models = data["models"]
         backend._feature_cols = data["feature_cols"]
         backend._fc_params = data.get("fc_params", BASIC_FC_PARAMETERS)
+        backend._window_size = data.get("window_size")
         logger.info(
             "Backend loaded from %s (%d classifiers).", path, len(backend._models)
         )
