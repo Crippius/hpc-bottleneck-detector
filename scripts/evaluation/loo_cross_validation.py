@@ -54,7 +54,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 REPO_ROOT = Path(__file__).parent.parent.parent
-DATA_DIR  = REPO_ROOT / "data" / "labelled_data" / "miniapps"
+DATA_DIR  = REPO_ROOT / "data" / "labelled_data" / "training_set"
 
 
 # ---------------------------------------------------------------------------
