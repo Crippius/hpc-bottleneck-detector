@@ -9,8 +9,8 @@ Usage
     python scripts/training/train_ml_model.py
     python scripts/training/train_ml_model.py \\
         --data-dir data/labelled_data/ \\
-        --window-size 10 \\
-        --step-size 10 \\
+        --window-size 12 \\
+        --step-size 12 \\
         --output models/default.pkl
 
 Output
@@ -40,8 +40,7 @@ from hpc_bottleneck_detector.ml.backends.default_backend import (
     _LABEL_COLS,
     _NON_METRIC_COLS,
     EXCLUDE_METRIC_PREFIXES,
-    BASIC_FC_PARAMETERS,
-    # BASIC_ADVANCED_FC_PARAMETERS,
+    EXCLUDE_METRIC_COLS,
 )
 from tsfresh import extract_features
 from tsfresh.utilities.dataframe_functions import impute
@@ -58,11 +57,11 @@ def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Train a DefaultBackend on labelled HPC job CSVs."
     )
-    parser.add_argument("--data-dir", default="data/labelled_data/",
+    parser.add_argument("--data-dir", default="data/labelled_data/training_set/",
         help="Directory containing labelled CSV files.")
-    parser.add_argument("--window-size", type=int, default=10,
+    parser.add_argument("--window-size", type=int, default=12,
         help="Number of intervals per analysis window.")
-    parser.add_argument("--step-size", type=int, default=10,
+    parser.add_argument("--step-size", type=int, default=12,
         help="Interval advance between successive windows.")
     parser.add_argument("--severity-threshold", type=float, default=0.0,
         help="Severity > this value → positive label.")
@@ -110,10 +109,11 @@ def _build_windows_from_csvs(
             c for c in df.columns
             if c not in _NON_METRIC_COLS
             and not any(c.startswith(p) for p in EXCLUDE_METRIC_PREFIXES)
+            and c not in EXCLUDE_METRIC_COLS
         ]
 
         for job_id, job_df in df.groupby("id"):
-            job_df = job_df.sort_values("time").reset_index(drop=True)
+            job_df = job_df.sort_values("time").dropna(subset=metric_cols).reset_index(drop=True)
 
             long_df, window_ids = _build_window_dataframe(
                 job_df, metric_cols, str(job_id), window_size, step_size
@@ -163,12 +163,9 @@ def main() -> None:
     csv_paths = _collect_csv_paths(args.data_dir)
     logger.info("Found %d labelled CSV(s): %s", len(csv_paths), csv_paths)
 
-    fc_params = BASIC_FC_PARAMETERS
-    # fc_params = BASIC_ADVANCED_FC_PARAMETERS
+    backend = DefaultBackend()
 
     if args.no_eval:
-        # Train on everything, no held-out set
-        backend = DefaultBackend()
         backend.train(
             labelled_csv_paths=csv_paths,
             window_size=args.window_size,
@@ -176,79 +173,50 @@ def main() -> None:
             severity_threshold=args.severity_threshold,
         )
     else:
-        # ── Build windows + extract features ──────────────────────────────────
-        logger.info("Building windows and extracting features…")
-        X_full, y_all = _build_windows_from_csvs(
-            csv_paths, args.window_size, args.step_size, args.severity_threshold, fc_params
+        # ── Split at file level ────────────────────────────────────────────────
+        train_paths, test_paths = train_test_split(
+            csv_paths, test_size=args.test_size, random_state=42
+        )
+        logger.info("Train: %d CSVs, Test: %d CSVs", len(train_paths), len(test_paths))
+
+        # ── Train via backend (FDR + importance pruning) ───────────────────────
+        backend.train(
+            labelled_csv_paths=train_paths,
+            window_size=args.window_size,
+            step_size=args.step_size,
+            severity_threshold=args.severity_threshold,
         )
 
-        # ── Train with evaluation ──────────────────────────────────────────────
-        logger.info("\nTraining classifiers (test_size=%.0f%%)…", args.test_size * 100)
+        # ── Extract features for held-out CSVs ────────────────────────────────
+        logger.info("Extracting test features from %d CSVs…", len(test_paths))
+        X_test, y_test = _build_windows_from_csvs(
+            test_paths, args.window_size, args.step_size, args.severity_threshold,
+            backend._fc_params,
+        )
 
-        from sklearn.ensemble import RandomForestClassifier
-        from tsfresh import select_features as ts_select
-
-        models: dict = {}
-        feature_cols: dict = {}
-
+        # ── Evaluate ──────────────────────────────────────────────────────────
         print("\n" + "=" * 60)
-        print("Per-type classification report (test split)")
+        print("Per-type classification report (held-out CSVs)")
         print("=" * 60)
 
         for col in _LABEL_COLS:
-            y = y_all[col]
+            y = y_test[col]
             valid_mask = ~y.isna()
             y_clean = y[valid_mask].astype(int)
-            X_clean = X_full.loc[y_clean.index]
+
+            if col not in backend._models or y_clean.nunique() < 2:
+                logger.warning("  Skipping %s - model missing or only one class in test.", col)
+                continue
 
             n_pos = int(y_clean.sum())
             n_neg = int((y_clean == 0).sum())
-            logger.info("\n%s - %d windows (%d pos, %d neg)", col, len(y_clean), n_pos, n_neg)
-
-            if y_clean.nunique() < 2:
-                logger.warning("  Skipping - only one class present.")
-                continue
-
-            X_train, X_test, y_train, y_test = train_test_split(
-                X_clean, y_clean,
-                test_size=args.test_size,
-                random_state=42,
-                stratify=y_clean,
+            X_sel = X_test.loc[y_clean.index].reindex(
+                columns=backend._feature_cols[col], fill_value=0.0
             )
+            y_pred = backend._models[col].predict(X_sel)
 
-            # Feature selection on train split only
-            try:
-                X_train_sel = ts_select(X_train, y_train)
-            except Exception as exc:
-                logger.warning("  Feature selection failed (%s); using all features.", exc)
-                X_train_sel = X_train
-
-            if X_train_sel.shape[1] == 0:
-                X_train_sel = X_train
-
-            selected_cols = X_train_sel.columns.tolist()
-            X_test_sel = X_test.reindex(columns=selected_cols, fill_value=0.0)
-
-            clf = RandomForestClassifier(
-                n_estimators=200,
-                class_weight="balanced",
-                random_state=42,
-                n_jobs=-1,
-            )
-            clf.fit(X_train_sel, y_train)
-            y_pred = clf.predict(X_test_sel)
-
-            print(f"\n{col} ({X_train_sel.shape[1]} features selected)")
-            print(classification_report(y_test, y_pred, zero_division=0))
-
-            models[col] = clf
-            feature_cols[col] = selected_cols
-
-        # ── Assemble backend ───────────────────────────────────────────────────
-        backend = DefaultBackend()
-        backend._models = models
-        backend._feature_cols = feature_cols
-        backend._fc_params = fc_params
+            print(f"\n{col} ({len(backend._feature_cols[col])} features, {n_pos} pos / {n_neg} neg)")
+            print(classification_report(y_clean, y_pred, zero_division=0))
 
     # ── Save ──────────────────────────────────────────────────────────────────
     backend.save(args.output)
