@@ -31,6 +31,7 @@ from __future__ import annotations
 import argparse
 import itertools
 import logging
+import random
 import sys
 import warnings
 from pathlib import Path
@@ -237,12 +238,15 @@ def run_gradual_scaling(
     y_dict_test: dict[str, pd.Series],
     prob_threshold: float,
     classifier,
+    max_combos: int = 50,
+    seed: int = 42,
 ) -> pd.DataFrame:
     """
-    For each step k, iterate over ALL C(pool, k) subsets, train on each,
-    evaluate on the fixed test set, and record every result.
-    Averaging over all subsets at step k gives a low-variance estimate.
+    For each step k, iterate over subsets of k apps, train on each, evaluate on
+    the fixed test set, and record every result.  When C(pool, k) <= max_combos
+    the enumeration is exhaustive; otherwise max_combos random subsets are drawn.
     """
+    rng = random.Random(seed)
     records: list[dict] = []
     n_pool = len(app_features)
 
@@ -251,9 +255,17 @@ def run_gradual_scaling(
             logger.warning("Step k=%d exceeds pool size %d - skipping.", k, n_pool)
             continue
 
-        combos = list(itertools.combinations(range(n_pool), k))
+        all_combos = list(itertools.combinations(range(n_pool), k))
+        exhaustive = len(all_combos) <= max_combos
+        if exhaustive:
+            combos = all_combos
+            mode_str = "exhaustive"
+        else:
+            combos = rng.sample(all_combos, max_combos)
+            mode_str = f"sampled {max_combos} of {len(all_combos)}"
+
         print(f"\n{'─'*65}")
-        print(f"  Step k={k:>2}  |  {len(combos)} combinations")
+        print(f"  Step k={k:>2}  |  {len(combos)} combinations  ({mode_str})")
         print(f"{'─'*65}")
 
         f1_by_col: dict[str, list[float]] = {}
@@ -437,6 +449,10 @@ def _parse_args() -> argparse.Namespace:
     p.add_argument("--output-csv",         type=str,   default=None, dest="output_csv")
     p.add_argument("--output-fig",         type=str,   default=None, dest="output_fig")
     p.add_argument("--no-plot",            action="store_true",     dest="no_plot")
+    p.add_argument(
+        "--max-combos", type=int, default=50, dest="max_combos",
+        help="Max random subsets per step when C(n,k) exceeds this (default: 50).",
+    )
     return p.parse_args()
 
 
@@ -518,13 +534,14 @@ if __name__ == "__main__":
 
     # --- Run exhaustive scaling ---
     results = run_gradual_scaling(
-        app_features  = app_features,
-        train_pool    = train_pool,
-        steps         = steps,
-        X_test        = X_test,
-        y_dict_test   = y_dict_test,
+        app_features   = app_features,
+        train_pool     = train_pool,
+        steps          = steps,
+        X_test         = X_test,
+        y_dict_test    = y_dict_test,
         prob_threshold = args.prob_threshold,
-        classifier    = _DEFAULT_CLASSIFIER,
+        classifier     = _DEFAULT_CLASSIFIER,
+        max_combos     = args.max_combos,
     )
 
     if results.empty:
