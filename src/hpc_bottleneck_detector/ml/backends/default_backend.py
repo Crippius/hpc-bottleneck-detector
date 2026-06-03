@@ -394,6 +394,80 @@ class DefaultBackend(IMLBackend):
             )
 
     # ------------------------------------------------------------------
+    # Alternative constructor: fit on pre-extracted features
+    # ------------------------------------------------------------------
+
+    @classmethod
+    def from_preextracted_features(
+        cls,
+        X_train: pd.DataFrame,
+        y_dict_train: dict[str, pd.Series],
+        classifier: ClassifierMixin = _DEFAULT_CLASSIFIER,
+        use_fdr: bool = True,
+        use_importance_pruning: bool = True,
+    ) -> "DefaultBackend":
+        """
+        Build a trained backend from already-extracted tsfresh features,
+        skipping the extraction step entirely.
+        """
+        backend = cls(
+            classifier=classifier,
+            use_fdr=use_fdr,
+            use_importance_pruning=use_importance_pruning,
+        )
+
+        for col in _LABEL_COLS:
+            if col not in y_dict_train:
+                continue
+            y = y_dict_train[col]
+            X_clean = X_train.reindex(index=y.index, fill_value=0.0).fillna(0.0)
+
+            if y.nunique() < 2:
+                continue
+
+            X_selected = X_clean
+
+            if backend._use_fdr:
+                try:
+                    X_selected = select_features(X_clean, y, fdr_level=_FDR_LEVEL)
+                except Exception as exc:
+                    logger.warning(
+                        "  tsfresh select_features failed for %s (%s); falling back to SelectKBest.", col, exc
+                    )
+                    X_selected = pd.DataFrame()
+
+                if X_selected.shape[1] == 0:
+                    k = min(_FALLBACK_K_FEATURES, X_clean.shape[1])
+                    logger.warning(
+                        "  tsfresh selected 0 features for %s; using SelectKBest(k=%d).", col, k
+                    )
+                    selector = SelectKBest(f_classif, k=k)
+                    selector.fit(X_clean, y)
+                    X_selected = X_clean.iloc[:, selector.get_support(indices=True)]
+
+            if backend._use_importance_pruning and X_selected.shape[1] > 0:
+                prelim_clf = clone(backend._classifier)
+                prelim_clf.fit(X_selected, y)
+                mask = prelim_clf.feature_importances_ >= _IMPORTANCE_THRESHOLD
+                n_before = X_selected.shape[1]
+                X_selected = X_selected.loc[:, mask]
+                logger.info(
+                    "  Importance pruning: %d → %d features (threshold=%.2e).",
+                    n_before, X_selected.shape[1], _IMPORTANCE_THRESHOLD,
+                )
+
+            if X_selected.shape[1] == 0:
+                logger.warning("  No features left for %s after selection; skipping.", col)
+                continue
+
+            backend._feature_cols[col] = X_selected.columns.tolist()
+            clf = clone(backend._classifier)
+            clf.fit(X_selected, y)
+            backend._models[col] = clf
+
+        return backend
+
+    # ------------------------------------------------------------------
     # Inference
     # ------------------------------------------------------------------
 
