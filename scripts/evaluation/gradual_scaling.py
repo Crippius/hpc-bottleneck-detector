@@ -38,17 +38,13 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-from sklearn.base import clone
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.exceptions import UndefinedMetricWarning
-from sklearn.feature_selection import SelectKBest, f_classif
-from tsfresh import select_features as tsfresh_select_features
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 
 from hpc_bottleneck_detector.ml.backends.default_backend import (
     DefaultBackend,
-    _FALLBACK_K_FEATURES,
     _LABEL_COLS,
     _NON_METRIC_COLS,
     _build_window_dataframe,
@@ -168,42 +164,6 @@ def _extract_features_for_app(
     return X, y_dict
 
 
-def _train_classifiers(
-    X_train: pd.DataFrame,
-    y_dict_train: dict[str, pd.Series],
-    classifier,
-) -> tuple[dict, dict]:
-    """Feature selection + fit. Returns (models, feature_cols)."""
-    models: dict = {}
-    feature_cols: dict = {}
-
-    for col in _LABEL_COLS:
-        if col not in y_dict_train:
-            continue
-        y = y_dict_train[col]
-        X_clean = X_train.reindex(index=y.index, fill_value=0.0).fillna(0.0)
-
-        if y.nunique() < 2:
-            continue
-
-        try:
-            X_selected = tsfresh_select_features(X_clean, y)
-        except Exception:
-            X_selected = pd.DataFrame()
-
-        if X_selected.shape[1] == 0:
-            k = min(_FALLBACK_K_FEATURES, X_clean.shape[1])
-            selector = SelectKBest(f_classif, k=k)
-            selector.fit(X_clean, y)
-            X_selected = X_clean.iloc[:, selector.get_support(indices=True)]
-
-        feature_cols[col] = X_selected.columns.tolist()
-        clf = clone(classifier)
-        clf.fit(X_selected, y)
-        models[col] = clf
-
-    return models, feature_cols
-
 
 def _metrics_from_arrays(y_true: np.ndarray, y_pred: np.ndarray) -> dict[str, float]:
     tp = int(((y_pred == 1) & (y_true == 1)).sum())
@@ -281,14 +241,16 @@ def run_gradual_scaling(
                 if parts:
                     y_dict_train[col] = pd.concat(parts)
 
-            models, feat_cols = _train_classifiers(X_train, y_dict_train, classifier)
-            if not models:
+            backend = DefaultBackend.from_preextracted_features(
+                X_train, y_dict_train, classifier
+            )
+            if not backend._models:
                 continue
 
-            for col, clf in models.items():
+            for col, clf in backend._models.items():
                 if col not in y_dict_test:
                     continue
-                fc        = feat_cols[col]
+                fc        = backend._feature_cols[col]
                 valid_idx = y_dict_test[col].index
                 X_aligned = X_test.reindex(index=valid_idx, columns=fc, fill_value=0.0)
                 probs     = clf.predict_proba(X_aligned)[:, 1]
@@ -447,6 +409,7 @@ def _parse_args() -> argparse.Namespace:
     p.add_argument("--severity-threshold", type=float, default=0.0, dest="severity_threshold")
     p.add_argument("--prob-threshold",     type=float, default=0.5, dest="prob_threshold")
     p.add_argument("--output-csv",         type=str,   default=None, dest="output_csv")
+    p.add_argument("--output-pkl",         type=str,   default=None, dest="output_pkl")
     p.add_argument("--output-fig",         type=str,   default=None, dest="output_fig")
     p.add_argument("--no-plot",            action="store_true",     dest="no_plot")
     p.add_argument(
@@ -572,6 +535,14 @@ if __name__ == "__main__":
         out.parent.mkdir(parents=True, exist_ok=True)
         results.to_csv(out, index=False)
         print(f"[INFO] Results saved to: {out}")
+
+    if args.output_pkl:
+        import pickle
+        out = Path(args.output_pkl)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        with open(out, "wb") as f:
+            pickle.dump(results, f)
+        print(f"[INFO] Results pickled to: {out}")
 
     if not args.no_plot:
         plot_results(
