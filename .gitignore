@@ -213,3 +213,5 @@ __marimo__/
 my_docs/
 labelled_data/
 /models
+
+logs/

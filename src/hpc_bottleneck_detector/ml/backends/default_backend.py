@@ -16,16 +16,19 @@ The default is ``RandomForestClassifier(n_estimators=200, class_weight='balanced
 
 from __future__ import annotations
 
+import itertools
 import logging
 import math
 from pathlib import Path
 from typing import Optional
 
 import joblib
+import numpy as np
 import pandas as pd
 from sklearn.base import ClassifierMixin, clone
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.feature_selection import SelectKBest, f_classif
+from sklearn.model_selection import GroupKFold
 from tsfresh import extract_features, select_features
 from tsfresh.utilities.dataframe_functions import impute
 
@@ -38,6 +41,7 @@ _IMPORTANCE_THRESHOLD = 1e-6
 
 from ..backend_interface import IMLBackend
 from ...utils.labeling import BOTTLENECK_COLUMNS
+from .config import BASIC_FC_PARAMETERS, _PARAM_GRIDS
 
 logger = logging.getLogger(__name__)
 
@@ -49,64 +53,6 @@ _NON_METRIC_COLS = {"id", "time"} | set(_LABEL_COLS)
 EXCLUDE_METRIC_PREFIXES: tuple[str, ...] = ("gpu_",)
 # Exact metric column names to exclude from feature extraction.
 EXCLUDE_METRIC_COLS: frozenset[str] = frozenset({"INTER_NODE_LOAD_IMBALANCE"})
-
-# ---------------------------------------------------------------------------
-# Feature-extraction parameter sets
-# ---------------------------------------------------------------------------
-
-# 1. Basic - lightweight descriptive statistics
-BASIC_FC_PARAMETERS: dict = {
-    "minimum": None,
-    "maximum": None,
-    "mean": None,
-    "standard_deviation": None,
-    "quantile": [
-        {"q": 0.05}, {"q": 0.25}, {"q": 0.50}, {"q": 0.75}, {"q": 0.95},
-    ],
-    "skewness": None,
-    "kurtosis": None,
-    "agg_autocorrelation": [
-        {"f_agg": "mean",   "maxlag": 3},
-        {"f_agg": "median", "maxlag": 3},
-        {"f_agg": "var",    "maxlag": 3},
-    ],
-    "agg_linear_trend": [
-        {"attr": "slope",     "chunk_len": 5, "f_agg": "mean"},
-        {"attr": "intercept", "chunk_len": 5, "f_agg": "mean"},
-        {"attr": "rvalue",    "chunk_len": 5, "f_agg": "mean"},
-        {"attr": "slope",     "chunk_len": 2, "f_agg": "mean"},
-        {"attr": "intercept", "chunk_len": 2, "f_agg": "mean"},
-    ],
-    "absolute_sum_of_changes": None,
-}
-
-# 2. Basic + Advanced - adds thresholding, energy, complexity, and frequency
-#    features on top of the basic set.
-# BASIC_ADVANCED_FC_PARAMETERS: dict = {
-#     **BASIC_FC_PARAMETERS,
-#     "count_above_mean": None,
-#     "count_below_mean": None,
-#     "ratio_beyond_r_sigma": [
-#         {"r": 0.5}, {"r": 1.0}, {"r": 1.5}, {"r": 2.0}, {"r": 2.5}, {"r": 3.0},
-#     ],
-#     "first_location_of_maximum": None,
-#     "first_location_of_minimum": None,
-#     "abs_energy": None,
-#     "absolute_sum_of_changes": None,
-#     "cid_ce": [{"normalize": True}, {"normalize": False}],
-#     "c3": [{"lag": 1}, {"lag": 2}, {"lag": 3}],
-#     "ar_coefficient": [
-#         {"coeff": 0, "k": 3}, {"coeff": 1, "k": 3}, {"coeff": 2, "k": 3},
-#     ],
-#     "fft_coefficient": [
-#         {"coeff": 0, "attr": "real"},
-#         {"coeff": 1, "attr": "real"}, {"coeff": 1, "attr": "imag"},
-#         {"coeff": 2, "attr": "real"}, {"coeff": 2, "attr": "imag"},
-#         {"coeff": 3, "attr": "real"}, {"coeff": 3, "attr": "imag"},
-#     ],
-# }
-
-
 
 def _fill_metric_nans(df: pd.DataFrame) -> pd.DataFrame:
     """
@@ -204,6 +150,36 @@ def _window_labels(
     return result
 
 
+def _sample_params(grid: dict, n_iter: int, rng: np.random.Generator) -> list[dict]:
+    if not grid:
+        return [{}]
+    keys = list(grid.keys())
+    all_combos = list(itertools.product(*[grid[k] for k in keys]))
+    n_sample = min(n_iter, len(all_combos))
+    indices = rng.choice(len(all_combos), size=n_sample, replace=False)
+    return [dict(zip(keys, all_combos[i])) for i in indices]
+
+
+def _merge_app_y(y_dicts: list[dict[str, pd.Series]]) -> dict[str, pd.Series]:
+    result: dict[str, pd.Series] = {}
+    for col in _LABEL_COLS:
+        parts = [yd[col] for yd in y_dicts if col in yd]
+        if parts:
+            result[col] = pd.concat(parts)
+    return result
+
+
+def _f1_score(y_true: np.ndarray, y_pred: np.ndarray) -> float:
+    tp = int(((y_pred == 1) & (y_true == 1)).sum())
+    fp = int(((y_pred == 1) & (y_true == 0)).sum())
+    fn = int(((y_pred == 0) & (y_true == 1)).sum())
+    p = tp / (tp + fp) if (tp + fp) > 0 else float("nan")
+    r = tp / (tp + fn) if (tp + fn) > 0 else float("nan")
+    if math.isnan(p) or math.isnan(r) or (p + r) == 0:
+        return float("nan")
+    return 2 * p * r / (p + r)
+
+
 _DEFAULT_CLASSIFIER = RandomForestClassifier(
     n_estimators=200,
     class_weight="balanced",
@@ -247,9 +223,9 @@ class DefaultBackend(IMLBackend):
         self._use_importance_pruning = use_importance_pruning
         self._models: dict[str, ClassifierMixin] = {}
         self._feature_cols: dict[str, list[str]] = {}
+        self._thresholds: dict[str, float] = {}
         self._fc_params = BASIC_FC_PARAMETERS
         self._window_size: Optional[int] = None
-        # self._fc_params = BASIC_ADVANCED_FC_PARAMETERS
 
     # ------------------------------------------------------------------
     # Training
@@ -468,6 +444,151 @@ class DefaultBackend(IMLBackend):
         return backend
 
     # ------------------------------------------------------------------
+    # Threshold calibration
+    # ------------------------------------------------------------------
+
+    def calibrate_thresholds(
+        self,
+        X_val: pd.DataFrame,
+        y_dict_val: dict[str, pd.Series],
+        threshold_grid: list[float] | None = None,
+    ) -> dict[str, float]:
+        """
+        Sweep probability thresholds on X_val / y_dict_val and store
+        the best F1-maximising threshold per class in ``self._thresholds``.
+        """
+        if threshold_grid is None:
+            threshold_grid = list(np.arange(0.05, 0.91, 0.05))
+
+        for col, clf in self._models.items():
+            if col not in y_dict_val or y_dict_val[col].nunique() < 2:
+                self._thresholds.setdefault(col, 0.5)
+                continue
+
+            y_val = y_dict_val[col]
+            X_aligned = X_val.reindex(
+                index=y_val.index,
+                columns=self._feature_cols[col],
+                fill_value=0.0,
+            )
+            probs = clf.predict_proba(X_aligned)[:, 1]
+            y_true = y_val.values
+
+            best_thr, best_f1 = 0.5, -1.0
+            for thr in threshold_grid:
+                f1 = _f1_score(y_true, (probs >= thr).astype(int))
+                if not math.isnan(f1) and f1 > best_f1:
+                    best_f1, best_thr = f1, thr
+
+            self._thresholds[col] = best_thr
+
+        return dict(self._thresholds)
+
+    # ------------------------------------------------------------------
+    # Joint hyperparameter + threshold CV tuning (optional)
+    # ------------------------------------------------------------------
+
+    @classmethod
+    def tune(
+        cls,
+        app_features: list[tuple[pd.DataFrame, dict[str, pd.Series]]],
+        classifier: ClassifierMixin = _DEFAULT_CLASSIFIER,
+        param_grid: dict | None = None,
+        n_splits: int = 5,
+        n_iter: int = 20,
+        threshold_grid: list[float] | None = None,
+        seed: int = 42,
+    ) -> tuple[ClassifierMixin, dict[str, float]]:
+        """
+        Jointly search for the best classifier hyperparameters and probability
+        thresholds via GroupKFold CV (one group = one application).
+
+        This is computationally expensive (n_iter x n_splits x per-label fits)
+        and is intended as an optional step before the main training run.
+        """
+        clf_name = type(classifier).__name__
+        if param_grid is None:
+            param_grid = _PARAM_GRIDS.get(clf_name, {})
+            if not param_grid:
+                logger.warning(
+                    "No param grid found for %s — running threshold calibration only.",
+                    clf_name,
+                )
+
+        rng = np.random.default_rng(seed)
+        sampled = _sample_params(param_grid, n_iter, rng)
+
+        n_apps = len(app_features)
+        app_indices = np.arange(n_apps)
+        n_folds = min(n_splits, n_apps)
+        gkf = GroupKFold(n_splits=n_folds)
+
+        best_score = -1.0
+        best_params: dict = sampled[0] if sampled else {}
+        best_thresholds: dict[str, float] = {}
+
+        for params in sampled:
+            fold_scores: list[float] = []
+            fold_thr_lists: dict[str, list[float]] = {col: [] for col in _LABEL_COLS}
+
+            for train_idx, val_idx in gkf.split(app_indices, groups=app_indices):
+                X_train = pd.concat(
+                    [app_features[i][0] for i in train_idx]
+                ).fillna(0.0)
+                y_dict_train = _merge_app_y([app_features[i][1] for i in train_idx])
+                X_val = pd.concat(
+                    [app_features[i][0] for i in val_idx]
+                ).fillna(0.0)
+                y_dict_val = _merge_app_y([app_features[i][1] for i in val_idx])
+
+                clf = clone(classifier).set_params(**params) if params else clone(classifier)
+                backend_fold = cls.from_preextracted_features(
+                    X_train, y_dict_train, clf
+                )
+                if not backend_fold._models:
+                    continue
+
+                backend_fold.calibrate_thresholds(X_val, y_dict_val, threshold_grid)
+
+                f1_vals: list[float] = []
+                for col in backend_fold._models:
+                    if col not in y_dict_val:
+                        continue
+                    y_true = y_dict_val[col].values
+                    X_aligned = X_val.reindex(
+                        index=y_dict_val[col].index,
+                        columns=backend_fold._feature_cols[col],
+                        fill_value=0.0,
+                    )
+                    probs = backend_fold._models[col].predict_proba(X_aligned)[:, 1]
+                    thr = backend_fold._thresholds.get(col, 0.5)
+                    f1 = _f1_score(y_true, (probs >= thr).astype(int))
+                    if not math.isnan(f1):
+                        f1_vals.append(f1)
+
+                if f1_vals:
+                    fold_scores.append(float(np.mean(f1_vals)))
+                for col in _LABEL_COLS:
+                    thr = backend_fold._thresholds.get(col)
+                    if thr is not None:
+                        fold_thr_lists[col].append(thr)
+
+            score = float(np.nanmean(fold_scores)) if fold_scores else float("nan")
+            logger.info("Params %s → CV score=%.4f", params, score)
+
+            if not math.isnan(score) and score > best_score:
+                best_score = score
+                best_params = params
+                best_thresholds = {
+                    col: float(np.nanmean(v)) if v else 0.5
+                    for col, v in fold_thr_lists.items()
+                }
+
+        logger.info("Best params: %s (CV score=%.4f)", best_params, best_score)
+        tuned_clf = clone(classifier).set_params(**best_params) if best_params else clone(classifier)
+        return tuned_clf, best_thresholds
+
+    # ------------------------------------------------------------------
     # Inference
     # ------------------------------------------------------------------
 
@@ -542,6 +663,7 @@ class DefaultBackend(IMLBackend):
                 "use_fdr": self._use_fdr,
                 "use_importance_pruning": self._use_importance_pruning,
                 "window_size": self._window_size,
+                "thresholds": self._thresholds,
             },
             out,
         )
@@ -566,6 +688,7 @@ class DefaultBackend(IMLBackend):
         )
         backend._models = data["models"]
         backend._feature_cols = data["feature_cols"]
+        backend._thresholds = data.get("thresholds", {})
         backend._fc_params = data.get("fc_params", BASIC_FC_PARAMETERS)
         backend._window_size = data.get("window_size")
         logger.info(
