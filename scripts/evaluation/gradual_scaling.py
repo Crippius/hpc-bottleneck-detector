@@ -6,11 +6,12 @@ to entirely unseen code.
 
 Protocol
 --------
-1. Lock a static test set (last *test_size* apps) - never seen during training.
-2. The remaining apps form the training pool.
-3. For each step k in --steps, train on ALL C(pool, k) subsets of k apps.
-4. Average metrics across all subsets → low-variance estimate of "what k apps buys".
-5. Plot per-BottleneckType F1 + macro-average F1 vs number of training apps.
+1. Pre-extract tsfresh features once for all N apps.
+2. For each step k in --steps, iterate over C(N, k) subsets of k training apps.
+3. For each combo: test set = remaining (N-k) apps (dynamic, no fixed holdout).
+4. Optionally calibrate per-class probability thresholds via LOAO CV within the combo.
+5. Average metrics across all subsets → low-variance estimate of "what k apps buys".
+6. Plot per-BottleneckType F1 + macro-average F1 vs number of training apps.
 
 Speed note
 ----------
@@ -261,10 +262,8 @@ def cv_calibrate_thresholds(
 
 def run_gradual_scaling(
     app_features: list[tuple[pd.DataFrame, dict[str, pd.Series]]],
-    train_paths: list[Path],
+    all_paths: list[Path],
     steps: list[int],
-    X_test: pd.DataFrame,
-    y_dict_test: dict[str, pd.Series],
     prob_threshold: float,
     classifier,
     max_combos: int = 50,
@@ -274,16 +273,17 @@ def run_gradual_scaling(
 ) -> pd.DataFrame:
     """
     For each step k, iterate over subsets of k apps, train on each, evaluate on
-    the fixed test set, and record every result.  When C(pool, k) <= max_combos
-    the enumeration is exhaustive; otherwise max_combos random subsets are drawn.
+    the remaining (n-k) apps as a dynamic test set, and record every result.
+    When C(n, k) <= max_combos the enumeration is exhaustive; otherwise
+    max_combos random subsets are drawn.
     """
     rng = random.Random(seed)
     records: list[dict] = []
     n_pool = len(app_features)
 
     for k in steps:
-        if k > n_pool:
-            logger.warning("Step k=%d exceeds pool size %d - skipping.", k, n_pool)
+        if k >= n_pool:
+            logger.warning("Step k=%d leaves no test apps (pool=%d) - skipping.", k, n_pool)
             continue
 
         all_combos = list(itertools.combinations(range(n_pool), k))
@@ -302,7 +302,8 @@ def run_gradual_scaling(
         f1_by_col: dict[str, list[float]] = {}
 
         for combo_idx, combo in enumerate(combos):
-            app_names = [train_paths[i].stem.replace("_labelled", "") for i in combo]
+            combo_set = set(combo)
+            app_names = [all_paths[i].stem.replace("_labelled", "") for i in combo]
 
             X_train = pd.concat([app_features[i][0] for i in combo]).fillna(0.0)
             y_dict_train: dict[str, pd.Series] = {}
@@ -311,6 +312,16 @@ def run_gradual_scaling(
                          if col in app_features[i][1]]
                 if parts:
                     y_dict_train[col] = pd.concat(parts)
+
+            # Dynamic test set: all apps not in this combo
+            test_indices = [i for i in range(n_pool) if i not in combo_set]
+            X_test = pd.concat([app_features[i][0] for i in test_indices]).fillna(0.0)
+            y_dict_test: dict[str, pd.Series] = {}
+            for col in _LABEL_COLS:
+                parts = [app_features[i][1][col] for i in test_indices
+                         if col in app_features[i][1]]
+                if parts:
+                    y_dict_test[col] = pd.concat(parts)
 
             # Threshold calibration
             if use_cv and k >= cv_min_k:
@@ -381,7 +392,6 @@ def run_gradual_scaling(
 
 def plot_results(
     results: pd.DataFrame,
-    test_app_names: list[str],
     output_path: str | None,
     show: bool,
 ) -> None:
@@ -508,10 +518,6 @@ def _parse_args() -> argparse.Namespace:
         help="Max random subsets per step when C(n,k) exceeds this (default: 50).",
     )
     p.add_argument(
-        "--n-holdout-apps", type=int, default=5, dest="n_holdout_apps",
-        help="Number of apps reserved as fixed test set (default: 5).",
-    )
-    p.add_argument(
         "--no-cv", action="store_true", dest="no_cv",
         help="Disable per-combo CV threshold calibration; use --prob-threshold for all classes.",
     )
@@ -542,73 +548,37 @@ if __name__ == "__main__":
     args = _parse_args()
 
     all_paths = _find_labelled_csvs(TRAIN_DIR)
-
-    # Fixed holdout: random selection with fixed seed
-    rng_holdout = np.random.default_rng(args.seed)
-    n_total = len(all_paths)
-    n_holdout = min(args.n_holdout_apps, n_total - 1)
-    holdout_indices = set(
-        int(i) for i in rng_holdout.choice(n_total, size=n_holdout, replace=False)
-    )
-    holdout_paths = [p for i, p in enumerate(all_paths) if i in holdout_indices]
-    train_paths   = [p for i, p in enumerate(all_paths) if i not in holdout_indices]
+    n_total   = len(all_paths)
 
     steps = sorted(set(args.steps))
-    if max(steps) > len(train_paths):
+    if max(steps) >= n_total:
         print(
-            f"[WARN] Largest step ({max(steps)}) exceeds training pool "
-            f"({len(train_paths)}) - it will be skipped."
+            f"[WARN] Largest step ({max(steps)}) leaves no test apps "
+            f"(pool={n_total}) - it will be skipped."
         )
 
     from math import comb
-    holdout_names = [p.stem.replace("_labelled", "") for p in holdout_paths]
-    print(f"\n[INFO] Training pool: {len(train_paths)} apps")
-    print(f"[INFO] Holdout (test) set: {len(holdout_paths)} apps → {holdout_names}")
-    print(f"  Training pool:")
-    for i, p in enumerate(train_paths):
+    print(f"\n[INFO] App pool: {n_total} apps (test set is dynamic per combo)")
+    for i, p in enumerate(all_paths):
         print(f"    [{i+1:>2}] {p.stem.replace('_labelled', '')}")
 
     total_combos = sum(
-        comb(len(train_paths), k) for k in steps if k <= len(train_paths)
+        comb(n_total, k) for k in steps if k < n_total
     )
     print(f"\n[INFO] Steps: {steps}")
     print(f"[INFO] Total combinations to train: {total_combos}")
 
-    # --- Pre-extract features once per training app ---
-    print(f"\n[INFO] Pre-extracting features for {len(train_paths)} training apps …")
+    # --- Pre-extract features once per app ---
+    print(f"\n[INFO] Pre-extracting features for {n_total} apps …")
     app_features: list[tuple[pd.DataFrame, dict[str, pd.Series]]] = []
-    for i, p in enumerate(train_paths):
+    for i, p in enumerate(all_paths):
         app = p.stem.replace("_labelled", "")
-        print(f"  [{i+1}/{len(train_paths)}] {app} …", end=" ", flush=True)
+        print(f"  [{i+1}/{n_total}] {app} …", end=" ", flush=True)
         X_app, y_app = _extract_features_for_app(
             p, args.window_size, args.step_size, args.severity_threshold
         )
         app_features.append((X_app, y_app))
         print(f"{X_app.shape[0]} windows")
-
-    # --- Extract holdout features (once) ---
-    print(f"\n[INFO] Extracting holdout test-set features …")
-    test_X_parts: list[pd.DataFrame] = []
-    test_y_parts: dict[str, list[pd.Series]] = {col: [] for col in _LABEL_COLS}
-    for p in holdout_paths:
-        X_t, y_t = _extract_features_for_app(
-            p, args.window_size, args.step_size, args.severity_threshold
-        )
-        test_X_parts.append(X_t)
-        for col in _LABEL_COLS:
-            if col in y_t:
-                test_y_parts[col].append(y_t[col])
-
-    X_test = pd.concat(test_X_parts)
-    y_dict_test: dict[str, pd.Series] = {}
-    for col in _LABEL_COLS:
-        if test_y_parts[col]:
-            y_dict_test[col] = pd.concat(test_y_parts[col])
-
-    print(
-        f"[INFO] Holdout: {X_test.shape[0]} windows  |  "
-        f"label types: {list(y_dict_test.keys())}"
-    )
 
     # --- Optional joint CV hyperparam + threshold tuning ---
     classifier = _DEFAULT_CLASSIFIER
@@ -621,10 +591,8 @@ if __name__ == "__main__":
     # --- Run exhaustive scaling ---
     results = run_gradual_scaling(
         app_features   = app_features,
-        train_paths    = train_paths,
+        all_paths      = all_paths,
         steps          = steps,
-        X_test         = X_test,
-        y_dict_test    = y_dict_test,
         prob_threshold = args.prob_threshold,
         classifier     = classifier,
         max_combos     = args.max_combos,
@@ -672,8 +640,7 @@ if __name__ == "__main__":
 
     if not args.no_plot:
         plot_results(
-            results        = results,
-            test_app_names = holdout_names,
-            output_path    = args.output_fig,
-            show           = args.output_fig is None,
+            results     = results,
+            output_path = args.output_fig,
+            show        = args.output_fig is None,
         )
