@@ -462,8 +462,7 @@ class DefaultBackend(IMLBackend):
 
         for col, clf in self._models.items():
             if col not in y_dict_val or y_dict_val[col].nunique() < 2:
-                self._thresholds.setdefault(col, 0.5)
-                continue
+                continue  # no positives in this fold — skip, don't pollute mean
 
             y_val = y_dict_val[col]
             X_aligned = X_val.reindex(

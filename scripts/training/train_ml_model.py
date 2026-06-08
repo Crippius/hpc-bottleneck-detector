@@ -29,7 +29,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 from sklearn.metrics import classification_report
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import GroupKFold, train_test_split
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 
@@ -37,10 +37,12 @@ from hpc_bottleneck_detector.ml.backends.default_backend import (
     DefaultBackend,
     _build_window_dataframe,
     _window_labels,
+    _merge_app_y,
     _LABEL_COLS,
     _NON_METRIC_COLS,
     EXCLUDE_METRIC_PREFIXES,
     EXCLUDE_METRIC_COLS,
+    BASIC_FC_PARAMETERS,
 )
 from tsfresh import extract_features
 from tsfresh.utilities.dataframe_functions import impute
@@ -71,6 +73,10 @@ def _parse_args() -> argparse.Namespace:
         help="Fraction of windows held out for evaluation.")
     parser.add_argument("--no-eval", action="store_true",
         help="Skip the held-out evaluation and train on all data.")
+    parser.add_argument("--calibrate", action="store_true",
+        help="Run GroupKFold CV over training apps to calibrate per-class probability thresholds.")
+    parser.add_argument("--n-splits", type=int, default=5,
+        help="GroupKFold splits for threshold calibration (default: 5).")
     return parser.parse_args()
 
 
@@ -163,23 +169,68 @@ def main() -> None:
     csv_paths = _collect_csv_paths(args.data_dir)
     logger.info("Found %d labelled CSV(s): %s", len(csv_paths), csv_paths)
 
-    backend = DefaultBackend()
-
-    if args.no_eval:
-        backend.train(
-            labelled_csv_paths=csv_paths,
-            window_size=args.window_size,
-            step_size=args.step_size,
-            severity_threshold=args.severity_threshold,
-        )
+    # ── Split: test_size=0 or --no-eval → no held-out test set ────────────────
+    if args.no_eval or args.test_size == 0.0:
+        train_paths, test_paths = csv_paths, []
     else:
-        # ── Split at file level ────────────────────────────────────────────────
         train_paths, test_paths = train_test_split(
             csv_paths, test_size=args.test_size, random_state=42
         )
-        logger.info("Train: %d CSVs, Test: %d CSVs", len(train_paths), len(test_paths))
+    logger.info("Train: %d CSVs, Test: %d CSVs", len(train_paths), len(test_paths))
 
-        # ── Train via backend (FDR + importance pruning) ───────────────────────
+    # ── Train ─────────────────────────────────────────────────────────────────
+    backend = DefaultBackend()
+
+    if args.calibrate:
+        # ── Per-app feature extraction ─────────────────────────────────────────
+        logger.info("Extracting features per app for CV threshold calibration…")
+        app_features: list[tuple[pd.DataFrame, dict[str, pd.Series]]] = []
+        for path in train_paths:
+            logger.info("  %s", path)
+            X_i, y_dict_i = _build_windows_from_csvs(
+                [path], args.window_size, args.step_size,
+                args.severity_threshold, BASIC_FC_PARAMETERS,
+            )
+            y_dict_clean = {
+                col: y[~y.isna()].astype(int)
+                for col, y in y_dict_i.items()
+                if (~y.isna()).sum() > 0
+            }
+            app_features.append((X_i, y_dict_clean))
+
+        # ── GroupKFold CV to calibrate per-class thresholds ───────────────────
+        n_folds = min(args.n_splits, len(app_features))
+        logger.info("Running GroupKFold(n_splits=%d) threshold calibration…", n_folds)
+        gkf = GroupKFold(n_splits=n_folds)
+        indices = np.arange(len(app_features))
+        thr_lists: dict[str, list[float]] = {col: [] for col in _LABEL_COLS}
+
+        for fold, (tr_idx, va_idx) in enumerate(gkf.split(indices, groups=indices)):
+            X_tr = pd.concat([app_features[i][0] for i in tr_idx]).fillna(0.0)
+            y_tr = _merge_app_y([app_features[i][1] for i in tr_idx])
+            X_va = pd.concat([app_features[i][0] for i in va_idx]).fillna(0.0)
+            y_va = _merge_app_y([app_features[i][1] for i in va_idx])
+
+            fold_backend = DefaultBackend.from_preextracted_features(X_tr, y_tr)
+            fold_backend.calibrate_thresholds(X_va, y_va)
+            logger.info("  Fold %d thresholds: %s", fold, fold_backend._thresholds)
+            for col in _LABEL_COLS:
+                thr = fold_backend._thresholds.get(col)
+                if thr is not None:
+                    thr_lists[col].append(thr)
+
+        calibrated = {
+            col: float(np.nanmean(v)) if v else 0.5
+            for col, v in thr_lists.items()
+        }
+        logger.info("Calibrated thresholds (mean over folds): %s", calibrated)
+
+        # ── Final model: train on all training apps ────────────────────────────
+        X_train_all = pd.concat([X for X, _ in app_features]).fillna(0.0)
+        y_train_all = _merge_app_y([y for _, y in app_features])
+        backend = DefaultBackend.from_preextracted_features(X_train_all, y_train_all)
+        backend._thresholds = calibrated
+    else:
         backend.train(
             labelled_csv_paths=train_paths,
             window_size=args.window_size,
@@ -187,14 +238,14 @@ def main() -> None:
             severity_threshold=args.severity_threshold,
         )
 
-        # ── Extract features for held-out CSVs ────────────────────────────────
+    # ── Evaluate (skipped when test_paths is empty) ────────────────────────────
+    if test_paths:
         logger.info("Extracting test features from %d CSVs…", len(test_paths))
         X_test, y_test = _build_windows_from_csvs(
             test_paths, args.window_size, args.step_size, args.severity_threshold,
             backend._fc_params,
         )
 
-        # ── Evaluate ──────────────────────────────────────────────────────────
         print("\n" + "=" * 60)
         print("Per-type classification report (held-out CSVs)")
         print("=" * 60)
@@ -213,9 +264,11 @@ def main() -> None:
             X_sel = X_test.loc[y_clean.index].reindex(
                 columns=backend._feature_cols[col], fill_value=0.0
             )
-            y_pred = backend._models[col].predict(X_sel)
+            thr = backend._thresholds.get(col, 0.5)
+            probs = backend._models[col].predict_proba(X_sel)[:, 1]
+            y_pred = (probs >= thr).astype(int)
 
-            print(f"\n{col} ({len(backend._feature_cols[col])} features, {n_pos} pos / {n_neg} neg)")
+            print(f"\n{col} (thr={thr:.2f}, {len(backend._feature_cols[col])} features, {n_pos} pos / {n_neg} neg)")
             print(classification_report(y_clean, y_pred, zero_division=0))
 
     # ── Save ──────────────────────────────────────────────────────────────────
