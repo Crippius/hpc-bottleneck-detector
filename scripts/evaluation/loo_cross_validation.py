@@ -36,13 +36,13 @@ from sklearn.exceptions import UndefinedMetricWarning
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 
 from hpc_bottleneck_detector.ml.backends.default_backend import (
-    DefaultBackend,
     _LABEL_COLS,
     _NON_METRIC_COLS,
     _build_window_dataframe,
     _fill_metric_nans,
     _window_labels,
 )
+from hpc_bottleneck_detector.ml.backends.default_trainer import DefaultTrainer
 
 warnings.filterwarnings("ignore", category=UndefinedMetricWarning)
 
@@ -194,8 +194,7 @@ def run_loo(
         print(f"  Training on: {[p.stem for p in train_paths]}")
 
         # ----- Train -----
-        backend = DefaultBackend()
-        backend.train(
+        backend = DefaultTrainer().train(
             labelled_csv_paths=[str(p) for p in train_paths],
             window_size=window_size,
             step_size=step_size,

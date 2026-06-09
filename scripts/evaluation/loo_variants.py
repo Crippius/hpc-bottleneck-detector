@@ -24,7 +24,6 @@ from sklearn.exceptions import UndefinedMetricWarning
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 
 from hpc_bottleneck_detector.ml.backends.default_backend import (
-    DefaultBackend,
     _LABEL_COLS,
     _NON_METRIC_COLS,
     _build_window_dataframe,
@@ -32,6 +31,7 @@ from hpc_bottleneck_detector.ml.backends.default_backend import (
     _window_labels,
     BASIC_FC_PARAMETERS,
 )
+from hpc_bottleneck_detector.ml.backends.default_trainer import DefaultTrainer
 from tsfresh import extract_features
 from tsfresh.utilities.dataframe_functions import impute
 
@@ -145,8 +145,7 @@ def run_loo_variant(
 
         print(f"  [{variant_name}] fold {fold_idx+1}/{n} - held-out: {app_name}")
 
-        backend = DefaultBackend(use_fdr=use_fdr, use_importance_pruning=use_importance_pruning)
-        backend.train(
+        backend = DefaultTrainer(use_fdr=use_fdr, use_importance_pruning=use_importance_pruning).train(
             labelled_csv_paths=[str(p) for p in train_paths],
             window_size=window_size,
             step_size=step_size,

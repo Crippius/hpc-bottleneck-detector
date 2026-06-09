@@ -34,7 +34,6 @@ from sklearn.model_selection import GroupKFold, train_test_split
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 
 from hpc_bottleneck_detector.ml.backends.default_backend import (
-    DefaultBackend,
     _build_window_dataframe,
     _window_labels,
     _merge_app_y,
@@ -44,6 +43,7 @@ from hpc_bottleneck_detector.ml.backends.default_backend import (
     EXCLUDE_METRIC_COLS,
     BASIC_FC_PARAMETERS,
 )
+from hpc_bottleneck_detector.ml.backends.default_trainer import DefaultTrainer
 from tsfresh import extract_features
 from tsfresh.utilities.dataframe_functions import impute
 
@@ -179,7 +179,7 @@ def main() -> None:
     logger.info("Train: %d CSVs, Test: %d CSVs", len(train_paths), len(test_paths))
 
     # ── Train ─────────────────────────────────────────────────────────────────
-    backend = DefaultBackend()
+    trainer = DefaultTrainer()
 
     if args.calibrate:
         # ── Per-app feature extraction ─────────────────────────────────────────
@@ -211,7 +211,7 @@ def main() -> None:
             X_va = pd.concat([app_features[i][0] for i in va_idx]).fillna(0.0)
             y_va = _merge_app_y([app_features[i][1] for i in va_idx])
 
-            fold_backend = DefaultBackend.from_preextracted_features(X_tr, y_tr)
+            fold_backend = trainer.from_preextracted_features(X_tr, y_tr)
             fold_backend.calibrate_thresholds(X_va, y_va)
             logger.info("  Fold %d thresholds: %s", fold, fold_backend._thresholds)
             for col in _LABEL_COLS:
@@ -228,10 +228,10 @@ def main() -> None:
         # ── Final model: train on all training apps ────────────────────────────
         X_train_all = pd.concat([X for X, _ in app_features]).fillna(0.0)
         y_train_all = _merge_app_y([y for _, y in app_features])
-        backend = DefaultBackend.from_preextracted_features(X_train_all, y_train_all)
+        backend = trainer.from_preextracted_features(X_train_all, y_train_all)
         backend._thresholds = calibrated
     else:
-        backend.train(
+        backend = trainer.train(
             labelled_csv_paths=train_paths,
             window_size=args.window_size,
             step_size=args.step_size,

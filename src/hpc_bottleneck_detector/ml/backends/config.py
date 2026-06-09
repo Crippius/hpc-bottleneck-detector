@@ -59,7 +59,7 @@ BASIC_FC_PARAMETERS: dict = {
 # }
 
 # ---------------------------------------------------------------------------
-# Per-classifier hyperparameter grids for DefaultBackend.tune()
+# Per-classifier hyperparameter grids for DefaultTrainer.tune()
 # ---------------------------------------------------------------------------
 
 _PARAM_GRIDS: dict[str, dict] = {

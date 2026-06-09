@@ -48,7 +48,6 @@ from sklearn.model_selection import GroupKFold
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 
 from hpc_bottleneck_detector.ml.backends.default_backend import (
-    DefaultBackend,
     _LABEL_COLS,
     _NON_METRIC_COLS,
     _build_window_dataframe,
@@ -56,6 +55,7 @@ from hpc_bottleneck_detector.ml.backends.default_backend import (
     _window_labels,
     BASIC_FC_PARAMETERS,
 )
+from hpc_bottleneck_detector.ml.backends.default_trainer import DefaultTrainer
 
 warnings.filterwarnings("ignore", category=UndefinedMetricWarning)
 
@@ -233,8 +233,8 @@ def cv_calibrate_thresholds(
         X_val = pd.concat([combo_apps[i][0] for i in val_idx]).fillna(0.0)
         y_dict_val = _merge_y_dicts([combo_apps[i][1] for i in val_idx])
 
-        backend_fold = DefaultBackend.from_preextracted_features(
-            X_train, y_dict_train, classifier
+        backend_fold = DefaultTrainer(classifier=classifier).from_preextracted_features(
+            X_train, y_dict_train
         )
         if not backend_fold._models:
             continue
@@ -339,8 +339,8 @@ def run_gradual_scaling(
                 cv_thresholds = {col: prob_threshold for col in _LABEL_COLS}
                 cv_enabled = False
 
-            backend = DefaultBackend.from_preextracted_features(
-                X_train, y_dict_train, classifier
+            backend = DefaultTrainer(classifier=classifier).from_preextracted_features(
+                X_train, y_dict_train
             )
             if not backend._models:
                 continue
@@ -531,7 +531,7 @@ def _parse_args() -> argparse.Namespace:
     )
     p.add_argument(
         "--n-iter", type=int, default=20, dest="n_iter",
-        help="Hyperparam search iterations passed to DefaultBackend.tune() (default: 20).",
+        help="Hyperparam search iterations passed to DefaultTrainer.tune() (default: 20).",
     )
     p.add_argument(
         "--seed", type=int, default=42,
@@ -584,7 +584,7 @@ if __name__ == "__main__":
     classifier = _DEFAULT_CLASSIFIER
     if args.tune_hyperparams:
         print(f"\n[INFO] Running joint CV tuning (n_iter={args.n_iter}) …")
-        classifier, _ = DefaultBackend.tune(
+        classifier, _ = DefaultTrainer.tune(
             app_features, classifier, n_iter=args.n_iter, seed=args.seed
         )
 

@@ -28,7 +28,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 
-from hpc_bottleneck_detector.ml.backends.amllibrary_backend import AMLLibraryBackend
+from hpc_bottleneck_detector.ml.backends.amllibrary_trainer import AMLLibraryTrainer
 
 logging.basicConfig(
     level=logging.INFO,
@@ -80,8 +80,8 @@ def main() -> None:
     csv_paths = _collect_csv_paths(args.data_dir)
     logger.info("Found %d labelled CSV(s).", len(csv_paths))
 
-    backend = AMLLibraryBackend()
-    backend.train(
+    trainer = AMLLibraryTrainer()
+    backend = trainer.train(
         labelled_csv_paths=csv_paths,
         window_size=args.window_size,
         step_size=args.step_size,
