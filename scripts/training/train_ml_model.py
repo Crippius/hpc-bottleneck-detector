@@ -47,6 +47,13 @@ from hpc_bottleneck_detector.ml.backends.default_trainer import DefaultTrainer
 from tsfresh import extract_features
 from tsfresh.utilities.dataframe_functions import impute
 
+def _build_classifier(name: str):
+    if name == "rf":
+        from sklearn.ensemble import RandomForestClassifier
+        return RandomForestClassifier(n_estimators=200, class_weight="balanced", random_state=42, n_jobs=-1)
+    from xgboost import XGBClassifier
+    return XGBClassifier(n_estimators=200, max_depth=5, learning_rate=0.1, scale_pos_weight=10, random_state=42, n_jobs=-1, eval_metric="logloss")
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s  %(levelname)-8s  %(message)s",
@@ -77,6 +84,8 @@ def _parse_args() -> argparse.Namespace:
         help="Run GroupKFold CV over training apps to calibrate per-class probability thresholds.")
     parser.add_argument("--n-splits", type=int, default=5,
         help="GroupKFold splits for threshold calibration (default: 5).")
+    parser.add_argument("--classifier", choices=["xgboost", "rf"], default="xgboost",
+        help="Classifier to use: 'xgboost' (default) or 'rf' (RandomForest).")
     return parser.parse_args()
 
 
@@ -179,7 +188,7 @@ def main() -> None:
     logger.info("Train: %d CSVs, Test: %d CSVs", len(train_paths), len(test_paths))
 
     # ── Train ─────────────────────────────────────────────────────────────────
-    trainer = DefaultTrainer()
+    trainer = DefaultTrainer(classifier=_build_classifier(args.classifier))
 
     if args.calibrate:
         # ── Per-app feature extraction ─────────────────────────────────────────
@@ -230,6 +239,7 @@ def main() -> None:
         y_train_all = _merge_app_y([y for _, y in app_features])
         backend = trainer.from_preextracted_features(X_train_all, y_train_all)
         backend._thresholds = calibrated
+        backend._window_size = args.window_size
     else:
         backend = trainer.train(
             labelled_csv_paths=train_paths,

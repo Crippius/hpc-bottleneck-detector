@@ -29,7 +29,7 @@ WINDOW_SIZE = 12   # intervals per analysis window (12 × 5 s = 60 s)
 STEP_SIZE   = 12   # tumbling windows (set < WINDOW_SIZE for sliding)
 
 
-def label_single_job(job_id: int, source: XBATDataSource, strategy: HeuristicStrategy, orchestrator: AnalysisOrchestrator) -> None:
+def label_single_job(job_id: int, source: XBATDataSource, strategy: HeuristicStrategy, orchestrator: AnalysisOrchestrator, output_dir: Path | None = None) -> None:
     print(f"\n[INFO] Fetching job {job_id} …")
     dm = source.fetch_job_data(job_id)
     orchestrator.inject_supplemental_benchmarks(dm)
@@ -70,7 +70,8 @@ def label_single_job(job_id: int, source: XBATDataSource, strategy: HeuristicStr
     print(labelled[preview_cols].head().to_string(index=False))
 
     # ── Save to CSV ───────────────────────────────────────────────────────────
-    out_path = Path(__file__).parent.parent.parent / "data" / "labelled_data" / f"{dm.job_id}_labelled.csv"
+    base_dir = output_dir or (Path(__file__).parent.parent.parent / "data" / "labelled_data")
+    out_path = base_dir / f"{dm.job_id}_labelled.csv"
     labelled.to_csv(out_path, index=False)
     print(f"\n[INFO] Saved labelled CSV → {out_path}")
 
@@ -86,6 +87,7 @@ def main() -> None:
         help="One or more job IDs to label (default: 43141)",
     )
     parser.add_argument("--env-file", default=".env", help="Path to .env credentials file (default: .env)")
+    parser.add_argument("--output-dir", default=None, help="Directory to save labelled CSVs (default: data/labelled_data/)")
     args = parser.parse_args()
 
     # ── 1. Connect ────────────────────────────────────────────────────────────
@@ -108,10 +110,12 @@ def main() -> None:
         hw_profile_loader=hw_loader,
     )
 
+    output_dir = Path(args.output_dir) if args.output_dir else None
+
     # ── 4. Label each job ─────────────────────────────────────────────────────
     for job_id in args.job_ids:
         print("\n" + "=" * 70)
-        label_single_job(job_id, source, strategy, orchestrator)
+        label_single_job(job_id, source, strategy, orchestrator, output_dir=output_dir)
 
     print("\n" + "=" * 70)
     print("[INFO] Done.")

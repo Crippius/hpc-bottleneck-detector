@@ -44,6 +44,14 @@ from hpc_bottleneck_detector.ml.backends.default_backend import (
 )
 from hpc_bottleneck_detector.ml.backends.default_trainer import DefaultTrainer
 
+
+def _build_classifier(name: str):
+    if name == "rf":
+        from sklearn.ensemble import RandomForestClassifier
+        return RandomForestClassifier(n_estimators=200, class_weight="balanced", random_state=42, n_jobs=-1)
+    from xgboost import XGBClassifier
+    return XGBClassifier(n_estimators=200, max_depth=5, learning_rate=0.1, scale_pos_weight=10, random_state=42, n_jobs=-1, eval_metric="logloss")
+
 warnings.filterwarnings("ignore", category=UndefinedMetricWarning)
 
 logging.basicConfig(
@@ -194,7 +202,7 @@ def run_loo(
         print(f"  Training on: {[p.stem for p in train_paths]}")
 
         # ----- Train -----
-        backend = DefaultTrainer().train(
+        backend = DefaultTrainer(classifier=_build_classifier(args.classifier)).train(
             labelled_csv_paths=[str(p) for p in train_paths],
             window_size=window_size,
             step_size=step_size,
@@ -318,6 +326,8 @@ def _parse_args() -> argparse.Namespace:
                    help="Probability ≥ this value → predicted bottleneck (default: 0.5)")
     p.add_argument("--output-csv",       type=str,   default=None, dest="output_csv",
                    help="Optional path to save per-fold results as CSV.")
+    p.add_argument("--classifier", choices=["xgboost", "rf"], default="xgboost",
+                   help="Classifier to use: 'xgboost' (default) or 'rf'.")
     return p.parse_args()
 
 

@@ -42,6 +42,7 @@ import math
 import numpy as np
 import pandas as pd
 from sklearn.ensemble import RandomForestClassifier
+from xgboost import XGBClassifier
 from sklearn.exceptions import UndefinedMetricWarning
 from sklearn.model_selection import GroupKFold
 
@@ -70,12 +71,10 @@ REPO_ROOT  = Path(__file__).parent.parent.parent
 TRAIN_DIR  = REPO_ROOT / "data" / "labelled_data" / "training_set"
 TEST_DIR   = REPO_ROOT / "data" / "labelled_data" / "demo"
 
-_DEFAULT_CLASSIFIER = RandomForestClassifier(
-    n_estimators=200,
-    class_weight="balanced",
-    random_state=42,
-    n_jobs=-1,
-)
+def _build_classifier(name: str):
+    if name == "rf":
+        return RandomForestClassifier(n_estimators=200, class_weight="balanced", random_state=42, n_jobs=-1)
+    return XGBClassifier(n_estimators=200, max_depth=5, learning_rate=0.1, scale_pos_weight=10, random_state=42, n_jobs=-1, eval_metric="logloss")
 
 _BT_SHORT: dict[str, str] = {
     "PIPELINE_STALL":            "Pipeline Stall",
@@ -534,6 +533,10 @@ def _parse_args() -> argparse.Namespace:
         help="Hyperparam search iterations passed to DefaultTrainer.tune() (default: 20).",
     )
     p.add_argument(
+        "--classifier", choices=["xgboost", "rf"], default="rf",
+        help="Classifier to use: 'rf' (default) or 'xgboost'.",
+    )
+    p.add_argument(
         "--seed", type=int, default=42,
         help="Random seed for holdout selection and combo sampling (default: 42).",
     )
@@ -581,7 +584,7 @@ if __name__ == "__main__":
         print(f"{X_app.shape[0]} windows")
 
     # --- Optional joint CV hyperparam + threshold tuning ---
-    classifier = _DEFAULT_CLASSIFIER
+    classifier = _build_classifier(args.classifier)
     if args.tune_hyperparams:
         print(f"\n[INFO] Running joint CV tuning (n_iter={args.n_iter}) …")
         classifier, _ = DefaultTrainer.tune(
