@@ -19,7 +19,8 @@ import joblib
 import numpy as np
 import pandas as pd
 from sklearn.base import ClassifierMixin
-from sklearn.ensemble import RandomForestClassifier
+# from sklearn.ensemble import RandomForestClassifier
+from xgboost import XGBClassifier
 from tsfresh import extract_features
 from tsfresh.utilities.dataframe_functions import impute
 
@@ -41,11 +42,14 @@ _NON_METRIC_COLS = {"id", "time"} | set(_LABEL_COLS)
 EXCLUDE_METRIC_PREFIXES: tuple[str, ...] = ("gpu_",)
 EXCLUDE_METRIC_COLS: frozenset[str] = frozenset({"INTER_NODE_LOAD_IMBALANCE"})
 
-_DEFAULT_CLASSIFIER = RandomForestClassifier(
+_DEFAULT_CLASSIFIER = XGBClassifier(
     n_estimators=200,
-    class_weight="balanced",
+    max_depth=5,
+    learning_rate=0.1,
+    scale_pos_weight=10,
     random_state=42,
     n_jobs=-1,
+    eval_metric="logloss",
 )
 
 
@@ -182,12 +186,13 @@ class DefaultBackend(IMLBackend):
         _window_size:  Window size used during training.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, missing_fill_value: float = np.nan) -> None:
         self._models: dict[str, ClassifierMixin] = {}
         self._feature_cols: dict[str, list[str]] = {}
         self._thresholds: dict[str, float] = {}
         self._fc_params = BASIC_FC_PARAMETERS
         self._window_size: Optional[int] = None
+        self._missing_fill_value: float = missing_fill_value
 
     # ------------------------------------------------------------------
     # Threshold calibration (post-training, pre-deployment)
@@ -273,7 +278,7 @@ class DefaultBackend(IMLBackend):
 
         result: dict[str, float] = {}
         for col, clf in self._models.items():
-            X_aligned = X.reindex(columns=self._feature_cols[col], fill_value=0.0)
+            X_aligned = X.reindex(columns=self._feature_cols[col], fill_value=self._missing_fill_value)
             prob = float(clf.predict_proba(X_aligned)[0, 1])
             result[col] = prob
 
@@ -294,6 +299,7 @@ class DefaultBackend(IMLBackend):
                 "fc_params": self._fc_params,
                 "window_size": self._window_size,
                 "thresholds": self._thresholds,
+                "missing_fill_value": self._missing_fill_value,
             },
             out,
         )
@@ -314,6 +320,7 @@ class DefaultBackend(IMLBackend):
         backend._thresholds = data.get("thresholds", {})
         backend._fc_params = data.get("fc_params", BASIC_FC_PARAMETERS)
         backend._window_size = data.get("window_size")
+        backend._missing_fill_value = data.get("missing_fill_value", np.nan)
         logger.info(
             "Backend loaded from %s (%d classifiers).", path, len(backend._models)
         )
