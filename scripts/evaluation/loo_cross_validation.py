@@ -32,6 +32,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 from sklearn.exceptions import UndefinedMetricWarning
+from sklearn.model_selection import GroupKFold
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 
@@ -175,6 +176,49 @@ def _metrics_from_arrays(
 
 
 # ---------------------------------------------------------------------------
+# Calibration helpers
+# ---------------------------------------------------------------------------
+
+def _merge_y_dicts(y_list: list[dict[str, pd.Series]]) -> dict[str, pd.Series]:
+    merged: dict[str, pd.Series] = {}
+    for col in _LABEL_COLS:
+        parts = [y[col] for y in y_list if col in y]
+        if parts:
+            merged[col] = pd.concat(parts)
+    return merged
+
+
+def _calibrate_thresholds(
+    trainer: DefaultTrainer,
+    app_features: list[tuple[pd.DataFrame, dict[str, pd.Series]]],
+    n_splits: int,
+    default_threshold: float,
+) -> dict[str, float]:
+    n_folds = min(n_splits, len(app_features))
+    gkf = GroupKFold(n_splits=n_folds)
+    indices = np.arange(len(app_features))
+    thr_lists: dict[str, list[float]] = {col: [] for col in _LABEL_COLS}
+
+    for _, (tr_idx, va_idx) in enumerate(gkf.split(indices, groups=indices)):
+        X_tr = pd.concat([app_features[i][0] for i in tr_idx]).fillna(0.0)
+        y_tr = _merge_y_dicts([app_features[i][1] for i in tr_idx])
+        X_va = pd.concat([app_features[i][0] for i in va_idx]).fillna(0.0)
+        y_va = _merge_y_dicts([app_features[i][1] for i in va_idx])
+
+        fold_backend = trainer.from_preextracted_features(X_tr, y_tr)
+        fold_backend.calibrate_thresholds(X_va, y_va)
+        for col in _LABEL_COLS:
+            thr = fold_backend._thresholds.get(col)
+            if thr is not None:
+                thr_lists[col].append(thr)
+
+    return {
+        col: float(np.nanmean(v)) if v else default_threshold
+        for col, v in thr_lists.items()
+    }
+
+
+# ---------------------------------------------------------------------------
 # LOO driver
 # ---------------------------------------------------------------------------
 
@@ -184,42 +228,54 @@ def run_loo(
     step_size: int,
     severity_threshold: float,
     prob_threshold: float,
+    calibrate: bool = False,
+    n_splits: int = 5,
 ) -> pd.DataFrame:
     """
     Execute the full Leave-One-Out rotation and return a DataFrame of per-fold
     per-BottleneckType metrics.
     """
+    trainer = DefaultTrainer(classifier=_build_classifier(args.classifier))
     records: list[dict] = []
     n = len(csv_paths)
 
+    # Pre-extract features once per app
+    print("[INFO] Pre-extracting features for all apps…")
+    all_app_features: list[tuple[pd.DataFrame, dict[str, pd.Series]]] = []
+    for csv_path in csv_paths:
+        print(f"  Extracting features: {csv_path.name}")
+        X, y_dict = _extract_test_features_and_labels(csv_path, window_size, step_size, severity_threshold)
+        all_app_features.append((X, y_dict))
+
     for fold_idx, test_csv in enumerate(csv_paths):
         app_name = test_csv.stem.replace("_labelled", "")
-        train_paths = [p for p in csv_paths if p != test_csv]
+        train_indices = [i for i in range(n) if i != fold_idx]
+        train_app_features = [all_app_features[i] for i in train_indices]
 
         print(f"\n{'='*70}")
         print(f"  Fold {fold_idx + 1}/{n}  |  held-out application: {app_name}")
         print(f"{'='*70}")
-        print(f"  Training on: {[p.stem for p in train_paths]}")
+        print(f"  Training on: {[csv_paths[i].stem for i in train_indices]}")
 
         # ----- Train -----
-        backend = DefaultTrainer(classifier=_build_classifier(args.classifier)).train(
-            labelled_csv_paths=[str(p) for p in train_paths],
-            window_size=window_size,
-            step_size=step_size,
-            severity_threshold=severity_threshold,
-        )
+        X_tr = pd.concat([f[0] for f in train_app_features]).fillna(0.0)
+        y_tr = _merge_y_dicts([f[1] for f in train_app_features])
+        backend = trainer.from_preextracted_features(X_tr, y_tr)
 
         if not backend._models:
             logger.warning("  No classifiers trained for fold %d - skipping.", fold_idx + 1)
             continue
 
-        # ----- Extract test features -----
-        print(f"\n  Extracting test features from {test_csv.name} …")
-        X_test, y_dict = _extract_test_features_and_labels(
-            test_csv, window_size, step_size, severity_threshold
-        )
+        # ----- Calibrate thresholds (optional) -----
+        if calibrate:
+            thresholds = _calibrate_thresholds(trainer, train_app_features, n_splits, prob_threshold)
+        else:
+            thresholds = {col: prob_threshold for col in _LABEL_COLS}
 
         # ----- Predict & evaluate per BottleneckType -----
+        X_test, y_dict = all_app_features[fold_idx]
+        print(f"\n  Evaluating on {test_csv.name} …")
+
         for col, clf in backend._models.items():
             if col not in y_dict:
                 logger.debug("  %s: no valid labels in test set - skipped.", col)
@@ -228,12 +284,12 @@ def run_loo(
             feature_cols = backend._feature_cols[col]
             X_aligned = X_test.reindex(columns=feature_cols, fill_value=0.0)
 
-            # Only score windows that have valid labels
             valid_idx = y_dict[col].index
             X_aligned = X_aligned.reindex(valid_idx, fill_value=0.0)
 
+            thr        = thresholds.get(col, prob_threshold)
             probs      = clf.predict_proba(X_aligned)[:, 1]
-            y_pred     = (probs >= prob_threshold).astype(int)
+            y_pred     = (probs >= thr).astype(int)
             y_true     = y_dict[col].values
             n_features = len(feature_cols)
 
@@ -271,7 +327,8 @@ def _print_summary(results: pd.DataFrame) -> None:
     print(f"\n{'='*70}")
     print("  LEAVE-ONE-OUT CROSS-VALIDATION SUMMARY")
     print(f"{'='*70}")
-    print(f"\n  Classification threshold    : {args.prob_threshold}")
+    thr_str = f"calibrated (GroupKFold n={args.n_splits})" if args.calibrate else str(args.prob_threshold)
+    print(f"\n  Classification threshold    : {thr_str}")
     print(f"  Window size / step size     : {args.window_size} / {args.step_size}")
     print(f"  Severity threshold (labels) : {args.severity_threshold}")
     print(f"  Folds completed             : {results['fold'].nunique()}")
@@ -328,6 +385,10 @@ def _parse_args() -> argparse.Namespace:
                    help="Optional path to save per-fold results as CSV.")
     p.add_argument("--classifier", choices=["xgboost", "rf"], default="xgboost",
                    help="Classifier to use: 'xgboost' (default) or 'rf'.")
+    p.add_argument("--calibrate", action="store_true",
+                   help="Run GroupKFold CV within each fold to calibrate per-class thresholds.")
+    p.add_argument("--n-splits", type=int, default=5, dest="n_splits",
+                   help="GroupKFold splits for threshold calibration (default: 5).")
     return p.parse_args()
 
 
@@ -342,11 +403,13 @@ if __name__ == "__main__":
     print(f"[INFO] Found {len(csv_paths)} labelled CSV(s) - running {len(csv_paths)}-fold LOO CV")
 
     results = run_loo(
-        csv_paths        = csv_paths,
-        window_size      = args.window_size,
-        step_size        = args.step_size,
+        csv_paths          = csv_paths,
+        window_size        = args.window_size,
+        step_size          = args.step_size,
         severity_threshold = args.severity_threshold,
-        prob_threshold   = args.prob_threshold,
+        prob_threshold     = args.prob_threshold,
+        calibrate          = args.calibrate,
+        n_splits           = args.n_splits,
     )
 
     if results.empty:
