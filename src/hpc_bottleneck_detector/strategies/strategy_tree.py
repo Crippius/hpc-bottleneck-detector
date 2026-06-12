@@ -83,7 +83,7 @@ class StrategyTree:
         description = config.get("description", "").strip()
         req_metrics = list(config.get("required_metrics", []))
 
-        # ── Family gate injection ──────────────────────────────────────
+        # --- Family gate injection ---------------------------------------------------------
         family = config.get("family")
         if family:
             families_path = p.parent / "families.yaml"
@@ -155,7 +155,7 @@ class StrategyTree:
         Returns:
             A single :class:`~hpc_bottleneck_detector.output.models.Diagnosis`.
         """
-        # ── Quick check: are all required metrics present? ─────────────
+        # --- Quick check: are all required metrics present? -------------------
         missing = self._missing_metrics(data_mgr)
         if missing:
             logger.debug(
@@ -175,7 +175,7 @@ class StrategyTree:
                 triggered_metrics=[f"MISSING:{m}" for m in missing],
             )
 
-        # ── Walk the tree ──────────────────────────────────────────────
+        # --- Walk the tree ---------------------------------------------------------------------
         node           = self.root_node
         triggered      : List[str] = []
         last_value     : float     = 0.0
@@ -208,7 +208,7 @@ class StrategyTree:
             last_threshold = threshold
             node = node.get_child(branch)
 
-        # ── node is a leaf - build the diagnosis ──────────────────────
+        # --- node is a leaf - build the diagnosis ---------------------------------
         return node.get_diagnosis(
             source=self.tree_name,
             triggered_metrics=triggered,

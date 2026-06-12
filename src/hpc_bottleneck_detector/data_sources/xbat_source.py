@@ -91,7 +91,7 @@ class XBATDataSource(IDataSource):
         username:    Username used for the password-grant OAuth flow.
         password:    Corresponding password.
         client_id:   OAuth client ID.
-        group:       Metric group to filter (empty → all groups, job-level only).
+        group:       Metric group to filter (empty -> all groups, job-level only).
         metric:      Metric name within the group (must be empty when group is empty).
         level:       Aggregation level: ``'job'`` | ``'node'`` | ``'core'``.
         node:        Node identifier (required only when level is ``'node'``).
@@ -203,7 +203,7 @@ class XBATDataSource(IDataSource):
 
         Example::
 
-            # Copy .env.example → .env and fill in real credentials, then:
+            # Copy .env.example -> .env and fill in real credentials, then:
             source = XBATDataSource.from_env()
         """
         try:
@@ -310,7 +310,7 @@ class XBATDataSource(IDataSource):
         interval_cols = [c for c in main_df.columns if c.startswith("interval ")]
         rows: List[dict] = []
 
-        # ── Intra-node ────────────────────────────────────────────────
+        # --- Intra-node ------------------------------------------------------------------------
         try:
             core_df = self._fetch_csv_params(
                 job_id, group="cpu", metric="FLOPS", level="core"
@@ -322,7 +322,7 @@ class XBATDataSource(IDataSource):
         except Exception:
             pass  # non-fatal
 
-        # ── Inter-node ────────────────────────────────────────────────
+        # --- Inter-node ------------------------------------------------------------------------
         if job_entry is not None:
             node_names = list(job_entry.get("nodes", {}).keys())
             if len(node_names) > 1:
@@ -568,7 +568,7 @@ class XBATDataSource(IDataSource):
             node_hardware_raw = self._fetch_node_hardware(node_hashes)
             return JobContext.from_xbat(job_id, job_entry, node_hardware_raw)
 
-        except Exception:  # pragma: no cover – best-effort, never fatal
+        except Exception:  # pragma: no cover - best-effort, never fatal
             return None
 
     def _find_job_entry(self, job_id: str) -> Optional[dict]:
@@ -594,7 +594,7 @@ class XBATDataSource(IDataSource):
 
     def _fetch_node_hardware(self, node_hashes: list) -> dict:
         """
-        Call ``GET /api/v1/nodes?node_hashes=<h1>,<h2>,…`` and return the
+        Call ``GET /api/v1/nodes?node_hashes=<h1>,<h2>, ...`` and return the
         raw response dict (keyed by hash).
         """
         hashes_param = ",".join(node_hashes)

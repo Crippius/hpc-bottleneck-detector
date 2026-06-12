@@ -103,25 +103,25 @@ class AnalysisOrchestrator:
 
         logger.info("Loaded configuration from '%s'.", config_path)
 
-        # ── pipeline ──────────────────────────────────────────────────
+        # --- pipeline ---------------------------------------------------------------------------
         pipeline_cfg = config.get("pipeline", {})
         window_size = int(pipeline_cfg.get("window_size", 10))
         step_size   = int(pipeline_cfg.get("step_size",   window_size))
 
-        # ── data source ───────────────────────────────────────────────
+        # --- data source ----------------------------------------------------------------------
         ds_cfg = config.get("data_source", {})
         data_source = cls._build_data_source(ds_cfg)
 
-        # ── strategy ──────────────────────────────────────────────────
+        # --- strategy ---------------------------------------------------------------------------
         strat_cfg = config.get("strategy", {})
         strategy = cls._build_strategy(strat_cfg)
 
-        # ── hardware profiles ─────────────────────────────────────────
+        # --- hardware profiles -------------------------------------------------------------
         hw_cfg = config.get("hardware", {})
         profiles_dir = hw_cfg.get("profiles_dir")
         hw_profile_loader = HardwareProfileLoader(profiles_dir) if profiles_dir else None
 
-        # ── output ────────────────────────────────────────────────────
+        # --- output ------------------------------------------------------------------------------
         output_cfg = config.get("output", {})
 
         return cls(
@@ -158,7 +158,7 @@ class AnalysisOrchestrator:
         """
         logger.info("Starting pipeline for job '%s'.", job_id)
 
-        # ── 1. Fetch data ─────────────────────────────────────────────
+        # --- 1. Fetch data -------------------------------------------------------------------
         data_mgr = self.data_source.fetch_job_data(job_id)
         n = data_mgr.get_time_series_length()
         logger.info(
@@ -167,10 +167,10 @@ class AnalysisOrchestrator:
             job_id,
         )
 
-        # ── 1b. Inject supplemental benchmarks ────────────────────────
+        # --- 1b. Inject supplemental benchmarks ------------------------------------
         self.inject_supplemental_benchmarks(data_mgr)
 
-        # ── 2 & 3. Window iteration + strategy ────────────────────────
+        # --- 2 & 3. Window iteration + strategy ------------------------------------
         window_diagnoses: List[WindowDiagnosis] = []
 
         for win_idx, (start, end, win_dm) in enumerate(
@@ -189,10 +189,10 @@ class AnalysisOrchestrator:
             "Analysis complete: %d window(s) processed.", len(window_diagnoses)
         )
 
-        # ── 4. Filter ─────────────────────────────────────────────────
+        # --- 4. Filter -------------------------------------------------------------------------
         window_diagnoses = self._apply_filters(window_diagnoses)
 
-        # ── 5. Format / save ──────────────────────────────────────────
+        # --- 5. Format / save ---------------------------------------------------------------
         fmt       = self.output_cfg.get("format", "print")
         save_path = self.output_cfg.get("save_path")
         format_results(window_diagnoses, fmt=fmt, save_path=save_path)

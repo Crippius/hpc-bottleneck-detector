@@ -145,7 +145,7 @@ elif [[ "$HTTP_STATUS" == "200" ]]; then
   mv "$TEMP_FILE" "$OUTPUT_FILE"
   ABS_PATH=$(realpath "$OUTPUT_FILE")
   echo "[+] CSV downloaded successfully."
-  echo "[→] File saved at: $ABS_PATH"
+  echo "[+] File saved at: $ABS_PATH"
 else
   echo "[!] Download failed. HTTP status: $HTTP_STATUS"
   rm -f "$TEMP_FILE"

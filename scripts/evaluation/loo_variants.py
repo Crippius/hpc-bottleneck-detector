@@ -2,7 +2,7 @@
 LOO cross-validation for all 4 feature-selection variants.
 
 Runs the full Leave-One-Out rotation for each combination of
-use_fdr × use_importance_pruning and prints a side-by-side comparison.
+use_fdr x use_importance_pruning and prints a side-by-side comparison.
 
 Usage:
     python scripts/loo_variants.py
@@ -182,7 +182,7 @@ def run_loo_variant(
 
 
 def _summarise(df: pd.DataFrame) -> pd.DataFrame:
-    """Per-variant × per-bottleneck macro averages."""
+    """Per-variant x per-bottleneck macro averages."""
     return (
         df.groupby(["variant", "bottleneck_type"])[["f1", "false_alarm_rate", "miss_rate", "n_features"]]
         .agg(lambda s: s.dropna().mean() if s.dropna().size > 0 else float("nan"))

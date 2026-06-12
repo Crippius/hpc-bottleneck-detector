@@ -59,7 +59,7 @@ def _get_leaf_types(node: PropertyNode) -> Set[BottleneckType]:
 
 
 def _build_tree_type_map(strategy: HeuristicStrategy) -> Dict[str, Set[BottleneckType]]:
-    """Return a mapping ``tree_name → set of BottleneckTypes it can produce``."""
+    """Return a mapping ``tree_name -> set of BottleneckTypes it can produce``."""
     return {
         tree.tree_name: _get_leaf_types(tree.root_node)
         for tree in strategy._strategy_trees
@@ -75,10 +75,10 @@ def _window_severity(
 
     Rules:
 
-    - Real bottleneck detected → max severity score across all matching diagnoses.
-    - Not detected AND a tree that *can* produce this type was UNKNOWN → ``NaN``
+    - Real bottleneck detected -> max severity score across all matching diagnoses.
+    - Not detected AND a tree that *can* produce this type was UNKNOWN -> ``NaN``
       (the relevant tree couldn't run; absence cannot be confirmed).
-    - Not detected AND no responsible tree was UNKNOWN → ``0.0``
+    - Not detected AND no responsible tree was UNKNOWN -> ``0.0``
       (all relevant trees ran cleanly and found nothing).
     """
     # Collect bottleneck types covered by trees that returned UNKNOWN.
@@ -120,7 +120,7 @@ def label_job(
     flat = data_mgr.get_flat_dataframe(interval_seconds)
     n_intervals = len(flat)
 
-    # Per-interval accumulator: col_name → list of severity values from
+    # Per-interval accumulator: col_name -> list of severity values from
     # each window that covers that interval (NaN for UNKNOWN windows).
     accum: List[Dict[str, List[float]]] = [
         {bt.value: [] for bt in BOTTLENECK_COLUMNS}

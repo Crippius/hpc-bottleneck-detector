@@ -3,7 +3,7 @@ Output Models
 
 Domain objects shared across the whole project:
 
-- :class:`MacroCategoryType` - coarse bottleneck family (compute, memory, …)
+- :class:`MacroCategoryType` - coarse bottleneck family (compute, memory, ...)
 - :class:`BottleneckType`    - fine-grained bottleneck kind
 - :class:`Diagnosis`         - single bottleneck finding for one analysis window
 - :class:`WindowDiagnosis`   - aggregated findings for one time window

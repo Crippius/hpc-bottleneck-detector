@@ -152,7 +152,7 @@ def _compute_severity(
     * ``INCREASING`` - severity rises from 0 at threshold to 1 at 2*threshold
       (or at ``cap`` when provided: ``(value - threshold) / (cap - threshold)``).
     * ``DECREASING`` - ``min(1, max(0, 1 - value / threshold))``
-      Lower metric value → higher severity.
+      Lower metric value -> higher severity.
     * Any other string is interpreted as a Python float literal (e.g. ``"0.0"``).
     """
     if formula == "INCREASING":
@@ -208,7 +208,7 @@ class PropertyNode:
         self.description: str = config.get("description", "")
 
         if "diagnosis" in config:
-            # ── Leaf node ──────────────────────────────────────────────
+            # --- Leaf node ---------------------------------------------------------------------
             self._is_leaf = True
             self._diag_cfg = config["diagnosis"]
             self._metric_cfg  = None
@@ -218,7 +218,7 @@ class PropertyNode:
             self._if_true  = None
             self._if_false = None
         else:
-            # ── Decision node ──────────────────────────────────────────
+            # --- Decision node ---------------------------------------------------------------
             self._is_leaf = False
             self._diag_cfg = None
             self._metric_cfg    = config["metric"]
@@ -253,7 +253,7 @@ class PropertyNode:
         branch    = _compare(value, self._operator, threshold)
 
         logger.debug(
-            "Node '%s': metric_value=%.6g  %s  threshold=%.6g  → %s",
+            "Node '%s': metric_value=%.6g  %s  threshold=%.6g  -> %s",
             self.node_id, value, self._operator, threshold,
             "if_true" if branch else "if_false",
         )
@@ -282,7 +282,7 @@ class PropertyNode:
         """
         cfg = self._diag_cfg
 
-        # ── Bottleneck type ────────────────────────────────────────────
+        # --- Bottleneck type ------------------------------------------------------------------
         bt_name = cfg.get("bottleneck_type", "NONE")
         try:
             bt = BottleneckType[bt_name]
@@ -290,7 +290,7 @@ class PropertyNode:
             logger.warning("Unknown bottleneck_type '%s'; defaulting to NONE.", bt_name)
             bt = BottleneckType.NONE
 
-        # ── Severity ───────────────────────────────────────────────────
+        # --- Severity ----------------------------------------------------------------------------
         formula = str(cfg.get("severity_formula", "0.0"))
 
         raw_threshold = cfg.get("threshold", 1.0)
@@ -309,7 +309,7 @@ class PropertyNode:
         else:
             severity = _compute_severity(formula, 0.0, sev_threshold, sev_cap)
 
-        # ── Other fields ───────────────────────────────────────────────
+        # --- Other fields ----------------------------------------------------------------------
         confidence     = float(cfg.get("confidence", 1.0))
         recommendation = cfg.get("recommendation")
         if isinstance(recommendation, str):

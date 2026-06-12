@@ -34,7 +34,7 @@ _REPO_ROOT      = pathlib.Path(__file__).resolve().parent.parent.parent
 _DEFAULT_OUTPUT = _REPO_ROOT / "results" / "trees"
 _HTML_TEMPLATE  = pathlib.Path(__file__).with_name("visualize_strategy_tree.html")
 
-# A3 landscape in pixels at 96 dpi: 420mm × 297mm
+# A3 landscape in pixels at 96 dpi: 420mm x 297mm
 _PAGE_W_PX = 1587
 _PAGE_H_PX = 1122
 
@@ -121,7 +121,7 @@ def main() -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
 
     files = collect_yaml_files([])
-    print(f"Loading {len(files)} strategy tree(s)…")
+    print(f"Loading {len(files)} strategy tree(s)...")
     parsed = []
     for f in files:
         try:
@@ -137,7 +137,7 @@ def main() -> None:
         sys.exit("No trees could be parsed.")
 
     trees = group_and_merge_trees(parsed)
-    print(f"\nExporting {len(trees)} PDF(s) → {out_dir}/")
+    print(f"\nExporting {len(trees)} PDF(s) -> {out_dir}/")
 
     for tree in trees:
         pdf = export_pdf(tree, out_dir)

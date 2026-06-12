@@ -42,13 +42,13 @@ def format_results(
     else:
         output = _to_print(window_diagnoses)
 
-    # ── write to file if requested ─────────────────────────────────────────
+    # --- write to file if requested -------------------------------------------------------------
     if save_path:
         path = Path(save_path)
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(output, encoding="utf-8")
 
-    # ── print to stdout for 'print' fmt ───────────────────────────────────
+    # --- print to stdout for 'print' fmt ----------------------------------------------------
     if fmt == "print":
         sys.stdout.write(output)
 
@@ -75,7 +75,7 @@ def _to_print(windows: List[WindowDiagnosis]) -> str:
             status = "HEALTHY"
         lines.append(
             f"\n[Window {wd.window_index:>3}]  "
-            f"intervals {wd.start_interval}–{wd.end_interval}  "
+            f"intervals {wd.start_interval}-{wd.end_interval}  "
             f"({status})"
         )
         if not wd.diagnoses:
@@ -87,7 +87,7 @@ def _to_print(windows: List[WindowDiagnosis]) -> str:
             sev = f"{diag.severity_score:.2f}"
             conf = f"{diag.confidence:.2f}"
             src = f"[{diag.source}]" if diag.source else ""
-            lines.append(f"  • {bt:<35} severity={sev}  confidence={conf}  {src}")
+            lines.append(f"  - {bt:<35} severity={sev}  confidence={conf}  {src}")
             if diag.recommendation:
                 # indent multi-line recommendations
                 rec_lines = diag.recommendation.strip().splitlines()

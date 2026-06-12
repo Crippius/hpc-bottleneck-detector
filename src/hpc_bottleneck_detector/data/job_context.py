@@ -227,7 +227,7 @@ class JobContext:
             "runNr": job_entry.get("runNr"),
             "iteration": job_entry.get("iteration"),
             "variantName": variant,
-            # Map hostname → hash for reference
+            # Map hostname -> hash for reference
             "nodes": {
                 hostname: meta.get("hash")
                 for hostname, meta in nodes_raw.items()

@@ -87,7 +87,7 @@ def main() -> None:
             "expected": expected,
             "prob": prob,
             "threshold": threshold,
-            "correct": "✓" if detected else "✗",
+            "correct": "[v]" if detected else "[x]",
             "probs": probs,
         })
 

@@ -88,7 +88,7 @@ strategy:
 
 ### Heuristic (rule-based)
 
-YAML decision trees in `configs/strategies/persyst_strategy/`. Each file encodes one bottleneck type as a nested compare-then-branch tree. Inner nodes aggregate a metric (mean, max, …) and compare it against a threshold. Thresholds can be absolute or hardware-relative (e.g. a fraction of peak FLOPS from the CPU hardware profile).
+YAML decision trees in `configs/strategies/persyst_strategy/`. Each file encodes one bottleneck type as a nested compare-then-branch tree. Inner nodes aggregate a metric (mean, max, ...) and compare it against a threshold. Thresholds can be absolute or hardware-relative (e.g. a fraction of peak FLOPS from the CPU hardware profile).
 
 ### Supervised ML (weak supervision)
 

@@ -3,10 +3,10 @@
 # =============================================================================
 #
 # Top-level keys
-#   pipeline    – windowing / runtime settings
-#   data_source – where to read job data from
-#   strategy    – which detection strategy (and its parameters) to use
-#   output      – how results are formatted / saved
+#   pipeline    - windowing / runtime settings
+#   data_source - where to read job data from
+#   strategy    - which detection strategy (and its parameters) to use
+#   output      - how results are formatted / saved
 #
 # Uncomment the block that matches your use-case and comment the others.
 
@@ -15,7 +15,7 @@
 # ---------------------------------------------------------------------------
 # Provides benchmark values that the XBAT API cannot supply and optional explicit overrides.
 #
-# profiles_dir   – directory of per-architecture YAML files
+# profiles_dir   - directory of per-architecture YAML files
 #
 hardware:
   profiles_dir: configs/hardware_profilesn
@@ -33,12 +33,12 @@ pipeline:
 # Data source
 # ---------------------------------------------------------------------------
 data_source:
-  # ── CSV (offline / archived runs) ────────────────────────────
+  # --- CSV (offline / archived runs) ------------------------------------------
   # type: csv
   # file_path: data/234650_all_job.csv
   # delimiter: ","
 
-  # ── XBAT REST API ─────────────────────────────────────────────────────────
+  # --- XBAT REST API ------------------------------------------------------------------------------------─
   # Option A (recommended): load credentials from a .env file.
   # Copy .env.example into private .env and fill in your real values.
   type: xbat
@@ -61,7 +61,7 @@ data_source:
   # proxy: socks5h://localhost:xxx  # uncomment if a SOCKS5 proxy is needed
   # verify_ssl: false                # uncomment for self-signed certificates
 
-  # ── Database (NOT IMPLEMENTED YET) ─────────────────────────────────────
+  # --- Database (NOT IMPLEMENTED YET) ------------------------------------------------------─
   # type:              database
   # connection_string: ...
 

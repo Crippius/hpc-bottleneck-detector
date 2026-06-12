@@ -25,12 +25,12 @@ from hpc_bottleneck_detector.utils.labeling import label_job, BOTTLENECK_COLUMNS
 STRATEGY_FOLDER  = Path(__file__).parent.parent.parent / "configs" / "strategies" / "persyst_strategy"
 HW_PROFILES_DIR  = Path(__file__).parent.parent.parent / "configs" / "hardware_profiles"
 
-WINDOW_SIZE = 12   # intervals per analysis window (12 × 5 s = 60 s)
+WINDOW_SIZE = 12   # intervals per analysis window (12 x 5 s = 60 s)
 STEP_SIZE   = 12   # tumbling windows (set < WINDOW_SIZE for sliding)
 
 
 def label_single_job(job_id: int, source: XBATDataSource, strategy: HeuristicStrategy, orchestrator: AnalysisOrchestrator, output_dir: Path | None = None) -> None:
-    print(f"\n[INFO] Fetching job {job_id} …")
+    print(f"\n[INFO] Fetching job {job_id} ...")
     dm = source.fetch_job_data(job_id)
     orchestrator.inject_supplemental_benchmarks(dm)
     print(f"       job_id          : {dm.job_id}")
@@ -39,8 +39,8 @@ def label_single_job(job_id: int, source: XBATDataSource, strategy: HeuristicStr
     print(f"       context         : {dm.job_context is not None}")
     print(f"       sampling_interval: {dm.sampling_interval}s")
 
-    # ── Label the job ─────────────────────────────────────────────────────────
-    print(f"\n[INFO] Labelling (window={WINDOW_SIZE}, step={STEP_SIZE}) …")
+    # --- Label the job -------------------------------------------------------------------------------------
+    print(f"\n[INFO] Labelling (window={WINDOW_SIZE}, step={STEP_SIZE}) ...")
     labelled = label_job(
         data_mgr=dm,
         strategy=strategy,
@@ -49,7 +49,7 @@ def label_single_job(job_id: int, source: XBATDataSource, strategy: HeuristicStr
     )
     print(f"       output shape : {labelled.shape}  (rows=intervals, cols=metrics+labels)")
 
-    # ── Inspect label columns ─────────────────────────────────────────────────
+    # --- Inspect label columns -------------------------------------------------------------------------
     print("\n[INFO] Bottleneck label summary:")
     label_cols = [bt.value for bt in BOTTLENECK_COLUMNS]
     for col in label_cols:
@@ -64,16 +64,16 @@ def label_single_job(job_id: int, source: XBATDataSource, strategy: HeuristicStr
             f"mean_sev={mean_sev:.3f}"
         )
 
-    # ── Show a few labelled rows ──────────────────────────────────────────────
+    # --- Show a few labelled rows ---------------------------------------------------------------------
     print("\n[INFO] First 5 rows (id, time, label columns):")
     preview_cols = ["id", "time"] + label_cols
     print(labelled[preview_cols].head().to_string(index=False))
 
-    # ── Save to CSV ───────────────────────────────────────────────────────────
+    # --- Save to CSV ----------------------------------------------------------------------------------------
     base_dir = output_dir or (Path(__file__).parent.parent.parent / "data" / "labelled_data")
     out_path = base_dir / f"{dm.job_id}_labelled.csv"
     labelled.to_csv(out_path, index=False)
-    print(f"\n[INFO] Saved labelled CSV → {out_path}")
+    print(f"\n[INFO] Saved labelled CSV -> {out_path}")
 
 
 def main() -> None:
@@ -90,19 +90,19 @@ def main() -> None:
     parser.add_argument("--output-dir", default=None, help="Directory to save labelled CSVs (default: data/labelled_data/)")
     args = parser.parse_args()
 
-    # ── 1. Connect ────────────────────────────────────────────────────────────
+    # --- 1. Connect ------------------------------------------------------------------------------------------
     print(f"[INFO] Connecting via XBATDataSource (env={args.env_file})")
     source = XBATDataSource.from_env(env_file=args.env_file)
     print(f"       api_base : {source.api_base}")
     print(f"       level    : {source.level}")
 
-    # ── 2. Load heuristic strategy ────────────────────────────────────────────
+    # --- 2. Load heuristic strategy ------------------------------------------------------------------
     print(f"\n[INFO] Loading strategy trees from {STRATEGY_FOLDER.name}/")
     strategy = HeuristicStrategy(str(STRATEGY_FOLDER))
     print(f"       trees loaded : {len(strategy._strategy_trees)}")
     print(f"       tree names   : {[t.tree_name for t in strategy._strategy_trees]}")
 
-    # ── 3. Build orchestrator ─────────
+    # --- 3. Build orchestrator ------------─
     hw_loader    = HardwareProfileLoader(str(HW_PROFILES_DIR))
     orchestrator = AnalysisOrchestrator(
         data_source=source,
@@ -112,7 +112,7 @@ def main() -> None:
 
     output_dir = Path(args.output_dir) if args.output_dir else None
 
-    # ── 4. Label each job ─────────────────────────────────────────────────────
+    # --- 4. Label each job -------------------------------------------------------------------------------
     for job_id in args.job_ids:
         print("\n" + "=" * 70)
         label_single_job(job_id, source, strategy, orchestrator, output_dir=output_dir)

@@ -121,7 +121,7 @@ def _window_labels(
     """
     For each sliding window compute a binary label per bottleneck column.
 
-    Returns ``{col_name: [label, …]}`` where each label is 1, 0, or NaN.
+    Returns ``{col_name: [label, ...]}`` where each label is 1, 0, or NaN.
     """
     n = len(job_df)
     result: dict[str, list[Optional[float]]] = {col: [] for col in _LABEL_COLS}

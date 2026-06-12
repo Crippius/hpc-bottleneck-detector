@@ -4,20 +4,6 @@ Gradual Scaling Hold-Out
 Proves how much application diversity the model needs before it generalises
 to entirely unseen code.
 
-Protocol
---------
-1. Pre-extract tsfresh features once for all N apps.
-2. For each step k in --steps, iterate over C(N, k) subsets of k training apps.
-3. For each combo: test set = remaining (N-k) apps (dynamic, no fixed holdout).
-4. Optionally calibrate per-class probability thresholds via LOAO CV within the combo.
-5. Average metrics across all subsets → low-variance estimate of "what k apps buys".
-6. Plot per-BottleneckType F1 + macro-average F1 vs number of training apps.
-
-Speed note
-----------
-tsfresh feature extraction is done ONCE per app (pre-cached).  Each combination
-only re-runs the fast sklearn feature-selection + classifier fit.
-
 Usage
 -----
     python examples/ml/gradual_scaling.py
@@ -332,7 +318,7 @@ def run_gradual_scaling(
             else:
                 if use_cv and k < cv_min_k:
                     logger.warning(
-                        "k=%d < cv_min_k=%d — skipping CV, using prob_threshold=%.2f",
+                        "k=%d < cv_min_k=%d - skipping CV, using prob_threshold=%.2f",
                         k, cv_min_k, prob_threshold,
                     )
                 cv_thresholds = {col: prob_threshold for col in _LABEL_COLS}
@@ -572,11 +558,11 @@ if __name__ == "__main__":
     print(f"[INFO] Total combinations to train: {total_combos}")
 
     # --- Pre-extract features once per app ---
-    print(f"\n[INFO] Pre-extracting features for {n_total} apps …")
+    print(f"\n[INFO] Pre-extracting features for {n_total} apps ...")
     app_features: list[tuple[pd.DataFrame, dict[str, pd.Series]]] = []
     for i, p in enumerate(all_paths):
         app = p.stem.replace("_labelled", "")
-        print(f"  [{i+1}/{n_total}] {app} …", end=" ", flush=True)
+        print(f"  [{i+1}/{n_total}] {app} ...", end=" ", flush=True)
         X_app, y_app = _extract_features_for_app(
             p, args.window_size, args.step_size, args.severity_threshold
         )
@@ -586,7 +572,7 @@ if __name__ == "__main__":
     # --- Optional joint CV hyperparam + threshold tuning ---
     classifier = _build_classifier(args.classifier)
     if args.tune_hyperparams:
-        print(f"\n[INFO] Running joint CV tuning (n_iter={args.n_iter}) …")
+        print(f"\n[INFO] Running joint CV tuning (n_iter={args.n_iter}) ...")
         classifier, _ = DefaultTrainer.tune(
             app_features, classifier, n_iter=args.n_iter, seed=args.seed
         )
@@ -621,7 +607,7 @@ if __name__ == "__main__":
     for k, avg_f1 in macro.items():
         n_combos = results[results["n_train_apps"] == k]["combo_idx"].nunique()
         print(
-            f"  k={k:>2} apps  →  "
+            f"  k={k:>2} apps  ->  "
             f"macro F1 = {avg_f1:.4f}  |  "
             f"over {n_combos} combinations"
         )

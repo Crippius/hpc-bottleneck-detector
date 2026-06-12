@@ -75,7 +75,7 @@ def print_heatmap(window_diagnoses: list[WindowDiagnosis]) -> None:
         _ansi_bg(tuple(rgb_low[i] + (rgb_high[i] - rgb_low[i]) * k / (steps - 1) for i in range(3))) + " " + _RESET
         for k in range(steps)
     )
-    print(f"\n  {''.ljust(label_w)}  green {gradient} red  (severity 0→1)\n")
+    print(f"\n  {''.ljust(label_w)}  green {gradient} red  (severity 0 -> 1)\n")
 
 
 def main() -> None:
@@ -103,19 +103,19 @@ def main() -> None:
         print("No windows returned - check your config and job ID.")
         return
 
-    print("\n── Severity heatmap ──────────────────────────────────────────")
+    print("\n--- Severity heatmap ---------------------------------------------------------------")
     print_heatmap(results)
 
     if bottleneck_windows:
-        print("── First flagged window ──────────────────────────────────────")
+        print("--- First flagged window ---------------------------------------------------------")
         wd = bottleneck_windows[0]
-        print(f"  Window {wd.window_index}  (intervals {wd.start_interval}–{wd.end_interval})")
+        print(f"  Window {wd.window_index}  (intervals {wd.start_interval}-{wd.end_interval})")
         for d in wd.diagnoses:
             if d.bottleneck_type is BottleneckType.NONE:
                 continue
-            print(f"  • {d.bottleneck_type.value:<40} sev={d.severity_score:.2f}  conf={d.confidence:.2f}")
+            print(f"  - {d.bottleneck_type.value:<40} sev={d.severity_score:.2f}  conf={d.confidence:.2f}")
             if d.recommendation:
-                print(f"    → {d.recommendation.strip().splitlines()[0]}")
+                print(f"    -> {d.recommendation.strip().splitlines()[0]}")
 
 
 if __name__ == "__main__":

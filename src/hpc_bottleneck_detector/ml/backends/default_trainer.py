@@ -123,7 +123,7 @@ class DefaultTrainer(IMLTrainer):
 
         tsfresh_df = _fill_metric_nans(pd.concat(all_fragments, ignore_index=True))
 
-        logger.info("Extracting tsfresh features for %d windows…", len(all_window_ids))
+        logger.info("Extracting tsfresh features for %d windows...", len(all_window_ids))
         X_full = extract_features(
             tsfresh_df,
             column_id="id",
@@ -239,7 +239,7 @@ class DefaultTrainer(IMLTrainer):
             param_grid = _PARAM_GRIDS.get(clf_name, {})
             if not param_grid:
                 logger.warning(
-                    "No param grid found for %s — running threshold calibration only.",
+                    "No param grid found for %s - running threshold calibration only.",
                     clf_name,
                 )
 
@@ -301,7 +301,7 @@ class DefaultTrainer(IMLTrainer):
                         fold_thr_lists[col].append(thr)
 
             score = float(np.nanmean(fold_scores)) if fold_scores else float("nan")
-            logger.info("Params %s → CV score=%.4f", params, score)
+            logger.info("Params %s -> CV score=%.4f", params, score)
 
             if not math.isnan(score) and score > best_score:
                 best_score = score
@@ -351,7 +351,7 @@ class DefaultTrainer(IMLTrainer):
                 selector.fit(X_clean, y_clean)
                 X_selected = X_clean.iloc[:, selector.get_support(indices=True)]
 
-            logger.info("  FDR: %d → %d features.", X_clean.shape[1], X_selected.shape[1])
+            logger.info("  FDR: %d -> %d features.", X_clean.shape[1], X_selected.shape[1])
 
         if self._use_importance_pruning and X_selected.shape[1] > 0:
             prelim_clf = clone(self._classifier)
@@ -360,7 +360,7 @@ class DefaultTrainer(IMLTrainer):
             n_before = X_selected.shape[1]
             X_selected = X_selected.loc[:, mask]
             logger.info(
-                "  Importance pruning: %d → %d features (threshold=%.2e).",
+                "  Importance pruning: %d -> %d features (threshold=%.2e).",
                 n_before, X_selected.shape[1], _IMPORTANCE_THRESHOLD,
             )
 

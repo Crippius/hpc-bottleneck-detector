@@ -40,7 +40,7 @@ class DataManager:
         job_data:    DataFrame containing all job metrics (time-series rows).
         job_id:      The job identifier extracted from the data.
         job_context: Optional :class:`JobContext` carrying static hardware
-                     metadata (benchmarks, CPU/memory specs, job runtime …).
+                     metadata (benchmarks, CPU/memory specs, job runtime ...).
                      ``None`` when the data source cannot provide it.
     """
 
@@ -50,7 +50,7 @@ class DataManager:
 
         Args:
             job_data:    DataFrame with columns: jobId, group, metric, trace,
-                         interval 0, interval 1, …
+                         interval 0, interval 1, ...
             job_context: Optional static job / hardware context.
         """
         self.job_data = job_data
@@ -204,7 +204,7 @@ class DataManager:
         following columns:
 
         - ``id``   : job identifier (same value for every row).
-        - ``time`` : elapsed time in seconds (0, 5, 10, …), stepping by
+        - ``time`` : elapsed time in seconds (0, 5, 10, ...), stepping by
                      *interval_seconds* per interval.
         - One column per metric, named ``<group>_<metric>`` or
           ``<group>_<metric>_<trace>`` (spaces replaced by underscores).
@@ -328,7 +328,7 @@ class DataManager:
         id_cols = [c for c in self.job_data.columns if not c.startswith("interval ")]
         sliced = self.job_data[id_cols + slice_cols].copy()
 
-        # Renumber interval columns: interval 0, interval 1, …
+        # Renumber interval columns: interval 0, interval 1, ...
         rename_map = {
             old: f"interval {i}" for i, old in enumerate(slice_cols)
         }

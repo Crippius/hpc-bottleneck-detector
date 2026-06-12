@@ -1,20 +1,7 @@
 """
 Leave-One-Out (LOO) Cross-Validation for DefaultBackend
 
-Evaluates how well the Random Forest model generalises to *unseen applications*
-by rotating through all 13 labelled CSVs:
-
-  For each fold i in 1..N:
-    - Train on all CSVs except CSV_i
-    - Test strictly on CSV_i
-    - Compute per-BottleneckType metrics for the held-out application
-
-Reported metrics (averaged across all N folds):
-  - F1-score      : harmonic mean of precision and recall
-  - False Alarm Rate (FPR) : FP / (FP + TN)  - fraction of healthy windows
-                             incorrectly flagged as bottleneck
-  - Anomaly Miss Rate (FNR): FN / (FN + TP)  - fraction of real bottleneck
-                             windows not detected
+Evaluates how well the Random Forest model generalises to unseen applications
 
 Usage:
     python examples/loo_cross_validation.py [--window-size 12] [--step-size 12]
@@ -240,7 +227,7 @@ def run_loo(
     n = len(csv_paths)
 
     # Pre-extract features once per app
-    print("[INFO] Pre-extracting features for all apps…")
+    print("[INFO] Pre-extracting features for all apps...")
     all_app_features: list[tuple[pd.DataFrame, dict[str, pd.Series]]] = []
     for csv_path in csv_paths:
         print(f"  Extracting features: {csv_path.name}")
@@ -274,7 +261,7 @@ def run_loo(
 
         # ----- Predict & evaluate per BottleneckType -----
         X_test, y_dict = all_app_features[fold_idx]
-        print(f"\n  Evaluating on {test_csv.name} …")
+        print(f"\n  Evaluating on {test_csv.name} ...")
 
         for col, clf in backend._models.items():
             if col not in y_dict:
@@ -332,7 +319,7 @@ def _print_summary(results: pd.DataFrame) -> None:
     print(f"  Window size / step size     : {args.window_size} / {args.step_size}")
     print(f"  Severity threshold (labels) : {args.severity_threshold}")
     print(f"  Folds completed             : {results['fold'].nunique()}")
-    print(f"  Total fold×type evaluations : {len(results)}")
+    print(f"  Total foldxtype evaluations : {len(results)}")
 
     agg = (
         results
@@ -378,9 +365,9 @@ def _parse_args() -> argparse.Namespace:
     p.add_argument("--window-size",      type=int,   default=12,  dest="window_size")
     p.add_argument("--step-size",        type=int,   default=12,  dest="step_size")
     p.add_argument("--severity-threshold", type=float, default=0.0, dest="severity_threshold",
-                   help="Severity > this value → positive label (default: 0.0)")
+                   help="Severity > this value -> positive label (default: 0.0)")
     p.add_argument("--prob-threshold",   type=float, default=0.5, dest="prob_threshold",
-                   help="Probability ≥ this value → predicted bottleneck (default: 0.5)")
+                   help="Probability ≥ this value -> predicted bottleneck (default: 0.5)")
     p.add_argument("--output-csv",       type=str,   default=None, dest="output_csv",
                    help="Optional path to save per-fold results as CSV.")
     p.add_argument("--classifier", choices=["xgboost", "rf"], default="xgboost",

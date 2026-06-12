@@ -1,19 +1,8 @@
 """
-Robustness Test — Prediction Stability Under Missing Metrics
+Robustness Test - Prediction Stability Under Missing Metrics
 
 Loads a trained model and the apps it was trained on, then checks whether
 predictions stay the same when metric groups are removed at inference time.
-
-This is NOT an accuracy test — it measures prediction stability:
-  full-metric prediction  vs  dropped-metric prediction
-
-Two test types:
-1. Fixed scenarios: drop semantically meaningful metric groups.
-2. Random sweep: drop a random fraction of metrics (10%–90%), 30 trials
-   each → stability curve.
-
-Features are extracted ONCE per app, then metric columns are blanked
-in-memory per scenario — no re-extraction needed.
 
 Usage:
     python scripts/evaluation/robustness_test.py
@@ -130,7 +119,7 @@ def _tsfresh_cols_for_metrics(X: pd.DataFrame, metric_patterns: list[str]) -> li
 
 def _predict_all(backend: DefaultBackend, X: pd.DataFrame) -> pd.DataFrame:
     """
-    Return a boolean DataFrame (windows × bottleneck_types) indicating
+    Return a boolean DataFrame (windows x bottleneck_types) indicating
     which classes fire above threshold for each window.
     """
     results = {}
@@ -226,7 +215,7 @@ def _plot_sweep(
     ax.grid(True, alpha=0.3)
 
     classifier = args.classifier
-    fig.suptitle(f"Robustness to Missing Metrics — {classifier.upper()}", fontsize=13)
+    fig.suptitle(f"Robustness to Missing Metrics - {classifier.upper()}", fontsize=13)
     fig.tight_layout()
 
     out = ROOT / "results" / f"robustness_{classifier}.png"
@@ -248,7 +237,7 @@ def run(args: argparse.Namespace) -> None:
     csv_paths = sorted(Path(DATA_DIR).rglob("*.csv"))
     logger.info("Found %d CSVs in %s", len(csv_paths), DATA_DIR)
 
-    # ── Pre-extract features once per app ────────────────────────────────────
+    # --- Pre-extract features once per app ------------------------------------------------------
     window_size = backend._window_size or args.window_size
     all_X: list[pd.DataFrame] = []
     all_metric_cols: list[str] = []
@@ -268,11 +257,11 @@ def run(args: argparse.Namespace) -> None:
     n_windows = len(X_all)
     logger.info("Total windows: %d", n_windows)
 
-    # ── Full-metric baseline predictions ─────────────────────────────────────
+    # --- Full-metric baseline predictions -------------------------------------------------------
     full_preds = _predict_all(backend, X_all)
     bt_cols = list(full_preds.columns)
 
-    # ── Fixed scenarios ───────────────────────────────────────────────────────
+    # --- Fixed scenarios ----------------------------------------------------------------------------------
     print(f"\n{'='*80}")
     print(f"  FIXED METRIC-DROP SCENARIOS  ({args.classifier.upper()}, {n_windows} windows)")
     print(f"  Stability = fraction of windows where prediction is unchanged vs full")
@@ -299,7 +288,7 @@ def run(args: argparse.Namespace) -> None:
             print(f"  {per_class.get(bt, float('nan')):>{col_w}.3f}", end="")
         print(f"  ({n_blanked} tsfresh cols blanked)")
 
-    # ── Random sweep ──────────────────────────────────────────────────────────
+    # --- Random sweep ---------------------------------------------------------------------------------------
     print(f"\n{'='*80}")
     print(f"  RANDOM METRIC REMOVAL SWEEP  ({N_RANDOM} trials per fraction)")
     print(f"  Overall stability = fraction of windows with ALL predictions unchanged")

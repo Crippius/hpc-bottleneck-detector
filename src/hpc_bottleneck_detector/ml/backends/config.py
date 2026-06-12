@@ -32,7 +32,7 @@ BASIC_FC_PARAMETERS: dict = {
     "absolute_sum_of_changes": None,
 }
 
-# 2. Basic + Advanced — adds thresholding, energy, complexity, and frequency
+# 2. Basic + Advanced - adds thresholding, energy, complexity, and frequency
 #    features on top of the basic set.
 # BASIC_ADVANCED_FC_PARAMETERS: dict = {
 #     **BASIC_FC_PARAMETERS,

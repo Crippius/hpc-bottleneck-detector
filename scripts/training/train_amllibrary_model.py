@@ -49,7 +49,7 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--step-size", type=int, default=12,
         help="Interval advance between successive windows.")
     parser.add_argument("--severity-threshold", type=float, default=0.0,
-        help="Severity > this value → positive label.")
+        help="Severity > this value -> positive label.")
     parser.add_argument("-o", "--output", default="models/amllibrary.pkl",
         help="Output path for the saved backend (.pkl).")
     return parser.parse_args()

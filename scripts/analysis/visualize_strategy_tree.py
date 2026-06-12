@@ -273,7 +273,7 @@ def group_and_merge_trees(
         fam_def = _load_family_gate(families_yaml, group_key)
 
         if fam_def:
-            # ── Shared gate: one node for the whole group ──────────────
+            # --- Shared gate: one node for the whole group ---------------------
             gate_raw  = fam_def["gate"]
             gate_id   = f"{group_key}__family_gate"
             gate_op   = gate_raw.get("operator", ">")
@@ -292,10 +292,10 @@ def group_and_merge_trees(
             }
             merged_nodes.append(gate_node)
 
-            # virtual root → gate (unlabelled)
+            # virtual root -> gate (unlabelled)
             merged_edges.append({"source": root_id, "target": gate_id, "label": ""})
 
-            # gate → each tree's root (if_true branch, unlabelled)
+            # gate -> each tree's root (if_true branch, unlabelled)
             for _path, tree in items:
                 targets_in_tree = {e["target"] for e in tree["edges"]}
                 sub_roots = [n for n in tree["nodes"] if n["id"] not in targets_in_tree]
@@ -311,7 +311,7 @@ def group_and_merge_trees(
                     })
 
         else:
-            # ── No family gate: original behaviour ────────────────────
+            # --- No family gate: original behaviour ------------------------------
             for _path, tree in items:
                 targets_in_tree = {e["target"] for e in tree["edges"]}
                 sub_roots = [n for n in tree["nodes"] if n["id"] not in targets_in_tree]
@@ -416,7 +416,7 @@ def main() -> None:
     ns    = parser.parse_args()
     files = collect_yaml_files(ns.paths)
 
-    print(f"Loading {len(files)} strategy tree(s)…")
+    print(f"Loading {len(files)} strategy tree(s)...")
     parsed: list[tuple[pathlib.Path, dict]] = []
     for f in files:
         try:
