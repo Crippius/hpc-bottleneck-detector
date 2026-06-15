@@ -19,7 +19,6 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 from sklearn.exceptions import UndefinedMetricWarning
-from sklearn.model_selection import GroupKFold
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 
@@ -28,6 +27,7 @@ from hpc_bottleneck_detector.ml.backends.default_backend import (
     _NON_METRIC_COLS,
     _build_window_dataframe,
     _fill_metric_nans,
+    _merge_app_y,
     _window_labels,
 )
 from hpc_bottleneck_detector.ml.backends.default_trainer import DefaultTrainer
@@ -166,45 +166,6 @@ def _metrics_from_arrays(
 # Calibration helpers
 # ---------------------------------------------------------------------------
 
-def _merge_y_dicts(y_list: list[dict[str, pd.Series]]) -> dict[str, pd.Series]:
-    merged: dict[str, pd.Series] = {}
-    for col in _LABEL_COLS:
-        parts = [y[col] for y in y_list if col in y]
-        if parts:
-            merged[col] = pd.concat(parts)
-    return merged
-
-
-def _calibrate_thresholds(
-    trainer: DefaultTrainer,
-    app_features: list[tuple[pd.DataFrame, dict[str, pd.Series]]],
-    n_splits: int,
-    default_threshold: float,
-) -> dict[str, float]:
-    n_folds = min(n_splits, len(app_features))
-    gkf = GroupKFold(n_splits=n_folds)
-    indices = np.arange(len(app_features))
-    thr_lists: dict[str, list[float]] = {col: [] for col in _LABEL_COLS}
-
-    for _, (tr_idx, va_idx) in enumerate(gkf.split(indices, groups=indices)):
-        X_tr = pd.concat([app_features[i][0] for i in tr_idx]).fillna(0.0)
-        y_tr = _merge_y_dicts([app_features[i][1] for i in tr_idx])
-        X_va = pd.concat([app_features[i][0] for i in va_idx]).fillna(0.0)
-        y_va = _merge_y_dicts([app_features[i][1] for i in va_idx])
-
-        fold_backend = trainer.from_preextracted_features(X_tr, y_tr)
-        fold_backend.calibrate_thresholds(X_va, y_va)
-        for col in _LABEL_COLS:
-            thr = fold_backend._thresholds.get(col)
-            if thr is not None:
-                thr_lists[col].append(thr)
-
-    return {
-        col: float(np.nanmean(v)) if v else default_threshold
-        for col, v in thr_lists.items()
-    }
-
-
 # ---------------------------------------------------------------------------
 # LOO driver
 # ---------------------------------------------------------------------------
@@ -246,7 +207,7 @@ def run_loo(
 
         # ----- Train -----
         X_tr = pd.concat([f[0] for f in train_app_features]).fillna(0.0)
-        y_tr = _merge_y_dicts([f[1] for f in train_app_features])
+        y_tr = _merge_app_y([f[1] for f in train_app_features])
         backend = trainer.from_preextracted_features(X_tr, y_tr)
 
         if not backend._models:
@@ -255,7 +216,7 @@ def run_loo(
 
         # ----- Calibrate thresholds (optional) -----
         if calibrate:
-            thresholds = _calibrate_thresholds(trainer, train_app_features, n_splits, prob_threshold)
+            thresholds = trainer.calibrate_thresholds_cv(train_app_features, n_splits, default_threshold=prob_threshold)
         else:
             thresholds = {col: prob_threshold for col in _LABEL_COLS}
 

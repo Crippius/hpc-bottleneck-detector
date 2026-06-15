@@ -26,10 +26,9 @@ import logging
 import sys
 from pathlib import Path
 
-import numpy as np
 import pandas as pd
 from sklearn.metrics import classification_report
-from sklearn.model_selection import GroupKFold, train_test_split
+from sklearn.model_selection import train_test_split
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 
@@ -208,30 +207,8 @@ def main() -> None:
             app_features.append((X_i, y_dict_clean))
 
         # --- GroupKFold CV to calibrate per-class thresholds ----------------------------
-        n_folds = min(args.n_splits, len(app_features))
-        logger.info("Running GroupKFold(n_splits=%d) threshold calibration...", n_folds)
-        gkf = GroupKFold(n_splits=n_folds)
-        indices = np.arange(len(app_features))
-        thr_lists: dict[str, list[float]] = {col: [] for col in _LABEL_COLS}
-
-        for fold, (tr_idx, va_idx) in enumerate(gkf.split(indices, groups=indices)):
-            X_tr = pd.concat([app_features[i][0] for i in tr_idx]).fillna(0.0)
-            y_tr = _merge_app_y([app_features[i][1] for i in tr_idx])
-            X_va = pd.concat([app_features[i][0] for i in va_idx]).fillna(0.0)
-            y_va = _merge_app_y([app_features[i][1] for i in va_idx])
-
-            fold_backend = trainer.from_preextracted_features(X_tr, y_tr)
-            fold_backend.calibrate_thresholds(X_va, y_va)
-            logger.info("  Fold %d thresholds: %s", fold, fold_backend._thresholds)
-            for col in _LABEL_COLS:
-                thr = fold_backend._thresholds.get(col)
-                if thr is not None:
-                    thr_lists[col].append(thr)
-
-        calibrated = {
-            col: float(np.nanmean(v)) if v else 0.5
-            for col, v in thr_lists.items()
-        }
+        logger.info("Running GroupKFold(n_splits=%d) threshold calibration...", args.n_splits)
+        calibrated = trainer.calibrate_thresholds_cv(app_features, n_splits=args.n_splits)
         logger.info("Calibrated thresholds (mean over folds): %s", calibrated)
 
         # --- Final model: train on all training apps ------------------------------------------

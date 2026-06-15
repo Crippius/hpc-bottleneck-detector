@@ -214,6 +214,40 @@ class DefaultTrainer(IMLTrainer):
         return backend
 
     # ------------------------------------------------------------------
+    # Threshold calibration via GroupKFold CV
+    # ------------------------------------------------------------------
+
+    def calibrate_thresholds_cv(
+        self,
+        app_features: list[tuple[pd.DataFrame, dict[str, pd.Series]]],
+        n_splits: int = 5,
+        default_threshold: float = 0.5,
+    ) -> dict[str, float]:
+        """GroupKFold CV over apps to calibrate per-class probability thresholds."""
+        n_folds = min(n_splits, len(app_features))
+        gkf = GroupKFold(n_splits=n_folds)
+        indices = np.arange(len(app_features))
+        thr_lists: dict[str, list[float]] = {col: [] for col in _LABEL_COLS}
+
+        for tr_idx, va_idx in gkf.split(indices, groups=indices):
+            X_tr = pd.concat([app_features[i][0] for i in tr_idx]).fillna(0.0)
+            y_tr = _merge_app_y([app_features[i][1] for i in tr_idx])
+            X_va = pd.concat([app_features[i][0] for i in va_idx]).fillna(0.0)
+            y_va = _merge_app_y([app_features[i][1] for i in va_idx])
+
+            fold_backend = self.from_preextracted_features(X_tr, y_tr)
+            fold_backend.calibrate_thresholds(X_va, y_va)
+            for col in _LABEL_COLS:
+                thr = fold_backend._thresholds.get(col)
+                if thr is not None:
+                    thr_lists[col].append(thr)
+
+        return {
+            col: float(np.nanmean(v)) if v else default_threshold
+            for col, v in thr_lists.items()
+        }
+
+    # ------------------------------------------------------------------
     # Joint hyperparameter + threshold CV tuning (optional, expensive)
     # ------------------------------------------------------------------
 
