@@ -11,6 +11,7 @@ from __future__ import annotations
 import itertools
 import logging
 import math
+from pathlib import Path
 from typing import Optional
 
 import numpy as np
@@ -35,7 +36,16 @@ from .default_backend import (
     _merge_app_y,
     _window_labels,
 )
-from .config import BASIC_FC_PARAMETERS, _PARAM_GRIDS
+import yaml
+
+from .config import BASIC_FC_PARAMETERS
+
+_PARAM_GRIDS_PATH = Path(__file__).parents[4] / "configs" / "param_grids.yaml"
+
+
+def _load_param_grids() -> dict:
+    with open(_PARAM_GRIDS_PATH) as f:
+        return yaml.safe_load(f)
 
 logger = logging.getLogger(__name__)
 
@@ -270,7 +280,7 @@ class DefaultTrainer(IMLTrainer):
         """
         clf_name = type(classifier).__name__
         if param_grid is None:
-            param_grid = _PARAM_GRIDS.get(clf_name, {})
+            param_grid = _load_param_grids().get(clf_name, {})
             if not param_grid:
                 logger.warning(
                     "No param grid found for %s - running threshold calibration only.",

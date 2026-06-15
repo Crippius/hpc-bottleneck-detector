@@ -58,32 +58,4 @@ BASIC_FC_PARAMETERS: dict = {
 #     ],
 # }
 
-# ---------------------------------------------------------------------------
-# Per-classifier hyperparameter grids for DefaultTrainer.tune()
-# ---------------------------------------------------------------------------
-
-_PARAM_GRIDS: dict[str, dict] = {
-    "RandomForestClassifier": {
-        "n_estimators": [100, 200, 300],
-        "max_depth": [None, 10, 20],
-        "min_samples_leaf": [1, 2, 5],
-        "class_weight": ["balanced", "balanced_subsample"],
-    },
-    "DecisionTreeClassifier": {
-        "max_depth": [None, 5, 10, 20],
-        "min_samples_leaf": [1, 2, 5],
-        "class_weight": ["balanced"],
-        "criterion": ["gini", "entropy"],
-    },
-    "XGBClassifier": {
-        "n_estimators": [100, 200, 300],
-        "max_depth": [3, 5, 8],
-        "learning_rate": [0.05, 0.1, 0.2],
-        "scale_pos_weight": [1, 5, 10],
-    },
-    "AdaBoostClassifier": {
-        "n_estimators": [50, 100, 200],
-        "learning_rate": [0.5, 1.0, 1.5],
-    },
-}
 
