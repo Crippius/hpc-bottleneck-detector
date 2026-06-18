@@ -85,14 +85,7 @@ def _fill_metric_nans(df: pd.DataFrame) -> pd.DataFrame:
     if not metric_cols:
         return df
     df = df.copy()
-    if "id" in df.columns:
-        df[metric_cols] = (
-            df.groupby("id", sort=False)[metric_cols]
-            .transform(lambda s: s.ffill().bfill())
-            .fillna(0.0)
-        )
-    else:
-        df[metric_cols] = df[metric_cols].ffill().bfill().fillna(0.0)
+    df[metric_cols] = df[metric_cols].ffill().bfill().fillna(0.0)
     return df
 
 
@@ -109,6 +102,8 @@ class AMLLibraryBackend(IMLBackend):
 
     def __init__(self) -> None:
         self._regressors: dict[str, object] = {}
+        self._window_size: int = 12
+        self._thresholds: dict[str, float] = {}
 
     def predict_probabilities(self, window_df: pd.DataFrame) -> dict[str, float]:
         """
@@ -141,7 +136,7 @@ class AMLLibraryBackend(IMLBackend):
         """Serialize all trained MTSRegressors to *path* (.pkl)."""
         out = Path(path)
         out.parent.mkdir(parents=True, exist_ok=True)
-        joblib.dump(self._regressors, out)
+        joblib.dump({"regressors": self._regressors, "window_size": self._window_size, "thresholds": self._thresholds}, out)
         logger.info(
             "AMLLibraryBackend saved to %s (%d regressors).", out, len(self._regressors)
         )
@@ -155,7 +150,13 @@ class AMLLibraryBackend(IMLBackend):
         """
         _ensure_aml_on_path()
         backend = cls()
-        backend._regressors = joblib.load(path)
+        data = joblib.load(path)
+        if isinstance(data, dict) and "regressors" in data:
+            backend._regressors = data["regressors"]
+            backend._window_size = data.get("window_size", 12)
+            backend._thresholds = data.get("thresholds", {})
+        else:
+            backend._regressors = data
         logger.info(
             "AMLLibraryBackend loaded from %s (%d regressors).",
             path, len(backend._regressors),

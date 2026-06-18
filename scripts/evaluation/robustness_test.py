@@ -178,40 +178,18 @@ def _plot_sweep(
     fracs = sorted(sweep_data.keys())
     pct = [f * 100 for f in fracs]
 
-    fig, axes = plt.subplots(1, 2, figsize=(14, 5))
+    fig, ax = plt.subplots(figsize=(7, 5))
 
-    # Left: overall stability with ±1 std band
-    ax = axes[0]
     means = [sweep_data[f]["overall_mean"] for f in fracs]
     stds  = [sweep_data[f]["overall_std"]  for f in fracs]
-    ax.plot(pct, means, "o-", color="steelblue", linewidth=2, label="Overall")
+    ax.plot(pct, means, "o-", color="steelblue", linewidth=2)
     ax.fill_between(pct,
                     [m - s for m, s in zip(means, stds)],
                     [m + s for m, s in zip(means, stds)],
                     alpha=0.25, color="steelblue")
     ax.set_xlabel("Metrics removed (%)")
     ax.set_ylabel("Prediction stability")
-    ax.set_title("Overall stability (all classes agree)")
     ax.set_ylim(0, 1.05)
-    ax.grid(True, alpha=0.3)
-
-    # Right: per-class stability (mean only, cleaner)
-    ax = axes[1]
-    colors = plt.cm.tab10.colors
-    for i, bt in enumerate(bt_cols):
-        means = [sweep_data[f]["per_class_mean"].get(bt, float("nan")) for f in fracs]
-        stds  = [sweep_data[f]["per_class_std"].get(bt, float("nan"))  for f in fracs]
-        label = bt.replace("_", " ").title()
-        ax.plot(pct, means, "o-", color=colors[i % len(colors)], linewidth=2, label=label)
-        ax.fill_between(pct,
-                        [m - s for m, s in zip(means, stds)],
-                        [m + s for m, s in zip(means, stds)],
-                        alpha=0.15, color=colors[i % len(colors)])
-    ax.set_xlabel("Metrics removed (%)")
-    ax.set_ylabel("Prediction stability")
-    ax.set_title("Per-class stability")
-    ax.set_ylim(0, 1.05)
-    ax.legend(fontsize=8, loc="lower left")
     ax.grid(True, alpha=0.3)
 
     classifier = args.classifier

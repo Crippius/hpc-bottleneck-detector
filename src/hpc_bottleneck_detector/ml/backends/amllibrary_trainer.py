@@ -47,7 +47,7 @@ def _train_one(
     config: dict = {
         "General": {
             "run_num": 1,
-            "techniques": _TECHNIQUES,
+            "techniques": list(_TECHNIQUES),
             "hp_selection": "All",
             "validation": "HoldOut",
             "hold_out_ratio": 0.2,
@@ -136,6 +136,7 @@ class AMLLibraryTrainer(IMLTrainer):
             finally:
                 shutil.rmtree(tmp_root, ignore_errors=True)
 
+        backend._window_size = window_size
         if not backend._regressors:
             raise RuntimeError(
                 "No regressors were trained. "

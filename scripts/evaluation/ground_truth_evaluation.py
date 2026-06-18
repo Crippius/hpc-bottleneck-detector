@@ -13,6 +13,14 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "src"))
 
 from hpc_bottleneck_detector.ml.backends.default_backend import DefaultBackend
+from hpc_bottleneck_detector.ml.backends.amllibrary_backend import AMLLibraryBackend
+
+
+def _load_backend(path: str):
+    try:
+        return DefaultBackend.load(path)
+    except Exception:
+        return AMLLibraryBackend.load(path)
 
 FAULT_TO_EXPECTED = {
     "cpuoccupy": "COMPUTE_UNDERUTILIZATION",
@@ -64,7 +72,7 @@ def parse_timings(path: str) -> tuple[int, list[dict]]:
 def main() -> None:
     args = parse_args()
 
-    backend = DefaultBackend.load(str(ROOT / "models" / f"{args.model}.pkl"))
+    backend = _load_backend(str(ROOT / "models" / f"{args.model}.pkl"))
     window_size = backend._window_size
 
     metrics = pd.read_csv(args.metrics)
@@ -73,7 +81,7 @@ def main() -> None:
     summary_rows = []
     for fault in faults:
         rel_start = fault["start_ts"] - job_start_ts
-        window_start = round((rel_start + 10) / 5) * 5
+        window_start = round((rel_start + 30) / 5) * 5
         window_df = metrics[metrics["time"] >= window_start].head(window_size).copy()
         window_df["id"] = f"{fault['fault']}_w0"
 

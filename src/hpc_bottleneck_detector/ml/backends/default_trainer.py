@@ -238,8 +238,9 @@ class DefaultTrainer(IMLTrainer):
         gkf = GroupKFold(n_splits=n_folds)
         indices = np.arange(len(app_features))
         thr_lists: dict[str, list[float]] = {col: [] for col in _LABEL_COLS}
+        f1_lists: dict[str, list[float]] = {col: [] for col in _LABEL_COLS}
 
-        for tr_idx, va_idx in gkf.split(indices, groups=indices):
+        for fold_num, (tr_idx, va_idx) in enumerate(gkf.split(indices, groups=indices), 1):
             X_tr = pd.concat([app_features[i][0] for i in tr_idx]).fillna(0.0)
             y_tr = _merge_app_y([app_features[i][1] for i in tr_idx])
             X_va = pd.concat([app_features[i][0] for i in va_idx]).fillna(0.0)
@@ -247,10 +248,34 @@ class DefaultTrainer(IMLTrainer):
 
             fold_backend = self.from_preextracted_features(X_tr, y_tr)
             fold_backend.calibrate_thresholds(X_va, y_va)
+
+            fold_f1s: list[float] = []
             for col in _LABEL_COLS:
                 thr = fold_backend._thresholds.get(col)
                 if thr is not None:
                     thr_lists[col].append(thr)
+                if col not in fold_backend._models or col not in y_va:
+                    continue
+                y_true = y_va[col].values
+                X_aligned = X_va.reindex(
+                    index=y_va[col].index,
+                    columns=fold_backend._feature_cols[col],
+                    fill_value=0.0,
+                )
+                probs = fold_backend._models[col].predict_proba(X_aligned)[:, 1]
+                f1 = _f1_score(y_true, (probs >= (thr or 0.5)).astype(int))
+                if not math.isnan(f1):
+                    f1_lists[col].append(f1)
+                    fold_f1s.append(f1)
+
+            if fold_f1s:
+                logger.info("  Fold %d macro-F1: %.4f", fold_num, float(np.mean(fold_f1s)))
+
+        per_type = {col: float(np.nanmean(v)) for col, v in f1_lists.items() if v}
+        if per_type:
+            overall = float(np.nanmean(list(per_type.values())))
+            logger.info("CV macro-F1 per type: %s", {k: f"{v:.4f}" for k, v in per_type.items()})
+            logger.info("CV macro-F1 (mean over types): %.4f", overall)
 
         return {
             col: float(np.nanmean(v)) if v else default_threshold
