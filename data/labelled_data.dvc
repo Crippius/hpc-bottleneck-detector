@@ -1,6 +1,6 @@
 outs:
-- md5: 9b60664ae3716c61c4a33c6a59885657.dir
-  size: 10931735
-  nfiles: 29
+- md5: 1da6b96ca18e98ae8e41e30edf8d7aaa.dir
+  size: 11135538
+  nfiles: 30
   hash: md5
   path: labelled_data
