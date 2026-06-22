@@ -22,6 +22,7 @@ from sklearn.exceptions import UndefinedMetricWarning
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 
+from hpc_bottleneck_detector.ml.backends.config import build_classifier
 from hpc_bottleneck_detector.ml.backends.default_backend import (
     _LABEL_COLS,
     _NON_METRIC_COLS,
@@ -32,13 +33,6 @@ from hpc_bottleneck_detector.ml.backends.default_backend import (
 )
 from hpc_bottleneck_detector.ml.backends.default_trainer import DefaultTrainer
 
-
-def _build_classifier(name: str):
-    if name == "rf":
-        from sklearn.ensemble import RandomForestClassifier
-        return RandomForestClassifier(n_estimators=200, class_weight="balanced", random_state=42, n_jobs=-1)
-    from xgboost import XGBClassifier
-    return XGBClassifier(n_estimators=200, max_depth=5, learning_rate=0.1, scale_pos_weight=10, random_state=42, n_jobs=-1, eval_metric="logloss")
 
 warnings.filterwarnings("ignore", category=UndefinedMetricWarning)
 
@@ -176,6 +170,8 @@ def run_loo(
     step_size: int,
     severity_threshold: float,
     prob_threshold: float,
+    classifier: str = "xgboost",
+    classifier_config: str | None = None,
     calibrate: bool = False,
     n_splits: int = 5,
 ) -> pd.DataFrame:
@@ -183,7 +179,7 @@ def run_loo(
     Execute the full Leave-One-Out rotation and return a DataFrame of per-fold
     per-BottleneckType metrics.
     """
-    trainer = DefaultTrainer(classifier=_build_classifier(args.classifier))
+    trainer = DefaultTrainer(classifier=build_classifier(classifier, classifier_config))
     records: list[dict] = []
     n = len(csv_paths)
 
@@ -333,6 +329,8 @@ def _parse_args() -> argparse.Namespace:
                    help="Optional path to save per-fold results as CSV.")
     p.add_argument("--classifier", choices=["xgboost", "rf"], default="xgboost",
                    help="Classifier to use: 'xgboost' (default) or 'rf'.")
+    p.add_argument("--classifier-config", type=str, default=None, dest="classifier_config",
+                   help="Path to YAML file with classifier hyperparameters to override defaults.")
     p.add_argument("--calibrate", action="store_true",
                    help="Run GroupKFold CV within each fold to calibrate per-class thresholds.")
     p.add_argument("--n-splits", type=int, default=5, dest="n_splits",
@@ -356,6 +354,8 @@ if __name__ == "__main__":
         step_size          = args.step_size,
         severity_threshold = args.severity_threshold,
         prob_threshold     = args.prob_threshold,
+        classifier         = args.classifier,
+        classifier_config  = args.classifier_config,
         calibrate          = args.calibrate,
         n_splits           = args.n_splits,
     )

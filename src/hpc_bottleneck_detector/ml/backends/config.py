@@ -2,6 +2,30 @@
 Backend configuration constants
 """
 
+from __future__ import annotations
+from pathlib import Path
+
+_CONFIGS_DIR = Path(__file__).parents[4] / "configs" / "classifiers"
+
+_CLASSIFIER_FIXED_PARAMS = {
+    "rf":      dict(random_state=42, n_jobs=-1),
+    "xgboost": dict(random_state=42, n_jobs=-1, eval_metric="logloss"),
+}
+
+
+def build_classifier(name: str, config_path: str | Path | None = None):
+    import yaml
+    if config_path is None:
+        config_path = _CONFIGS_DIR / f"{'rf' if name == 'rf' else 'xgboost'}_default.yaml"
+    with open(config_path) as f:
+        params = yaml.safe_load(f)
+    params.update(_CLASSIFIER_FIXED_PARAMS[name])
+    if name == "rf":
+        from sklearn.ensemble import RandomForestClassifier
+        return RandomForestClassifier(**params)
+    from xgboost import XGBClassifier
+    return XGBClassifier(**params)
+
 # ---------------------------------------------------------------------------
 # tsfresh feature-extraction parameter sets
 # ---------------------------------------------------------------------------

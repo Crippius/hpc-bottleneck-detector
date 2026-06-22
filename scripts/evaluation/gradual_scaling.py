@@ -27,13 +27,12 @@ import math
 
 import numpy as np
 import pandas as pd
-from sklearn.ensemble import RandomForestClassifier
-from xgboost import XGBClassifier
 from sklearn.exceptions import UndefinedMetricWarning
 from sklearn.model_selection import GroupKFold
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 
+from hpc_bottleneck_detector.ml.backends.config import build_classifier
 from hpc_bottleneck_detector.ml.backends.default_backend import (
     _LABEL_COLS,
     _NON_METRIC_COLS,
@@ -59,12 +58,6 @@ logger = logging.getLogger(__name__)
 
 REPO_ROOT  = Path(__file__).parent.parent.parent
 TRAIN_DIR  = REPO_ROOT / "data" / "labelled_data" / "training_set"
-TEST_DIR   = REPO_ROOT / "data" / "labelled_data" / "demo"
-
-def _build_classifier(name: str):
-    if name == "rf":
-        return RandomForestClassifier(n_estimators=200, class_weight="balanced", random_state=42, n_jobs=-1)
-    return XGBClassifier(n_estimators=200, max_depth=5, learning_rate=0.1, scale_pos_weight=10, random_state=42, n_jobs=-1, eval_metric="logloss")
 
 _BT_SHORT: dict[str, str] = {
     "PIPELINE_STALL":            "Pipeline Stall",
@@ -468,6 +461,10 @@ def _parse_args() -> argparse.Namespace:
         "--seed", type=int, default=42,
         help="Random seed for holdout selection and combo sampling (default: 42).",
     )
+    p.add_argument(
+        "--classifier-config", type=str, default=None, dest="classifier_config",
+        help="Path to YAML file with classifier hyperparameters to override defaults.",
+    )
     return p.parse_args()
 
 
@@ -512,7 +509,7 @@ if __name__ == "__main__":
         print(f"{X_app.shape[0]} windows")
 
     # --- Optional joint CV hyperparam + threshold tuning ---
-    classifier = _build_classifier(args.classifier)
+    classifier = build_classifier(args.classifier, args.classifier_config)
     if args.tune_hyperparams:
         print(f"\n[INFO] Running joint CV tuning (n_iter={args.n_iter}) ...")
         classifier, _ = DefaultTrainer.tune(

@@ -32,9 +32,7 @@ from hpc_bottleneck_detector.ml.feature_extraction import (
     find_labelled_csvs,
 )
 
-# _build_classifier lives in gradual_scaling.py (safe to import; has __main__ guard)
-sys.path.insert(0, str(Path(__file__).parent.parent / "evaluation"))
-from gradual_scaling import _build_classifier
+from hpc_bottleneck_detector.ml.backends.config import build_classifier as _build_classifier
 
 warnings.filterwarnings("ignore", category=UndefinedMetricWarning)
 

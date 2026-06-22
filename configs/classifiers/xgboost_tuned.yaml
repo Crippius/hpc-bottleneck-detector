@@ -1,0 +1,4 @@
+n_estimators: 100
+max_depth: 3
+learning_rate: 0.1
+scale_pos_weight: 10

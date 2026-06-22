@@ -32,6 +32,7 @@ from sklearn.model_selection import train_test_split
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 
+from hpc_bottleneck_detector.ml.backends.config import build_classifier
 from hpc_bottleneck_detector.ml.backends.default_backend import (
     _build_window_dataframe,
     _window_labels,
@@ -45,13 +46,6 @@ from hpc_bottleneck_detector.ml.backends.default_backend import (
 from hpc_bottleneck_detector.ml.backends.default_trainer import DefaultTrainer
 from tsfresh import extract_features
 from tsfresh.utilities.dataframe_functions import impute
-
-def _build_classifier(name: str):
-    if name == "rf":
-        from sklearn.ensemble import RandomForestClassifier
-        return RandomForestClassifier(n_estimators=200, class_weight="balanced", random_state=42, n_jobs=-1)
-    from xgboost import XGBClassifier
-    return XGBClassifier(n_estimators=200, max_depth=5, learning_rate=0.1, scale_pos_weight=10, random_state=42, n_jobs=-1, eval_metric="logloss")
 
 logging.basicConfig(
     level=logging.INFO,
@@ -85,6 +79,8 @@ def _parse_args() -> argparse.Namespace:
         help="GroupKFold splits for threshold calibration (default: 5).")
     parser.add_argument("--classifier", choices=["xgboost", "rf"], default="xgboost",
         help="Classifier to use: 'xgboost' (default) or 'rf' (RandomForest).")
+    parser.add_argument("--classifier-config", type=str, default=None, dest="classifier_config",
+        help="Path to YAML file with classifier hyperparameters to override defaults.")
     return parser.parse_args()
 
 
@@ -187,7 +183,7 @@ def main() -> None:
     logger.info("Train: %d CSVs, Test: %d CSVs", len(train_paths), len(test_paths))
 
     # --- Train -------------------------------------------------------------------------------------------------
-    trainer = DefaultTrainer(classifier=_build_classifier(args.classifier))
+    trainer = DefaultTrainer(classifier=build_classifier(args.classifier, args.classifier_config))
 
     if args.calibrate:
         # --- Per-app feature extraction -------------------------------------------------------------

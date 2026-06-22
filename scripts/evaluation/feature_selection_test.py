@@ -31,6 +31,7 @@ from sklearn.model_selection import KFold
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 
+from hpc_bottleneck_detector.ml.backends.config import build_classifier
 from hpc_bottleneck_detector.ml.backends.default_backend import (
     _LABEL_COLS,
     _NON_METRIC_COLS,
@@ -64,19 +65,6 @@ VARIANTS: list[tuple[str, bool, bool]] = [
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
-
-def _build_classifier(name: str):
-    if name == "rf":
-        from sklearn.ensemble import RandomForestClassifier
-        return RandomForestClassifier(
-            n_estimators=200, class_weight="balanced", random_state=42, n_jobs=-1
-        )
-    from xgboost import XGBClassifier
-    return XGBClassifier(
-        n_estimators=200, max_depth=5, learning_rate=0.1,
-        scale_pos_weight=10, random_state=42, n_jobs=-1, eval_metric="logloss",
-    )
-
 
 def _find_labelled_csvs(data_dir: Path) -> list[Path]:
     paths = sorted(data_dir.rglob("*.csv"))
@@ -173,6 +161,7 @@ def run(
     severity_threshold: float,
     n_outer_splits: int,
     n_inner_splits: int,
+    classifier_config: str | None = None,
 ) -> pd.DataFrame:
     print(f"[INFO] Pre-extracting features for {len(csv_paths)} apps...")
     all_app_features: list[tuple[pd.DataFrame, dict[str, pd.Series]]] = []
@@ -183,7 +172,7 @@ def run(
 
     n_apps = len(all_app_features)
     n_total_features = all_app_features[0][0].shape[1]
-    base_clf = _build_classifier(classifier_name)
+    base_clf = build_classifier(classifier_name, classifier_config)
 
     outer_kfold = KFold(n_splits=n_outer_splits, shuffle=True, random_state=42)
     records: list[dict] = []
@@ -358,6 +347,10 @@ def _parse_args() -> argparse.Namespace:
         "--output-csv", type=str, default=None, dest="output_csv",
         help="Optional path to save per-fold/per-type results as CSV.",
     )
+    p.add_argument(
+        "--classifier-config", type=str, default=None, dest="classifier_config",
+        help="Path to YAML file with classifier hyperparameters to override defaults.",
+    )
     return p.parse_args()
 
 
@@ -382,6 +375,7 @@ if __name__ == "__main__":
         severity_threshold=args.severity_threshold,
         n_outer_splits=args.n_outer_splits,
         n_inner_splits=args.n_inner_splits,
+        classifier_config=args.classifier_config,
     )
 
     if results.empty:
