@@ -19,6 +19,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 from sklearn.exceptions import UndefinedMetricWarning
+from sklearn.metrics import roc_auc_score, average_precision_score, matthews_corrcoef
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 
@@ -148,12 +149,30 @@ def _metrics_from_arrays(
     false_alarm_rate = fp / (fp + tn) if (fp + tn) > 0 else float("nan")
     miss_rate        = fn / (fn + tp) if (fn + tp) > 0 else float("nan")
 
+    mcc = matthews_corrcoef(y_true, y_pred) if len(set(y_true)) > 1 and len(set(y_pred)) > 1 else float("nan")
+
     return {
         "tp": tp, "fp": fp, "fn": fn, "tn": tn,
         "f1": f1,
         "false_alarm_rate": false_alarm_rate,
         "miss_rate": miss_rate,
+        "mcc": mcc,
     }
+
+
+def _score_metrics(y_true: np.ndarray, scores: np.ndarray) -> dict[str, float]:
+    """Compute threshold-free metrics from continuous probability/severity scores."""
+    if len(set(y_true)) < 2:
+        return {"roc_auc": float("nan"), "pr_auc": float("nan")}
+    try:
+        roc = float(roc_auc_score(y_true, scores))
+    except Exception:
+        roc = float("nan")
+    try:
+        pr = float(average_precision_score(y_true, scores))
+    except Exception:
+        pr = float("nan")
+    return {"roc_auc": roc, "pr_auc": pr}
 
 
 # ---------------------------------------------------------------------------
@@ -174,6 +193,7 @@ def run_loo(
     classifier_config: str | None = None,
     calibrate: bool = False,
     n_splits: int = 5,
+    save_scores_path: str | None = None,
 ) -> pd.DataFrame:
     """
     Execute the full Leave-One-Out rotation and return a DataFrame of per-fold
@@ -181,6 +201,7 @@ def run_loo(
     """
     trainer = DefaultTrainer(classifier=build_classifier(classifier, classifier_config))
     records: list[dict] = []
+    score_records: list[dict] = []
     n = len(csv_paths)
 
     # Pre-extract features once per app
@@ -238,8 +259,16 @@ def run_loo(
             n_features = len(feature_cols)
 
             m = _metrics_from_arrays(y_true, y_pred)
+            sm = _score_metrics(y_true, probs)
             n_pos  = int(y_true.sum())
             n_neg  = int((y_true == 0).sum())
+
+            if save_scores_path:
+                for yt, sc in zip(y_true, probs):
+                    score_records.append({
+                        "fold": fold_idx + 1, "app": app_name,
+                        "bottleneck_type": col, "y_true": int(yt), "score": float(sc),
+                    })
 
             print(
                 f"    {col:<42}  "
@@ -257,7 +286,151 @@ def run_loo(
                 "n_negative":      n_neg,
                 "n_features":      n_features,
                 **m,
+                **sm,
             })
+
+    if save_scores_path and score_records:
+        scores_df = pd.DataFrame(score_records)
+        out = Path(save_scores_path)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        scores_df.to_parquet(out, index=False)
+        print(f"[INFO] Raw scores saved to: {out}")
+
+    return pd.DataFrame(records)
+
+
+# ---------------------------------------------------------------------------
+# LOO driver — AMLLibrary backend
+# ---------------------------------------------------------------------------
+
+def run_loo_amllibrary(
+    csv_paths: list[Path],
+    window_size: int,
+    step_size: int,
+    severity_threshold: float,
+    prob_threshold: float,
+    calibrate: bool = False,
+    n_splits: int = 5,
+    save_scores_path: str | None = None,
+) -> pd.DataFrame:
+    """LOO CV for AMLLibraryBackend — trains from raw CSVs each fold."""
+    from hpc_bottleneck_detector.ml.backends.amllibrary_trainer import AMLLibraryTrainer
+    from hpc_bottleneck_detector.ml.backends.amllibrary_backend import (
+        _ensure_aml_on_path,
+        _fill_metric_nans as _aml_fill_nans,
+        _EXCLUDE_COLS as _AML_EXCLUDE_COLS,
+        _EXCLUDE_PREFIXES as _AML_EXCLUDE_PREFIXES,
+    )
+
+    _ensure_aml_on_path()
+    trainer = AMLLibraryTrainer()
+    records: list[dict] = []
+    score_records: list[dict] = []
+    n = len(csv_paths)
+
+    for fold_idx, test_csv in enumerate(csv_paths):
+        app_name = test_csv.stem.replace("_labelled", "")
+        train_paths = [str(p) for i, p in enumerate(csv_paths) if i != fold_idx]
+
+        print(f"\n{'='*70}")
+        print(f"  Fold {fold_idx + 1}/{n}  |  held-out application: {app_name}")
+        print(f"{'='*70}")
+
+        backend = trainer.train(train_paths, window_size, step_size, severity_threshold)
+
+        if not backend._regressors:
+            logger.warning("  No regressors trained for fold %d - skipping.", fold_idx + 1)
+            continue
+
+        if calibrate:
+            thresholds = trainer.calibrate_thresholds_cv(
+                backend, train_paths, window_size, step_size,
+                severity_threshold, n_splits, prob_threshold,
+            )
+        else:
+            thresholds = {col: prob_threshold for col in _LABEL_COLS}
+
+        # Evaluate on held-out app
+        df_test = pd.read_csv(test_csv)
+        metric_cols = [
+            c for c in df_test.columns
+            if c not in (set(_LABEL_COLS) | {"id", "time"})
+            and not any(c.startswith(pfx) for pfx in _AML_EXCLUDE_PREFIXES)
+            and c not in _AML_EXCLUDE_COLS
+        ]
+        n_feat = len(metric_cols) * 20  # 20 stats per metric column after expansion
+
+        print(f"\n  Evaluating on {test_csv.name} ...")
+        for col, reg in backend._regressors.items():
+            if col not in df_test.columns:
+                continue
+
+            all_preds: list[float] = []
+            all_labels: list[int] = []
+
+            for _, job_df in df_test.groupby("id"):
+                job_df = job_df.sort_values("time").reset_index(drop=True)
+                if len(job_df) < window_size:
+                    continue
+                job_metrics = _aml_fill_nans(job_df[metric_cols].copy())
+                job_with_label = job_metrics.copy()
+                job_with_label[col] = job_df[col].values
+                try:
+                    preds = np.asarray(reg.predict(job_metrics)).flatten()
+                    labels = np.asarray(reg.get_true_y(job_with_label)).flatten()
+                    binary = (labels > severity_threshold).astype(int)
+                    n_w = min(len(preds), len(binary))
+                    if n_w > 0:
+                        all_preds.extend(preds[:n_w].tolist())
+                        all_labels.extend(binary[:n_w].tolist())
+                except Exception as exc:
+                    logger.warning("Inference failed for %s/%s: %s", col, app_name, exc)
+
+            if not all_preds:
+                continue
+
+            y_true = np.array(all_labels)
+            probs = np.clip(np.array(all_preds), 0.0, 1.0)
+            thr = thresholds.get(col, prob_threshold)
+            y_pred = (probs >= thr).astype(int)
+
+            m = _metrics_from_arrays(y_true, y_pred)
+            sm = _score_metrics(y_true, probs)
+            n_pos = int(y_true.sum())
+            n_neg = int((y_true == 0).sum())
+
+            print(
+                f"    {col:<42}  "
+                f"pos={n_pos:>4}  neg={n_neg:>4}  "
+                f"F1={m['f1']:.3f}  FAR={m['false_alarm_rate']:.3f}  "
+                f"MR={m['miss_rate']:.3f}"
+            )
+
+            if save_scores_path:
+                for yt, sc in zip(y_true, probs):
+                    score_records.append({
+                        "fold": fold_idx + 1, "app": app_name,
+                        "bottleneck_type": col, "y_true": int(yt), "score": float(sc),
+                    })
+
+            records.append({
+                "fold":            fold_idx + 1,
+                "app":             app_name,
+                "bottleneck_type": col,
+                "n_windows":       len(y_true),
+                "n_positive":      n_pos,
+                "n_negative":      n_neg,
+                "n_features":      n_feat,
+                **m,
+                **sm,
+            })
+
+    if save_scores_path and score_records:
+        scores_df = pd.DataFrame(score_records)
+        out = Path(save_scores_path)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        scores_df.to_parquet(out, index=False)
+        print(f"[INFO] Raw scores saved to: {out}")
 
     return pd.DataFrame(records)
 
@@ -278,21 +451,26 @@ def _print_summary(results: pd.DataFrame) -> None:
     print(f"  Folds completed             : {results['fold'].nunique()}")
     print(f"  Total foldxtype evaluations : {len(results)}")
 
+    score_cols = [c for c in ["roc_auc", "pr_auc", "mcc"] if c in results.columns]
+    metric_cols_agg = ["f1", "false_alarm_rate", "miss_rate", "n_features"] + score_cols
     agg = (
         results
-        .groupby("bottleneck_type")[["f1", "false_alarm_rate", "miss_rate", "n_features"]]
+        .groupby("bottleneck_type")[metric_cols_agg]
         .agg(lambda s: s.dropna().mean() if s.dropna().size > 0 else float("nan"))
     )
 
-    print(f"\n  {'Bottleneck Type':<42}  {'Avg F1':>7}  {'Avg FAR':>8}  {'Avg Miss':>9}  {'Avg Feat':>9}")
-    print("  " + "-" * 83)
+    hdr_extra = "".join(f"  {c.upper():>9}" for c in score_cols)
+    print(f"\n  {'Bottleneck Type':<42}  {'Avg F1':>7}  {'Avg FAR':>8}  {'Avg Miss':>9}  {'Avg Feat':>9}{hdr_extra}")
+    print("  " + "-" * (83 + 11 * len(score_cols)))
     for bt_name, row in agg.iterrows():
+        extra = "".join(f"  {row[c]:>9.4f}" for c in score_cols)
         print(
             f"  {bt_name:<42}  "
             f"{row['f1']:>7.4f}  "
             f"{row['false_alarm_rate']:>8.4f}  "
             f"{row['miss_rate']:>9.4f}  "
             f"{row['n_features']:>9.1f}"
+            f"{extra}"
         )
 
     # Grand (macro) average across all bottleneck types
@@ -300,13 +478,15 @@ def _print_summary(results: pd.DataFrame) -> None:
     grand_far  = agg["false_alarm_rate"].dropna().mean()
     grand_mr   = agg["miss_rate"].dropna().mean()
     grand_feat = agg["n_features"].dropna().mean()
-    print("  " + "-" * 83)
+    grand_extra = "".join(f"  {agg[c].dropna().mean():>9.4f}" for c in score_cols)
+    print("  " + "-" * (83 + 11 * len(score_cols)))
     print(
         f"  {'MACRO AVERAGE':<42}  "
         f"{grand_f1:>7.4f}  "
         f"{grand_far:>8.4f}  "
         f"{grand_mr:>9.4f}  "
         f"{grand_feat:>9.1f}"
+        f"{grand_extra}"
     )
     print()
 
@@ -335,6 +515,10 @@ def _parse_args() -> argparse.Namespace:
                    help="Run GroupKFold CV within each fold to calibrate per-class thresholds.")
     p.add_argument("--n-splits", type=int, default=5, dest="n_splits",
                    help="GroupKFold splits for threshold calibration (default: 5).")
+    p.add_argument("--backend", choices=["default", "amllibrary"], default="default",
+                   help="ML backend to evaluate: 'default' (tsfresh+sklearn) or 'amllibrary' (default: default).")
+    p.add_argument("--save-scores", default=None, dest="save_scores",
+                   help="Optional path (.parquet) to save per-window (y_true, score) for calibration analysis.")
     return p.parse_args()
 
 
@@ -348,17 +532,30 @@ if __name__ == "__main__":
     csv_paths = _find_labelled_csvs(DATA_DIR)
     print(f"[INFO] Found {len(csv_paths)} labelled CSV(s) - running {len(csv_paths)}-fold LOO CV")
 
-    results = run_loo(
-        csv_paths          = csv_paths,
-        window_size        = args.window_size,
-        step_size          = args.step_size,
-        severity_threshold = args.severity_threshold,
-        prob_threshold     = args.prob_threshold,
-        classifier         = args.classifier,
-        classifier_config  = args.classifier_config,
-        calibrate          = args.calibrate,
-        n_splits           = args.n_splits,
-    )
+    if args.backend == "amllibrary":
+        results = run_loo_amllibrary(
+            csv_paths          = csv_paths,
+            window_size        = args.window_size,
+            step_size          = args.step_size,
+            severity_threshold = args.severity_threshold,
+            prob_threshold     = args.prob_threshold,
+            calibrate          = args.calibrate,
+            n_splits           = args.n_splits,
+            save_scores_path   = args.save_scores,
+        )
+    else:
+        results = run_loo(
+            csv_paths          = csv_paths,
+            window_size        = args.window_size,
+            step_size          = args.step_size,
+            severity_threshold = args.severity_threshold,
+            prob_threshold     = args.prob_threshold,
+            classifier         = args.classifier,
+            classifier_config  = args.classifier_config,
+            calibrate          = args.calibrate,
+            n_splits           = args.n_splits,
+            save_scores_path   = args.save_scores,
+        )
 
     if results.empty:
         print("[ERROR] No results collected - check that CSVs contain valid labels.")

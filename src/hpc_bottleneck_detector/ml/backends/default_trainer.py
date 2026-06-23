@@ -11,6 +11,7 @@ from __future__ import annotations
 import itertools
 import logging
 import math
+import time
 from pathlib import Path
 from typing import Optional
 
@@ -100,6 +101,8 @@ class DefaultTrainer(IMLTrainer):
         from tsfresh.utilities.dataframe_functions import impute
         from sklearn.feature_selection import SelectKBest, f_classif
 
+        t_total_start = time.perf_counter()
+
         all_fragments: list[pd.DataFrame] = []
         all_window_ids: list[str] = []
         all_labels: dict[str, list[Optional[float]]] = {col: [] for col in _LABEL_COLS}
@@ -134,6 +137,7 @@ class DefaultTrainer(IMLTrainer):
         tsfresh_df = _fill_metric_nans(pd.concat(all_fragments, ignore_index=True))
 
         logger.info("Extracting tsfresh features for %d windows...", len(all_window_ids))
+        t_extract_start = time.perf_counter()
         X_full = extract_features(
             tsfresh_df,
             column_id="id",
@@ -143,9 +147,11 @@ class DefaultTrainer(IMLTrainer):
             disable_progressbar=False,
         )
         X_full = X_full.reindex(all_window_ids)
+        t_extract_elapsed = time.perf_counter() - t_extract_start
 
         backend = DefaultBackend()
         backend._window_size = window_size
+        per_type_times: dict[str, float] = {}
 
         for col in _LABEL_COLS:
             y = pd.Series(all_labels[col], index=all_window_ids, dtype=float)
@@ -164,6 +170,7 @@ class DefaultTrainer(IMLTrainer):
                 logger.warning("  Skipping %s - only one class present.", col)
                 continue
 
+            t_type_start = time.perf_counter()
             X_selected = self._select_features(X_clean, y_clean, col, SelectKBest, f_classif)
             if X_selected is None or X_selected.shape[1] == 0:
                 continue
@@ -172,6 +179,7 @@ class DefaultTrainer(IMLTrainer):
             clf = clone(self._classifier)
             clf.fit(X_selected, y_clean)
             backend._models[col] = clf
+            per_type_times[col] = time.perf_counter() - t_type_start
             logger.info(
                 "  Trained %s for %s (%d features).",
                 type(clf).__name__, col, X_selected.shape[1],
@@ -183,6 +191,12 @@ class DefaultTrainer(IMLTrainer):
                 "Check that the labelled CSVs contain at least two classes for "
                 "at least one BottleneckType."
             )
+        backend._training_meta = {
+            "total_training_time_s": time.perf_counter() - t_total_start,
+            "feature_extraction_time_s": t_extract_elapsed,
+            "per_type_fit_time_s": per_type_times,
+            "n_windows": len(all_window_ids),
+        }
         return backend
 
     # ------------------------------------------------------------------

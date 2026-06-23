@@ -35,6 +35,14 @@ from hpc_bottleneck_detector.ml.backends.default_backend import (
     EXCLUDE_METRIC_COLS,
     BASIC_FC_PARAMETERS,
 )
+from hpc_bottleneck_detector.ml.backends.amllibrary_backend import (
+    AMLLibraryBackend,
+    _fill_metric_nans as _aml_fill_nans,
+    _EXCLUDE_COLS as _AML_EXCLUDE_COLS,
+    _EXCLUDE_PREFIXES as _AML_EXCLUDE_PREFIXES,
+    _LABEL_COLS as _AML_LABEL_COLS,
+    _ensure_aml_on_path,
+)
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s  %(message)s", datefmt="%H:%M:%S")
 logger = logging.getLogger(__name__)
@@ -317,6 +325,121 @@ def run(args: argparse.Namespace) -> None:
     _plot_sweep(sweep_data, bt_cols, args)
 
 
+# ---------------------------------------------------------------------------
+# AMLLibrary robustness helpers
+# ---------------------------------------------------------------------------
+
+def _aml_metric_cols(df: pd.DataFrame) -> list[str]:
+    return [
+        c for c in df.columns
+        if c not in (set(_AML_LABEL_COLS) | {"id", "time"})
+        and not any(c.startswith(pfx) for pfx in _AML_EXCLUDE_PREFIXES)
+        and c not in _AML_EXCLUDE_COLS
+    ]
+
+
+def _aml_predict_jobs(
+    backend: AMLLibraryBackend,
+    df: pd.DataFrame,
+    metric_cols: list[str],
+    window_size: int,
+) -> pd.DataFrame:
+    """
+    Run all trained regressors on a CSV DataFrame and return per-window binary
+    predictions as a boolean DataFrame (index = sequential window id).
+    """
+    _ensure_aml_on_path()
+    rows: list[dict] = []
+    win_idx = 0
+
+    for _, job_df in df.groupby("id"):
+        job_df = job_df.sort_values("time").reset_index(drop=True)
+        if len(job_df) < window_size:
+            continue
+        job_metrics = _aml_fill_nans(job_df[metric_cols].copy())
+
+        win_preds: dict[str, list] = {}
+        for bt, reg in backend._regressors.items():
+            try:
+                preds = np.asarray(reg.predict(job_metrics)).flatten()
+            except Exception:
+                preds = np.full(max(0, len(job_df) - window_size + 1), np.nan)
+            thr = backend._thresholds.get(bt, 0.5)
+            win_preds[bt] = (np.clip(preds, 0.0, 1.0) >= thr).tolist()
+
+        n_wins = min(len(v) for v in win_preds.values()) if win_preds else 0
+        for i in range(n_wins):
+            rows.append({bt: win_preds[bt][i] for bt in win_preds})
+            win_idx += 1
+
+    return pd.DataFrame(rows) if rows else pd.DataFrame()
+
+
+def run_amllibrary(args: argparse.Namespace) -> None:
+    """Robustness test for AMLLibraryBackend — blanks raw metric columns."""
+    backend = AMLLibraryBackend.load(str(ROOT / args.model))
+    window_size = backend._window_size or args.window_size
+
+    csv_paths = sorted(Path(args.data_dir).rglob("*.csv"))
+    logger.info("Found %d CSVs in %s", len(csv_paths), args.data_dir)
+
+    dfs: list[pd.DataFrame] = []
+    all_metric_cols: list[str] = []
+    for csv_path in csv_paths:
+        df = pd.read_csv(csv_path)
+        if not all_metric_cols:
+            all_metric_cols = _aml_metric_cols(df)
+        dfs.append(df)
+
+    n_metrics = len(all_metric_cols)
+    logger.info("Total metric columns: %d", n_metrics)
+
+    # --- Full-metric baseline ---
+    full_frames: list[pd.DataFrame] = []
+    for df in dfs:
+        mc = _aml_metric_cols(df)
+        fp = _aml_predict_jobs(backend, df, mc, window_size)
+        if not fp.empty:
+            full_frames.append(fp)
+    full_preds = pd.concat(full_frames, ignore_index=True) if full_frames else pd.DataFrame()
+    bt_cols = list(full_preds.columns) if not full_preds.empty else []
+    n_windows = len(full_preds)
+
+    print(f"\n{'='*80}")
+    print(f"  FIXED METRIC-DROP SCENARIOS  (amllibrary, {n_windows} windows)")
+    print(f"  Stability = fraction of windows where prediction is unchanged vs full")
+    print(f"{'='*80}\n")
+
+    col_w = 13
+    print(f"  {'Scenario':<18}  {'Overall':>{col_w}}", end="")
+    for bt in bt_cols:
+        short = bt.replace("_", " ")[:col_w]
+        print(f"  {short:>{col_w}}", end="")
+    print()
+    print("  " + "-" * (18 + (col_w + 2) * (1 + len(bt_cols)) + 2))
+
+    for scenario, patterns in FIXED_SCENARIOS.items():
+        drop_frames: list[pd.DataFrame] = []
+        for df in dfs:
+            mc = _aml_metric_cols(df)
+            df_zeroed = df.copy()
+            blanked = [c for c in mc if any(fnmatch.fnmatch(c, p) for p in patterns)]
+            if blanked:
+                df_zeroed[blanked] = 0.0
+            dp = _aml_predict_jobs(backend, df_zeroed, mc, window_size)
+            if not dp.empty:
+                drop_frames.append(dp)
+        drop_preds = pd.concat(drop_frames, ignore_index=True) if drop_frames else pd.DataFrame()
+
+        overall = _overall_stability(full_preds, drop_preds)
+        per_class = _stability(full_preds, drop_preds)
+        print(f"  {scenario:<18}  {overall:>{col_w}.3f}", end="")
+        for bt in bt_cols:
+            print(f"  {per_class.get(bt, float('nan')):>{col_w}.3f}", end="")
+        n_blanked = len([c for c in all_metric_cols if any(fnmatch.fnmatch(c, p) for p in patterns)])
+        print(f"  ({n_blanked} raw metric cols zeroed)")
+
+
 def main() -> None:
     p = argparse.ArgumentParser()
     p.add_argument("--model", default="models/xgboost.pkl",
@@ -326,8 +449,13 @@ def main() -> None:
     p.add_argument("--data-dir", default=str(DATA_DIR))
     p.add_argument("--window-size", type=int, default=12,
                    help="Fallback window size if not stored in model.")
+    p.add_argument("--backend", choices=["default", "amllibrary"], default="default",
+                   help="ML backend to evaluate (default: default).")
     args = p.parse_args()
-    run(args)
+    if args.backend == "amllibrary":
+        run_amllibrary(args)
+    else:
+        run(args)
 
 
 if __name__ == "__main__":

@@ -31,37 +31,41 @@ _EXCLUDE_COLS: frozenset[str] = frozenset({"INTER_NODE_LOAD_IMBALANCE"})
 _AML_DIR = Path(__file__).parents[4] / "aMLLibrary"
 
 _WINDOW_FEATURES: list = [
-    "mean",
-    "standard_deviation",
+    # Simple stats (matches tsfresh BASIC_FC_PARAMETERS)
     "minimum",
     "maximum",
-    "range",
-    "slope",
+    "mean",
+    "standard_deviation",
+    {"quantile": {"q": 0.05}},
+    {"quantile": {"q": 0.25}},
+    {"quantile": {"q": 0.50}},
+    {"quantile": {"q": 0.75}},
+    {"quantile": {"q": 0.95}},
     "skewness",
     "kurtosis",
-    {"quantile": {"q": 0.25}},
-    {"quantile": {"q": 0.75}},
-    {"autocorrelation": {"f_agg": "mean", "maxlag": 3}},
+    {"autocorrelation": {"f_agg": "mean",   "maxlag": 3}},
+    {"autocorrelation": {"f_agg": "median", "maxlag": 3}},
+    {"autocorrelation": {"f_agg": "var",    "maxlag": 3}},
+    {"agg_linear_trend": {"attr": ["slope", "intercept", "rvalue"], "chunk_len": [5], "f_agg": "mean"}},
+    {"agg_linear_trend": {"attr": ["slope", "intercept"],           "chunk_len": [2], "f_agg": "mean"}},
+    "absolute_sum_of_changes",
 ]
 
-_TECHNIQUES: list[str] = ["LRRidge", "RandomForest", "XGBoost"]
+_TECHNIQUES: list[str] = ["RandomForest", "XGBoost"]
 
 _TECHNIQUE_HPARAMS: dict = {
-    "LRRidge": {
-        "alpha": [0.01, 0.1, 1.0, 10.0],
-    },
     "RandomForest": {
         "n_estimators": [100, 200],
         "criterion": ["squared_error"],
-        "max_depth": [None, 10],
+        "max_depth": [None, 10, 20],
         "max_features": ["sqrt"],
         "min_samples_split": [2],
-        "min_samples_leaf": [1],
+        "min_samples_leaf": [1, 2],
     },
     "XGBoost": {
-        "n_estimators": [50, 100],
+        "n_estimators": [100, 200],
         "learning_rate": [0.05, 0.1],
-        "max_depth": [3, 6],
+        "max_depth": [3, 5, 8],
         "gamma": [0],
         "min_child_weight": [1],
         "lambda": [1],
@@ -104,6 +108,7 @@ class AMLLibraryBackend(IMLBackend):
         self._regressors: dict[str, object] = {}
         self._window_size: int = 12
         self._thresholds: dict[str, float] = {}
+        self._training_meta: dict = {}
 
     def predict_probabilities(self, window_df: pd.DataFrame) -> dict[str, float]:
         """
@@ -136,7 +141,7 @@ class AMLLibraryBackend(IMLBackend):
         """Serialize all trained MTSRegressors to *path* (.pkl)."""
         out = Path(path)
         out.parent.mkdir(parents=True, exist_ok=True)
-        joblib.dump({"regressors": self._regressors, "window_size": self._window_size, "thresholds": self._thresholds}, out)
+        joblib.dump({"regressors": self._regressors, "window_size": self._window_size, "thresholds": self._thresholds, "training_meta": self._training_meta}, out)
         logger.info(
             "AMLLibraryBackend saved to %s (%d regressors).", out, len(self._regressors)
         )
@@ -155,6 +160,7 @@ class AMLLibraryBackend(IMLBackend):
             backend._regressors = data["regressors"]
             backend._window_size = data.get("window_size", 12)
             backend._thresholds = data.get("thresholds", {})
+            backend._training_meta = data.get("training_meta", {})
         else:
             backend._regressors = data
         logger.info(

@@ -465,12 +465,105 @@ def _parse_args() -> argparse.Namespace:
         "--classifier-config", type=str, default=None, dest="classifier_config",
         help="Path to YAML file with classifier hyperparameters to override defaults.",
     )
+    p.add_argument(
+        "--backend", choices=["default", "amllibrary"], default="default",
+        help="ML backend: 'default' (tsfresh+sklearn, fast) or 'amllibrary' (AutoML, slow per combo).",
+    )
     return p.parse_args()
 
 
 # ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
+
+def run_gradual_scaling_amllibrary(
+    all_paths: list[Path],
+    steps: list[int],
+    prob_threshold: float,
+    window_size: int,
+    step_size: int,
+    severity_threshold: float,
+    max_combos: int = 10,
+    seed: int = 42,
+) -> pd.DataFrame:
+    """Gradual scaling for AMLLibraryBackend — trains from raw CSVs per combo."""
+    import itertools
+    import random as _random
+    from hpc_bottleneck_detector.ml.backends.amllibrary_trainer import AMLLibraryTrainer
+    from hpc_bottleneck_detector.ml.backends.amllibrary_backend import (
+        _ensure_aml_on_path, _fill_metric_nans as _aml_fill,
+        _EXCLUDE_COLS, _EXCLUDE_PREFIXES, _LABEL_COLS as _AML_LABEL_COLS,
+    )
+
+    _ensure_aml_on_path()
+    rng = _random.Random(seed)
+    trainer = AMLLibraryTrainer()
+    records: list[dict] = []
+    n_pool = len(all_paths)
+
+    for k in steps:
+        if k >= n_pool:
+            continue
+        all_combos = list(itertools.combinations(range(n_pool), k))
+        combos = rng.sample(all_combos, min(max_combos, len(all_combos)))
+        print(f"\n  Step k={k}  |  {len(combos)} combos (amllibrary, slow)")
+
+        for combo_idx, combo in enumerate(combos):
+            train_paths = [str(all_paths[i]) for i in combo]
+            test_indices = [i for i in range(n_pool) if i not in set(combo)]
+
+            backend = trainer.train(train_paths, window_size, step_size, severity_threshold)
+            if not backend._regressors:
+                continue
+
+            for test_i in test_indices:
+                df_test = pd.read_csv(all_paths[test_i])
+                mc = [c for c in df_test.columns
+                      if c not in (set(_AML_LABEL_COLS) | {"id", "time"})
+                      and not any(c.startswith(pfx) for pfx in _EXCLUDE_PREFIXES)
+                      and c not in _EXCLUDE_COLS]
+
+                for col, reg in backend._regressors.items():
+                    if col not in df_test.columns:
+                        continue
+                    all_preds, all_labels = [], []
+                    for _, job_df in df_test.groupby("id"):
+                        job_df = job_df.sort_values("time").reset_index(drop=True)
+                        if len(job_df) < window_size:
+                            continue
+                        jm = _aml_fill(job_df[mc].copy())
+                        jl = jm.copy()
+                        jl[col] = job_df[col].values
+                        try:
+                            preds = np.asarray(reg.predict(jm)).flatten()
+                            labels = np.asarray(reg.get_true_y(jl)).flatten()
+                            binary = (labels > severity_threshold).astype(int)
+                            n_w = min(len(preds), len(binary))
+                            all_preds.extend(preds[:n_w].tolist())
+                            all_labels.extend(binary[:n_w].tolist())
+                        except Exception:
+                            pass
+                    if not all_preds:
+                        continue
+                    y_true = np.array(all_labels)
+                    probs = np.clip(np.array(all_preds), 0.0, 1.0)
+                    y_pred = (probs >= prob_threshold).astype(int)
+                    tp = int(((y_pred == 1) & (y_true == 1)).sum())
+                    fp = int(((y_pred == 1) & (y_true == 0)).sum())
+                    fn = int(((y_pred == 0) & (y_true == 1)).sum())
+                    tn = int(((y_pred == 0) & (y_true == 0)).sum())
+                    prec = tp / (tp + fp) if (tp + fp) > 0 else float("nan")
+                    rec = tp / (tp + fn) if (tp + fn) > 0 else float("nan")
+                    f1 = 2 * prec * rec / (prec + rec) if (not math.isnan(prec) and not math.isnan(rec) and (prec + rec) > 0) else float("nan")
+                    records.append({
+                        "n_train_apps": k, "combo_idx": combo_idx,
+                        "bottleneck_type": col, "f1": f1,
+                        "false_alarm_rate": fp / (fp + tn) if (fp + tn) > 0 else float("nan"),
+                        "miss_rate": fn / (fn + tp) if (fn + tp) > 0 else float("nan"),
+                        "tp": tp, "fp": fp, "fn": fn, "tn": tn,
+                    })
+    return pd.DataFrame(records)
+
 
 if __name__ == "__main__":
     args = _parse_args()
@@ -496,38 +589,51 @@ if __name__ == "__main__":
     print(f"\n[INFO] Steps: {steps}")
     print(f"[INFO] Total combinations to train: {total_combos}")
 
-    # --- Pre-extract features once per app ---
-    print(f"\n[INFO] Pre-extracting features for {n_total} apps ...")
-    app_features: list[tuple[pd.DataFrame, dict[str, pd.Series]]] = []
-    for i, p in enumerate(all_paths):
-        app = p.stem.replace("_labelled", "")
-        print(f"  [{i+1}/{n_total}] {app} ...", end=" ", flush=True)
-        X_app, y_app = _extract_features_for_app(
-            p, args.window_size, args.step_size, args.severity_threshold
+    if args.backend == "amllibrary":
+        print("[INFO] AMLLibrary backend selected — training from raw CSVs per combo (slow).")
+        results = run_gradual_scaling_amllibrary(
+            all_paths         = all_paths,
+            steps             = steps,
+            prob_threshold    = args.prob_threshold,
+            window_size       = args.window_size,
+            step_size         = args.step_size,
+            severity_threshold= args.severity_threshold,
+            max_combos        = args.max_combos,
+            seed              = args.seed,
         )
-        app_features.append((X_app, y_app))
-        print(f"{X_app.shape[0]} windows")
+    else:
+        # --- Pre-extract features once per app ---
+        print(f"\n[INFO] Pre-extracting features for {n_total} apps ...")
+        app_features: list[tuple[pd.DataFrame, dict[str, pd.Series]]] = []
+        for i, p in enumerate(all_paths):
+            app = p.stem.replace("_labelled", "")
+            print(f"  [{i+1}/{n_total}] {app} ...", end=" ", flush=True)
+            X_app, y_app = _extract_features_for_app(
+                p, args.window_size, args.step_size, args.severity_threshold
+            )
+            app_features.append((X_app, y_app))
+            print(f"{X_app.shape[0]} windows")
 
-    # --- Optional joint CV hyperparam + threshold tuning ---
-    classifier = build_classifier(args.classifier, args.classifier_config)
-    if args.tune_hyperparams:
-        print(f"\n[INFO] Running joint CV tuning (n_iter={args.n_iter}) ...")
-        classifier, _ = DefaultTrainer.tune(
-            app_features, classifier, n_iter=args.n_iter, seed=args.seed
+        # --- Optional joint CV hyperparam + threshold tuning ---
+        classifier = build_classifier(args.classifier, args.classifier_config)
+        if args.tune_hyperparams:
+            print(f"\n[INFO] Running joint CV tuning (n_iter={args.n_iter}) ...")
+            classifier, _ = DefaultTrainer.tune(
+                app_features, classifier, n_iter=args.n_iter, seed=args.seed
+            )
+
+        # --- Run exhaustive scaling ---
+        results = run_gradual_scaling(
+            app_features   = app_features,
+            all_paths      = all_paths,
+            steps          = steps,
+            prob_threshold = args.prob_threshold,
+            classifier     = classifier,
+            max_combos     = args.max_combos,
+            seed           = args.seed,
+            use_cv         = not args.no_cv,
+            cv_min_k       = args.cv_min_k,
         )
-
-    # --- Run exhaustive scaling ---
-    results = run_gradual_scaling(
-        app_features   = app_features,
-        all_paths      = all_paths,
-        steps          = steps,
-        prob_threshold = args.prob_threshold,
-        classifier     = classifier,
-        max_combos     = args.max_combos,
-        seed           = args.seed,
-        use_cv         = not args.no_cv,
-        cv_min_k       = args.cv_min_k,
-    )
 
     if results.empty:
         print("[ERROR] No results collected.")

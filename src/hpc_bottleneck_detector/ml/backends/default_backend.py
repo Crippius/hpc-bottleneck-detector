@@ -193,6 +193,7 @@ class DefaultBackend(IMLBackend):
         self._fc_params = BASIC_FC_PARAMETERS
         self._window_size: Optional[int] = None
         self._missing_fill_value: float = missing_fill_value
+        self._training_meta: dict = {}
 
     # ------------------------------------------------------------------
     # Threshold calibration (post-training, pre-deployment)
@@ -300,6 +301,7 @@ class DefaultBackend(IMLBackend):
                 "window_size": self._window_size,
                 "thresholds": self._thresholds,
                 "missing_fill_value": self._missing_fill_value,
+                "training_meta": self._training_meta,
             },
             out,
         )
@@ -321,6 +323,7 @@ class DefaultBackend(IMLBackend):
         backend._fc_params = data.get("fc_params", BASIC_FC_PARAMETERS)
         backend._window_size = data.get("window_size")
         backend._missing_fill_value = data.get("missing_fill_value", np.nan)
+        backend._training_meta = data.get("training_meta", {})
         logger.info(
             "Backend loaded from %s (%d classifiers).", path, len(backend._models)
         )
