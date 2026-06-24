@@ -14,7 +14,6 @@ from __future__ import annotations
 import argparse
 import fnmatch
 import logging
-import random
 import sys
 from pathlib import Path
 
@@ -50,17 +49,24 @@ logger = logging.getLogger(__name__)
 DATA_DIR = ROOT / "data" / "labelled_data" / "training_set"
 
 FIXED_SCENARIOS: dict[str, list[str]] = {
-    "no_L3":           ["cache_*L3*"],
-    "no_L2_L3":        ["cache_*L2*", "cache_*L3*"],
-    "no_branch":       ["cpu_Branch*"],
-    "no_memory":       ["memory_*"],
-    "no_cache_memory": ["cache_*", "memory_*"],
-    "no_cpu":          ["cpu_*"],
+    "no_L3":        ["cache_*L3*"],
+    "no_L2_L3":     ["cache_*L2*", "cache_*L3*"],
+    "no_branch":    ["cpu_Branch*"],
+    # Metrics present in training set but missing in the demo system
+    "missing_demo": [
+        "cache_Miss Rate_L3*", "cache_Miss Ratio_L3*", "cache_Request Rate_L3*",
+        "disk_*",
+    ],
+    # Intel-specific metrics not available on AMD EPYC (Genoa)
+    "missing_amd":  [
+        "cache_Bandwidth_L2D*", "cache_Bandwidth_L3_evict*", "cache_Bandwidth_L3_load*",
+        "cache_Data Volume_L2D*", "cache_Data Volume_L3_load*",
+        "cpu_Cycles w/o Execution*", "cpu_Stall*",
+        "cpu_FLOPS_AVX*", "cpu_SSE Operations*", "cpu_Vectorization*",
+        "energy_CPU Temperature*", "energy_DRAM Power*",
+        "memory_Bandwidth_write", "memory_Data Volume_write", "memory_UPI*",
+    ],
 }
-
-RANDOM_FRACTIONS = [0.10, 0.20, 0.30, 0.40, 0.50, 0.60, 0.70, 0.80, 0.90]
-N_RANDOM = 30
-RANDOM_SEED = 42
 
 
 # ---------------------------------------------------------------------------
@@ -173,45 +179,6 @@ def _overall_stability(full_preds: pd.DataFrame, drop_preds: pd.DataFrame) -> fl
 
 
 # ---------------------------------------------------------------------------
-# Plot
-# ---------------------------------------------------------------------------
-
-def _plot_sweep(
-    sweep_data: dict,
-    bt_cols: list[str],
-    args: argparse.Namespace,
-) -> None:
-    import matplotlib.pyplot as plt
-
-    fracs = sorted(sweep_data.keys())
-    pct = [f * 100 for f in fracs]
-
-    fig, ax = plt.subplots(figsize=(7, 5))
-
-    means = [sweep_data[f]["overall_mean"] for f in fracs]
-    stds  = [sweep_data[f]["overall_std"]  for f in fracs]
-    ax.plot(pct, means, "o-", color="steelblue", linewidth=2)
-    ax.fill_between(pct,
-                    [m - s for m, s in zip(means, stds)],
-                    [m + s for m, s in zip(means, stds)],
-                    alpha=0.25, color="steelblue")
-    ax.set_xlabel("Metrics removed (%)")
-    ax.set_ylabel("Prediction stability")
-    ax.set_ylim(0, 1.05)
-    ax.grid(True, alpha=0.3)
-
-    classifier = args.classifier
-    fig.suptitle(f"Robustness to Missing Metrics - {classifier.upper()}", fontsize=13)
-    fig.tight_layout()
-
-    out = ROOT / "results" / f"robustness_{classifier}.png"
-    out.parent.mkdir(exist_ok=True)
-    fig.savefig(out, dpi=150, bbox_inches="tight")
-    print(f"Plot saved to {out}")
-    plt.close(fig)
-
-
-# ---------------------------------------------------------------------------
 # Main logic
 # ---------------------------------------------------------------------------
 
@@ -273,56 +240,6 @@ def run(args: argparse.Namespace) -> None:
         for bt in bt_cols:
             print(f"  {per_class.get(bt, float('nan')):>{col_w}.3f}", end="")
         print(f"  ({n_blanked} tsfresh cols blanked)")
-
-    # --- Random sweep ---------------------------------------------------------------------------------------
-    print(f"\n{'='*80}")
-    print(f"  RANDOM METRIC REMOVAL SWEEP  ({N_RANDOM} trials per fraction)")
-    print(f"  Overall stability = fraction of windows with ALL predictions unchanged")
-    print(f"{'='*80}\n")
-
-    rng = random.Random(RANDOM_SEED)
-    n_metrics = len(all_metric_cols)
-
-    print(f"  {'Fraction':<10}  {'Overall mean±std':>18}", end="")
-    for bt in bt_cols:
-        short = bt.replace("_", " ")[:16]
-        print(f"  {short:>16}", end="")
-    print(f"  (of {n_metrics} metrics)")
-    print("  " + "-" * (10 + 20 + 18 * len(bt_cols) + 16))
-
-    sweep_data: dict[str, dict] = {}  # frac -> {overall_mean, overall_std, per_class_mean, per_class_std}
-
-    for frac in RANDOM_FRACTIONS:
-        n_drop = max(1, int(frac * n_metrics))
-        overall_trials: list[float] = []
-        per_class_trials: dict[str, list[float]] = {bt: [] for bt in bt_cols}
-
-        for _ in range(N_RANDOM):
-            dropped = rng.sample(all_metric_cols, n_drop)
-            blank = _tsfresh_cols_for_metrics(X_all, dropped)
-            drop_preds = _blank_and_predict(backend, X_all, blank)
-            overall_trials.append(_overall_stability(full_preds, drop_preds))
-            for bt, v in _stability(full_preds, drop_preds).items():
-                per_class_trials[bt].append(v)
-
-        overall_mean = float(np.mean(overall_trials))
-        overall_std  = float(np.std(overall_trials))
-        sweep_data[frac] = {
-            "overall_mean": overall_mean,
-            "overall_std":  overall_std,
-            "per_class_mean": {bt: float(np.mean(v)) for bt, v in per_class_trials.items()},
-            "per_class_std":  {bt: float(np.std(v))  for bt, v in per_class_trials.items()},
-        }
-
-        print(f"  {frac*100:>5.0f}%      {overall_mean:>7.3f} ± {overall_std:.3f}  ", end="")
-        for bt in bt_cols:
-            m = sweep_data[frac]["per_class_mean"].get(bt, float("nan"))
-            s = sweep_data[frac]["per_class_std"].get(bt, float("nan"))
-            print(f"  {m:>6.3f}±{s:.3f} ", end="")
-        print(f"  (drop {n_drop})")
-
-    print()
-    _plot_sweep(sweep_data, bt_cols, args)
 
 
 # ---------------------------------------------------------------------------
