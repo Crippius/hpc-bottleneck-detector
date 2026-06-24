@@ -18,7 +18,7 @@
 # profiles_dir   - directory of per-architecture YAML files
 #
 hardware:
-  profiles_dir: configs/hardware_profilesn
+  profiles_dir: configs/hardware_profiles
 
 # ---------------------------------------------------------------------------
 # Pipeline settings

@@ -29,7 +29,7 @@ WINDOW_SIZE = 12   # intervals per analysis window (12 x 5 s = 60 s)
 STEP_SIZE   = 12   # tumbling windows (set < WINDOW_SIZE for sliding)
 
 
-def label_single_job(job_id: int, source: XBATDataSource, strategy: HeuristicStrategy, orchestrator: AnalysisOrchestrator, output_dir: Path | None = None) -> None:
+def label_single_job(job_id: int, source: XBATDataSource, strategy: HeuristicStrategy, orchestrator: AnalysisOrchestrator, output_dir: Path | None = None, sampling_interval: int | None = None) -> None:
     print(f"\n[INFO] Fetching job {job_id} ...")
     dm = source.fetch_job_data(job_id)
     orchestrator.inject_supplemental_benchmarks(dm)
@@ -46,6 +46,7 @@ def label_single_job(job_id: int, source: XBATDataSource, strategy: HeuristicStr
         strategy=strategy,
         window_size=WINDOW_SIZE,
         step_size=STEP_SIZE,
+        interval_seconds=sampling_interval,
     )
     print(f"       output shape : {labelled.shape}  (rows=intervals, cols=metrics+labels)")
 
@@ -88,6 +89,11 @@ def main() -> None:
     )
     parser.add_argument("--env-file", default=".env", help="Path to .env credentials file (default: .env)")
     parser.add_argument("--output-dir", default=None, help="Directory to save labelled CSVs (default: data/labelled_data/)")
+    parser.add_argument("--sampling-interval", type=int, default=None, metavar="SECONDS",
+                        help="Override the inferred sampling interval in seconds (default: auto from job runtime/n_intervals)")
+    parser.add_argument("--hardware-profile", default=None, metavar="NAME_OR_PATH",
+                        help="Force a specific hardware profile (name stem like 'amd_epyc_9654' or full path). "
+                             "Overrides auto-detection by CPU model pattern.")
     args = parser.parse_args()
 
     # --- 1. Connect ------------------------------------------------------------------------------------------
@@ -103,7 +109,13 @@ def main() -> None:
     print(f"       tree names   : {[t.tree_name for t in strategy._strategy_trees]}")
 
     # --- 3. Build orchestrator ------------─
-    hw_loader    = HardwareProfileLoader(str(HW_PROFILES_DIR))
+    if args.hardware_profile:
+        profile_path = Path(args.hardware_profile)
+        if not profile_path.suffix:
+            profile_path = HW_PROFILES_DIR / f"{args.hardware_profile}.yaml"
+        hw_loader = HardwareProfileLoader(profile_path)
+    else:
+        hw_loader = HardwareProfileLoader(str(HW_PROFILES_DIR))
     orchestrator = AnalysisOrchestrator(
         data_source=source,
         strategy=strategy,
@@ -115,7 +127,7 @@ def main() -> None:
     # --- 4. Label each job -------------------------------------------------------------------------------
     for job_id in args.job_ids:
         print("\n" + "=" * 70)
-        label_single_job(job_id, source, strategy, orchestrator, output_dir=output_dir)
+        label_single_job(job_id, source, strategy, orchestrator, output_dir=output_dir, sampling_interval=args.sampling_interval)
 
     print("\n" + "=" * 70)
     print("[INFO] Done.")

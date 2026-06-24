@@ -1,0 +1,27 @@
+# =============================================================================
+# Hardware Profile - AMD EPYC 9654 (Genoa)
+# =============================================================================
+
+name: AMD EPYC 9654 (Genoa)
+cpu_model_pattern: "AMD.*EPYC.*9654"
+
+benchmarks:
+  # --- Not available via XBAT API ---
+  bandwidth_mem: 900000000000.0
+
+  # --- API-provided ---
+  bandwidth_l1: 11425518347878.4
+  bandwidth_l2: 11295503385886.72
+  bandwidth_l3: 8963718350110.72
+  peakflops: 2677789720000
+  peakflops_avx: 7741247030000
+  peakflops_avx512: 8783996130000
+  peakflops_avx512_fma: 11006929170000
+  peakflops_avx_fma: 10222534240000
+  peakflops_sp: 2697854690000
+  peakflops_sp_avx: 15490167820000
+  peakflops_sp_avx512: 17568780330000
+  peakflops_sp_avx512_fma: 22010597040000
+  peakflops_sp_avx_fma: 20336973120000
+  peakflops_sp_sse: 9417741650000
+  peakflops_sse: 4708352440000

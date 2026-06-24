@@ -32,11 +32,24 @@ class HardwareProfileLoader:
     def __init__(self, profiles_dir: Optional[str | Path] = None) -> None:
         self._profiles: list[tuple[re.Pattern, dict]] = []
         if profiles_dir is not None:
-            self._load_dir(Path(profiles_dir))
+            p = Path(profiles_dir)
+            if p.is_file():
+                self._profiles.append((re.compile(".*"), self._load_benchmarks(p)))
+                logger.info("Forced hardware profile from %s.", p.name)
+            else:
+                self._load_dir(p)
 
     # ------------------------------------------------------------------
     # Loading
     # ------------------------------------------------------------------
+
+    def _load_benchmarks(self, path: Path) -> dict:
+        with path.open("r", encoding="utf-8") as fh:
+            profile = yaml.safe_load(fh)
+        benchmarks = profile.get("benchmarks", {})
+        if not benchmarks:
+            raise ValueError(f"Profile {path.name} has no benchmarks.")
+        return dict(benchmarks)
 
     def _load_dir(self, directory: Path) -> None:
         if not directory.is_dir():
@@ -51,17 +64,14 @@ class HardwareProfileLoader:
             try:
                 with path.open("r", encoding="utf-8") as fh:
                     profile = yaml.safe_load(fh)
-
                 pattern_str = profile.get("cpu_model_pattern", "")
-                benchmarks = profile.get("benchmarks", {})
-
                 if not pattern_str:
                     logger.warning("Profile %s has no cpu_model_pattern - skipped.", path.name)
                     continue
+                benchmarks = profile.get("benchmarks", {})
                 if not benchmarks:
                     logger.warning("Profile %s has no benchmarks - skipped.", path.name)
                     continue
-
                 compiled = re.compile(pattern_str, re.IGNORECASE)
                 self._profiles.append((compiled, dict(benchmarks)))
                 loaded += 1
