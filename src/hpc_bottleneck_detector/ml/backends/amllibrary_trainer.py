@@ -53,8 +53,8 @@ def _train_one(
             "run_num": 1,
             "techniques": list(_TECHNIQUES),
             "hp_selection": "All",
-            "validation": "HoldOut",
-            "hold_out_ratio": 0.2,
+            "validation": "KFold",
+            "folds": 5,
             "y": target_col,
             "metric": "MAE",
         },
@@ -68,6 +68,11 @@ def _train_one(
         "WindowFeatures": {
             "features": _WINDOW_FEATURES,
             "y_window_position": "mean",
+        },
+        "FeatureSelection": {
+            "method": "XGBoost",
+            "max_features": 50,
+            "XGBoost_tolerance": 0.9,
         },
         **_TECHNIQUE_HPARAMS,
     }

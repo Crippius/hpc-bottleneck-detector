@@ -3,7 +3,7 @@ Training Script - AMLLibrary Backend
 
 Trains an :class:`AMLLibraryBackend` on labelled CSVs produced by label_jobs.py.
 aMLLibrary runs an automated model selection campaign per BottleneckType,
-comparing LRRidge, RandomForest and XGBoost with HoldOut validation.
+comparing RandomForest and XGBoost with HoldOut validation.
 
 Usage
 -----
