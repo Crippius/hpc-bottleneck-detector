@@ -197,6 +197,7 @@ class JobContext:
         job_id: str,
         job_entry: dict,
         node_hardware_raw: Dict[str, dict],
+        interval_seconds: Optional[float] = None,
     ) -> "JobContext":
         """
         Build a ``JobContext`` from raw XBAT API responses.
@@ -227,6 +228,7 @@ class JobContext:
             "runNr": job_entry.get("runNr"),
             "iteration": job_entry.get("iteration"),
             "variantName": variant,
+            "sampling_interval_seconds": interval_seconds,
             # Map hostname -> hash for reference
             "nodes": {
                 hostname: meta.get("hash")

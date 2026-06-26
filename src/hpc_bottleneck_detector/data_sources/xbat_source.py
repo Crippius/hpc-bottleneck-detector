@@ -277,7 +277,8 @@ class XBATDataSource(IDataSource):
 
         # Fetch job entry once - reused for both context and node names.
         job_entry = self._find_job_entry(job_id)
-        job_context = self._build_job_context_from_entry(job_id, job_entry)
+        interval_seconds = self._fetch_interval(job_id)
+        job_context = self._build_job_context_from_entry(job_id, job_entry, interval_seconds)
 
         # Append computed load-imbalance rows (best-effort, never fatal).
         imbalance_rows = self._compute_load_imbalance_rows(job_id, df, job_entry)
@@ -494,6 +495,18 @@ class XBATDataSource(IDataSource):
             response = self.session.get(url, headers=headers)
         return response
 
+    def _get_authenticated_json(self, url: str, params: Optional[dict] = None) -> requests.Response:
+        headers = {
+            "accept": "application/json",
+            "Authorization": f"Bearer {self._access_token}",
+        }
+        response = self.session.get(url, headers=headers, params=params)
+        if response.status_code == 401:
+            self._request_new_token()
+            headers["Authorization"] = f"Bearer {self._access_token}"
+            response = self.session.get(url, headers=headers, params=params)
+        return response
+
     def _parse_xbat_csv_response(self, csv_text: str) -> pd.DataFrame:
         """
         Parse XBAT CSV robustly across schema differences.
@@ -543,7 +556,10 @@ class XBATDataSource(IDataSource):
         return self._build_job_context_from_entry(job_id, self._find_job_entry(job_id))
 
     def _build_job_context_from_entry(
-        self, job_id: str, job_entry: Optional[dict]
+        self,
+        job_id: str,
+        job_entry: Optional[dict],
+        interval_seconds: Optional[float] = None,
     ) -> Optional[JobContext]:
         """
         Build a :class:`~hpc_bottleneck_detector.data.job_context.JobContext`
@@ -566,10 +582,28 @@ class XBATDataSource(IDataSource):
                 return None
 
             node_hardware_raw = self._fetch_node_hardware(node_hashes)
-            return JobContext.from_xbat(job_id, job_entry, node_hardware_raw)
+            return JobContext.from_xbat(job_id, job_entry, node_hardware_raw, interval_seconds)
 
         except Exception:  # pragma: no cover - best-effort, never fatal
             return None
+
+    def _fetch_interval(self, job_id: str) -> Optional[float]:
+        """
+        Return the measurement sampling interval in seconds for job_id.
+        """
+        try:
+            url = f"{self.api_base}/api/v1/measurements/{job_id}"
+            resp = self._get_authenticated_json(url, params={
+                "group": "cpu", "metric": "FLOPS", "level": "job",
+            })
+            if resp.status_code != 200:
+                return None
+            traces = resp.json().get("traces", [])
+            if traces:
+                return float(traces[0]["interval"])
+        except Exception:
+            pass
+        return None
 
     def _find_job_entry(self, job_id: str) -> Optional[dict]:
         """

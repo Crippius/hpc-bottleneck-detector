@@ -158,18 +158,18 @@ class DataManager:
     @property
     def sampling_interval(self) -> Optional[int]:
         """
-        Infer the sampling period in seconds from job context.
-
-        Uses ``round(runtime_seconds / n_intervals)`` so a small trailing gap
-        between the last captured metric and the actual job end does not skew
-        the result.  Returns ``None`` when no job context is available or when
-        the runtime cannot be determined.
-
-        ``runtime`` from XBAT is a ``"H:MM:SS"`` string; it is parsed to
-        seconds before dividing.
         """
         if self.job_context is None:
             return None
+
+        api_interval = self.job_context.get_metadata("sampling_interval_seconds")
+        if api_interval is not None:
+            return round(api_interval)
+
+        logger.warning(
+            "sampling_interval_seconds not available in job context for job '%s'",
+            self.job_context.get_job_id(),
+        )
         runtime = self.job_context.get_metadata("runtime")
         if runtime is None:
             return None
