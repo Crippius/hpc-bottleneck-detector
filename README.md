@@ -38,8 +38,10 @@ This tool identifies performance bottlenecks in HPC jobs using system-wide time-
 ```bash
 git clone https://github.com/Crippius/hpc-bottleneck-detector.git
 cd hpc-bottleneck-detector
-pip install -r requirements.txt
+uv sync
 ```
+
+This installs the package into a local `.venv` along with the `bottleneck-detect` CLI command. For notebook/analysis-script/DVC dependencies too, run `uv sync --extra dev` instead.
 
 Copy the credentials template and fill in your XBAT details:
 
@@ -53,16 +55,16 @@ cp .env.example .env
 ## Quick Start
 
 ```bash
-python examples/demo.py --job-id <JOB_ID>
+uv run bottleneck-detect --job-id <JOB_ID>
 ```
 
-This runs the full pipeline: fetches job data from XBAT, slides a 10-interval analysis window over the time series, and prints a severity heatmap with per-window diagnosis summaries.
+Run this from the repository root (config paths are resolved relative to the current working directory). This fetches job data from XBAT, slides a 10-interval analysis window over the time series, runs the strategy, and prints the diagnoses as JSON to stdout. Use `--format print` for a human-readable severity heatmap instead, or `--output PATH` to write results to a file. See `bottleneck-detect --help` for all options.
 
 ---
 
 ## Configuration
 
-The main config is `configs/demo.yaml`. Key options:
+The main config is `configs/xbat_cli.yaml`. Key options:
 
 | Key                           | Default     | Description                                               |
 | ----------------------------- | ----------- | --------------------------------------------------------- |
@@ -129,6 +131,7 @@ python scripts/training/train_ml_model.py --data-dir data/labels/ -o models/my_m
 
 ```
 src/hpc_bottleneck_detector/
+├── cli.py               # bottleneck-detect CLI entry point
 ├── orchestrator.py      # AnalysisOrchestrator: top-level pipeline coordinator
 ├── data_sources/        # XBAT REST API and CSV data source implementations
 ├── data/                # DataManager, metric access, hardware profiles

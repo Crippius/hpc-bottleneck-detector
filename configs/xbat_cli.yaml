@@ -1,8 +1,8 @@
 # =============================================================================
-# Demo configuration
+# xbat CLI configuration
 # =============================================================================
 #
-# Run:  python examples/demo.py --job-id <JOB_ID>
+# Run:  uv run bottleneck-detect --job-id <JOB_ID>
 #
 # Switch strategy by uncommenting the relevant block below.
 
@@ -23,7 +23,7 @@ data_source:
   group: ""
   metric: ""
   level: job
-  token_file: examples/.env.xbat
+  token_file: .env.xbat
 
 # ---------------------------------------------------------------------------
 # Strategy: HEURISTIC
@@ -46,7 +46,7 @@ strategy:
 # Output
 # ---------------------------------------------------------------------------
 output:
-  format: print
+  format: json
   show_healthy_windows: false # only show windows with detected bottlenecks
   min_severity: 0.3
   min_confidence: 0.3
