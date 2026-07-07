@@ -37,9 +37,23 @@ DATA_DIR = ROOT / "data" / "labelled_data" / "hpas"
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser()
     p.add_argument("--model", default="calibrated")
-    p.add_argument("--metrics", default=str(DATA_DIR / "hpas_metrics.csv"))
+    p.add_argument(
+        "--mode",
+        choices=["sensitivity", "specificity"],
+        default="sensitivity",
+        help=(
+            "sensitivity: expect the injected fault to be DETECTED in hpas_metrics.csv. "
+            "specificity: expect the fault to be ABSENT (fixed) in hpas_fixed_metrics.csv, "
+            "i.e. the expected bottleneck should NOT fire."
+        ),
+    )
+    p.add_argument("--metrics", default=None)
     p.add_argument("--timings", default=str(DATA_DIR / "finj_timings.csv"))
-    return p.parse_args()
+    args = p.parse_args()
+    if args.metrics is None:
+        default_name = "hpas_metrics.csv" if args.mode == "sensitivity" else "hpas_fixed_metrics.csv"
+        args.metrics = str(DATA_DIR / default_name)
+    return args
 
 
 def parse_timings(path: str) -> tuple[int, list[dict]]:
@@ -90,21 +104,27 @@ def main() -> None:
         prob = probs.get(expected, 0.0)
         threshold = backend._thresholds.get(expected, 0.5)
         detected = prob >= threshold
+        correct = detected if args.mode == "sensitivity" else not detected
         summary_rows.append({
             "fault": fault["fault"],
             "expected": expected,
             "prob": prob,
             "threshold": threshold,
-            "correct": "[v]" if detected else "[x]",
+            "correct": "[v]" if correct else "[x]",
             "probs": probs,
         })
 
     # Summary table
-    header = f"{'Fault':<14} {'Expected':<32} {'Prob':>6}  {'Thr':>6}  {'OK'}"
+    goal = "detected" if args.mode == "sensitivity" else "NOT detected"
+    header = f"{'Fault':<14} {'Expected (' + goal + ')':<46} {'Prob':>6}  {'Thr':>6}  {'OK'}"
     print(header)
     print("-" * len(header))
     for r in summary_rows:
-        print(f"{r['fault']:<14} {r['expected']:<32} {r['prob']:>6.4f}  {r['threshold']:>6.4f}  {r['correct']}")
+        print(f"{r['fault']:<14} {r['expected']:<46} {r['prob']:>6.4f}  {r['threshold']:>6.4f}  {r['correct']}")
+
+    n_correct = sum(1 for r in summary_rows if r["correct"] == "[v]")
+    metric_name = "Sensitivity" if args.mode == "sensitivity" else "Specificity"
+    print(f"\n{metric_name}: {n_correct}/{len(summary_rows)} = {n_correct / len(summary_rows):.3f}")
 
     # Per-fault probability breakdown
     print()
