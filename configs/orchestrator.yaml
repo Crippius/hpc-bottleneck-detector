@@ -24,9 +24,9 @@ hardware:
 # Pipeline settings
 # ---------------------------------------------------------------------------
 pipeline:
-  window_size: 10 # number of intervals per analysis window
+  window_size: 12 # number of intervals per analysis window
   step_size:
-    10 # intervals to advance between successive windows
+    12 # intervals to advance between successive windows
     # (!= window_size -> tumbling window)
 
 # ---------------------------------------------------------------------------

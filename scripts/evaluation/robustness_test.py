@@ -50,7 +50,7 @@ DATA_DIR = ROOT / "data" / "labelled_data" / "training_set"
 
 FIXED_SCENARIOS: dict[str, list[str]] = {
     "no_L3":        ["cache_*L3*"],
-    "no_L2_L3":     ["cache_*L2*", "cache_*L3*"],
+    "no_cache":     ["cache_*L2*", "cache_*L3*"],
     "no_branch":    ["cpu_Branch*"],
     # Metrics present in training set but missing in the demo system
     "missing_demo": [

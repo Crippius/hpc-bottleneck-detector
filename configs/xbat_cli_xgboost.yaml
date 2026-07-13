@@ -1,10 +1,10 @@
 # =============================================================================
-# xbat CLI configuration
+# xbat CLI configuration - SUPERVISED ML (XGBoost)
 # =============================================================================
 #
-# Run:  uv run bottleneck-detect --job-id <JOB_ID>
+# Run:  uv run bottleneck-detect --job-id <JOB_ID> --config configs/xbat_cli_xgboost.yaml
 #
-# Switch strategy by uncommenting the relevant block below.
+# Train the model first:  python scripts/training/train_ml_model.py --classifier xgboost
 
 hardware:
   profiles_dir: configs/hardware_profiles
@@ -26,21 +26,12 @@ data_source:
   token_file: .env.xbat
 
 # ---------------------------------------------------------------------------
-# Strategy: HEURISTIC
-# Rule-based decision trees from configs/strategies/persyst_strategy/
+# Strategy: SUPERVISED ML (XGBoost)
 # ---------------------------------------------------------------------------
 strategy:
-  type: heuristic
-  strategy_folder: configs/strategies/persyst_strategy
-
-# ---------------------------------------------------------------------------
-# Strategy: SUPERVISED ML (requires a trained model)
-# Train one first:  python scripts/training/train_ml_model.py
-# ---------------------------------------------------------------------------
-# strategy:
-#   type: supervised_ml
-#   model_path: models/default.pkl
-#   significance_threshold: 0.3
+  type: supervised_ml
+  model_path: models/xgboost.pkl
+  significance_threshold: 0.3
 
 # ---------------------------------------------------------------------------
 # Output

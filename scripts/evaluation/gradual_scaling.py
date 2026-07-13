@@ -8,9 +8,7 @@ Usage
 -----
     python examples/ml/gradual_scaling.py
     python examples/ml/gradual_scaling.py --steps 2 4 6 8 10 --test-size 3
-    python examples/ml/gradual_scaling.py --output-fig results/learning_curve.png \\
-                                          --output-csv results/lc_results.csv
-    python examples/ml/gradual_scaling.py --no-plot
+    python examples/ml/gradual_scaling.py --output-csv results/lc_results.csv
 """
 
 from __future__ import annotations
@@ -307,112 +305,6 @@ def run_gradual_scaling(
 
 
 # ---------------------------------------------------------------------------
-# Plotting
-# ---------------------------------------------------------------------------
-
-def plot_results(
-    results: pd.DataFrame,
-    output_path: str | None,
-    show: bool,
-) -> None:
-    try:
-        import matplotlib
-        if not show:
-            matplotlib.use("Agg")
-        import matplotlib.pyplot as plt
-        import matplotlib.cm as cm
-    except ImportError:
-        print("[WARN] matplotlib not available - skipping plot.")
-        return
-
-    # Average over all combinations at each (n_train_apps, bottleneck_type)
-    summary = (
-        results.groupby(["n_train_apps", "bottleneck_type"])["f1"]
-        .mean()
-        .reset_index()
-    )
-
-    bt_types  = sorted(summary["bottleneck_type"].unique())
-    x_vals    = sorted(summary["n_train_apps"].unique())
-    bt_colors = cm.tab10(np.linspace(0, 0.9, len(bt_types)))
-
-    fig, ax = plt.subplots(figsize=(10, 6))
-    fig.suptitle(
-        "Gradual Scaling Hold-Out  (exhaustive combinations, averaged)",
-        fontsize=13, fontweight="bold",
-    )
-
-    for bt, color in zip(bt_types, bt_colors):
-        bt_df = summary[summary["bottleneck_type"] == bt].set_index("n_train_apps")
-        y = [bt_df.loc[x, "f1"] if x in bt_df.index else float("nan") for x in x_vals]
-        ax.plot(
-            x_vals, y,
-            color=color, linewidth=1.4, linestyle="--", alpha=0.7, marker="s",
-            markersize=4, label=_BT_SHORT.get(bt, bt),
-        )
-
-    # Per-combo macro F1 = mean F1 across bt types for that combo
-    combo_macro = (
-        results.groupby(["n_train_apps", "combo_idx"])["f1"]
-        .mean()
-        .reset_index()
-        .rename(columns={"f1": "macro_f1"})
-    )
-    macro_stats = (
-        combo_macro.groupby("n_train_apps")["macro_f1"]
-        .agg(["mean", "std"])
-        .reindex(x_vals)
-    )
-    macro_f1  = macro_stats["mean"].tolist()
-    macro_std = macro_stats["std"].fillna(0).tolist()
-
-    macro_lo = [max(0.0, m - s) for m, s in zip(macro_f1, macro_std)]
-    macro_hi = [min(1.0, m + s) for m, s in zip(macro_f1, macro_std)]
-
-    ax.fill_between(
-        x_vals, macro_lo, macro_hi,
-        color="black", alpha=0.12, zorder=5, label="Macro ± 1 std",
-    )
-    ax.plot(
-        x_vals, macro_f1,
-        color="black", linewidth=3.0, linestyle="-", marker="o", markersize=7,
-        label="Macro average", zorder=6,
-    )
-
-    for x, y in zip(x_vals, macro_f1):
-        if not np.isnan(y):
-            ax.annotate(
-                f"{y:.2f}",
-                xy=(x, y), xytext=(0, 10),
-                textcoords="offset points",
-                ha="center", fontsize=9, fontweight="bold", color="black",
-            )
-
-    ax.set_xticks(x_vals)
-    ax.set_xticklabels([f"{k} apps" for k in x_vals], fontsize=9)
-    ax.set_xlabel("Number of Training Applications", fontsize=11)
-    ax.set_ylabel("F1-Score (avg over all subsets)", fontsize=11)
-    ax.set_ylim(-0.05, 1.10)
-    ax.set_yticks(np.arange(0, 1.1, 0.1))
-    ax.grid(True, linestyle=":", alpha=0.5)
-    ax.legend(loc="lower right", fontsize=8, framealpha=0.88, ncol=2)
-    ax.set_title("F1-Score per Bottleneck Type", fontsize=11, pad=6)
-
-    plt.tight_layout(rect=[0, 0, 1, 0.95])
-
-    if output_path:
-        out = Path(output_path)
-        out.parent.mkdir(parents=True, exist_ok=True)
-        plt.savefig(out, dpi=150, bbox_inches="tight")
-        print(f"\n[INFO] Figure saved to: {out}")
-
-    if show:
-        plt.show()
-
-    plt.close(fig)
-
-
-# ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
 
@@ -431,8 +323,6 @@ def _parse_args() -> argparse.Namespace:
     p.add_argument("--prob-threshold",     type=float, default=0.5, dest="prob_threshold")
     p.add_argument("--output-csv",         type=str,   default=None, dest="output_csv")
     p.add_argument("--output-pkl",         type=str,   default=None, dest="output_pkl")
-    p.add_argument("--output-fig",         type=str,   default=None, dest="output_fig")
-    p.add_argument("--no-plot",            action="store_true",     dest="no_plot")
     p.add_argument(
         "--max-combos", type=int, default=50, dest="max_combos",
         help="Max random subsets per step when C(n,k) exceeds this (default: 50).",
@@ -671,10 +561,3 @@ if __name__ == "__main__":
         with open(out, "wb") as f:
             pickle.dump(results, f)
         print(f"[INFO] Results pickled to: {out}")
-
-    if not args.no_plot:
-        plot_results(
-            results     = results,
-            output_path = args.output_fig,
-            show        = args.output_fig is None,
-        )

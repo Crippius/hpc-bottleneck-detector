@@ -62,8 +62,8 @@ class AnalysisOrchestrator:
         self,
         data_source: IDataSource,
         strategy: IAnalysisStrategy,
-        window_size: int = 10,
-        step_size: int = 10,
+        window_size: int = 12,
+        step_size: int = 12,
         output_cfg: Optional[dict] = None,
         hw_profile_loader: Optional[HardwareProfileLoader] = None,
     ) -> None:
@@ -105,7 +105,7 @@ class AnalysisOrchestrator:
 
         # --- pipeline ---------------------------------------------------------------------------
         pipeline_cfg = config.get("pipeline", {})
-        window_size = int(pipeline_cfg.get("window_size", 10))
+        window_size = int(pipeline_cfg.get("window_size", 12))
         step_size   = int(pipeline_cfg.get("step_size",   window_size))
 
         # --- data source ----------------------------------------------------------------------
