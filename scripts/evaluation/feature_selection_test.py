@@ -226,9 +226,8 @@ def run(
             X_test = pd.concat([f[0] for f in test_features]).fillna(0.0)
             y_test = _merge_app_y([f[1] for f in test_features])
 
-            # Collect predictions for all types (measure total inference time)
+            # Collect predictions for all types
             per_type_results: dict[str, tuple[np.ndarray, np.ndarray]] = {}
-            t_inf = time.time()
             for col, clf in backend._models.items():
                 if col not in y_test:
                     continue
@@ -240,12 +239,6 @@ def run(
                 thr   = thresholds.get(col, 0.5)
                 y_pred = (probs >= thr).astype(int)
                 per_type_results[col] = (y_test[col].values, y_pred)
-
-            total_windows = sum(len(v[0]) for v in per_type_results.values())
-            inference_ms = (
-                (time.time() - t_inf) / total_windows * 1000
-                if total_windows > 0 else float("nan")
-            )
 
             # Build records
             for col, (y_true, y_pred) in per_type_results.items():
@@ -271,7 +264,6 @@ def run(
                     "feature_fraction":       n_feat / n_total_features if n_total_features > 0 else float("nan"),
                     "avg_features_all_types": avg_features,
                     "train_time_s":           train_time,
-                    "inference_ms_per_window": inference_ms,
                     **m,
                 })
 
@@ -298,7 +290,7 @@ def _print_summary(
         .groupby("fs_variant")[
             ["f1", "false_alarm_rate", "miss_rate",
              "avg_features_all_types", "feature_fraction",
-             "train_time_s", "inference_ms_per_window"]
+             "train_time_s"]
         ]
         .agg(lambda s: s.dropna().mean() if s.dropna().size > 0 else float("nan"))
     )
@@ -306,7 +298,7 @@ def _print_summary(
     col_w = 12
     header = (
         f"  {'Variant':<{col_w}}  {'Macro F1':>8}  {'FAR':>8}  {'Miss':>8}  "
-        f"{'Avg Feat':>9}  {'Feat %':>7}  {'Train(s)':>9}  {'Inf(ms/w)':>10}"
+        f"{'Avg Feat':>9}  {'Feat %':>7}  {'Train(s)':>9}"
     )
     print(f"\n{header}")
     print("  " + "-" * (len(header) - 2))
@@ -317,8 +309,7 @@ def _print_summary(
             f"{row['false_alarm_rate']:>8.4f}  {row['miss_rate']:>8.4f}  "
             f"{row['avg_features_all_types']:>9.1f}  "
             f"{row['feature_fraction']*100:>6.1f}%  "
-            f"{row['train_time_s']:>9.1f}  "
-            f"{row['inference_ms_per_window']:>10.3f}"
+            f"{row['train_time_s']:>9.1f}"
         )
     print()
 
