@@ -1,0 +1,10 @@
+job_id,target_minutes,actual_seconds,iterations,array_size,nthreads,node,timestamp
+186,2,120,8,500000000,72,itp01.benchmarkcenter.megware.com,2026-07-08T17:05:12+02:00
+187,5,300,20,500000000,72,itp01.benchmarkcenter.megware.com,2026-07-08T17:10:39+02:00
+188,15,900,62,500000000,72,itp02.benchmarkcenter.megware.com,2026-07-08T17:20:02+02:00
+189,30,1800,124,500000000,72,itp03.benchmarkcenter.megware.com,2026-07-08T17:35:02+02:00
+190,60,3600,249,500000000,72,itp04.benchmarkcenter.megware.com,2026-07-08T18:05:02+02:00
+191,120,7200,498,500000000,72,itp01.benchmarkcenter.megware.com,2026-07-08T19:11:03+02:00
+192,240,14400,994,500000000,72,itp02.benchmarkcenter.megware.com,2026-07-08T21:20:31+02:00
+193,480,28800,1991,500000000,72,itp03.benchmarkcenter.megware.com,2026-07-09T01:35:26+02:00
+194,720,43200,2983,500000000,72,itp04.benchmarkcenter.megware.com,2026-07-09T06:05:29+02:00

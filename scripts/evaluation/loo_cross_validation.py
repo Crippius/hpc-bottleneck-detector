@@ -1,17 +1,15 @@
 """
-Leave-One-Out (LOO) Cross-Validation for DefaultBackend
+Leave-One-Out (LOO) Cross-Validation
 
-Evaluates how well the Random Forest model generalises to unseen applications
+Evaluates how well ML models generalise to unseen applications
 
-Usage:
-    python examples/loo_cross_validation.py [--window-size 12] [--step-size 12]
-                                            [--threshold 0.5] [--prob-threshold 0.5]
 """
 
 from __future__ import annotations
 
 import argparse
 import logging
+import math
 import sys
 import warnings
 from pathlib import Path
@@ -127,13 +125,77 @@ def _extract_test_features_and_labels(
     return X_full, y_dict
 
 
+def _window_severity(
+    job_df: pd.DataFrame,
+    window_size: int,
+    step_size: int,
+) -> dict[str, list[float]]:
+    """
+    For each sliding window compute the raw max-pooled severity per bottleneck
+    column
+    """
+    n = len(job_df)
+    result: dict[str, list[float]] = {col: [] for col in _LABEL_COLS}
+
+    start = 0
+    while start < n:
+        end = min(start + window_size, n)
+        window_rows = job_df.iloc[start:end]
+
+        for col in _LABEL_COLS:
+            vals = window_rows[col].values
+            real_vals = [v for v in vals if not math.isnan(v)]
+            result[col].append(max(real_vals) if real_vals else float("nan"))
+
+        if end == n:
+            break
+        start += step_size
+
+    return result
+
+
+def _extract_severity(
+    csv_path: Path,
+    window_size: int,
+    step_size: int,
+) -> dict[str, pd.Series]:
+    """
+    Build a per-window raw severity Series per bottleneck column
+    """
+    df = pd.read_csv(csv_path)
+
+    all_window_ids: list[str] = []
+    severities: dict[str, list[float]] = {col: [] for col in _LABEL_COLS}
+
+    for job_id, job_df in df.groupby("id"):
+        job_df = job_df.sort_values("time").reset_index(drop=True)
+        n = len(job_df)
+
+        start = 0
+        win_idx = 0
+        while start < n:
+            end = min(start + window_size, n)
+            all_window_ids.append(f"{job_id}_w{win_idx}")
+            if end == n:
+                break
+            start += step_size
+            win_idx += 1
+
+        job_severity = _window_severity(job_df, window_size, step_size)
+        for col in _LABEL_COLS:
+            severities[col].extend(job_severity[col])
+
+    return {
+        col: pd.Series(severities[col], index=all_window_ids, dtype=float)
+        for col in _LABEL_COLS
+    }
+
+
 def _metrics_from_arrays(
     y_true: np.ndarray, y_pred: np.ndarray
 ) -> dict[str, float]:
     """
     Compute F1, False Alarm Rate, and Anomaly Miss Rate from binary arrays.
-
-    Uses safe division - returns NaN when the denominator is zero.
     """
     tp = int(((y_pred == 1) & (y_true == 1)).sum())
     fp = int(((y_pred == 1) & (y_true == 0)).sum())
@@ -161,7 +223,6 @@ def _metrics_from_arrays(
 
 
 def _score_metrics(y_true: np.ndarray, scores: np.ndarray) -> dict[str, float]:
-    """Compute threshold-free metrics from continuous probability/severity scores."""
     if len(set(y_true)) < 2:
         return {"roc_auc": float("nan"), "pr_auc": float("nan")}
     try:
@@ -194,23 +255,32 @@ def run_loo(
     calibrate: bool = False,
     n_splits: int = 5,
     save_scores_path: str | None = None,
+    save_window_detail_path: str | None = None,
+    feature_reference_sample: int = 50,
+    feature_sample_seed: int = 42,
 ) -> pd.DataFrame:
     """
     Execute the full Leave-One-Out rotation and return a DataFrame of per-fold
     per-BottleneckType metrics.
     """
+    rng = np.random.default_rng(feature_sample_seed)
     trainer = DefaultTrainer(classifier=build_classifier(classifier, classifier_config))
     records: list[dict] = []
     score_records: list[dict] = []
+    window_detail_records: list[dict] = []
+    fn_fp_feature_records: list[dict] = []
     n = len(csv_paths)
 
     # Pre-extract features once per app
     print("[INFO] Pre-extracting features for all apps...")
     all_app_features: list[tuple[pd.DataFrame, dict[str, pd.Series]]] = []
+    all_app_severity: list[dict[str, pd.Series]] = []
     for csv_path in csv_paths:
         print(f"  Extracting features: {csv_path.name}")
         X, y_dict = _extract_test_features_and_labels(csv_path, window_size, step_size, severity_threshold)
         all_app_features.append((X, y_dict))
+        if save_window_detail_path:
+            all_app_severity.append(_extract_severity(csv_path, window_size, step_size))
 
     for fold_idx, test_csv in enumerate(csv_paths):
         app_name = test_csv.stem.replace("_labelled", "")
@@ -270,6 +340,53 @@ def run_loo(
                         "bottleneck_type": col, "y_true": int(yt), "score": float(sc),
                     })
 
+            if save_window_detail_path:
+                severity = (
+                    all_app_severity[fold_idx][col]
+                    .reindex(valid_idx)
+                    .values
+                )
+                cases = np.where(
+                    (y_true == 1) & (y_pred == 1), "TP",
+                    np.where(
+                        (y_true == 0) & (y_pred == 0), "TN",
+                        np.where((y_true == 1) & (y_pred == 0), "FN", "FP"),
+                    ),
+                )
+                for win_id, yt, yp, sc, sv, case in zip(
+                    valid_idx, y_true, y_pred, probs, severity, cases
+                ):
+                    window_detail_records.append({
+                        "fold": fold_idx + 1, "app": app_name, "window_id": win_id,
+                        "bottleneck_type": col, "y_true": int(yt), "y_pred": int(yp),
+                        "score": float(sc), "severity": float(sv), "case": str(case),
+                    })
+
+                def _dump_features(win_id: str, case: str) -> None:
+                    feature_row = X_aligned.loc[win_id]
+                    for feat_name, feat_val in feature_row.items():
+                        fn_fp_feature_records.append({
+                            "fold": fold_idx + 1, "app": app_name, "window_id": win_id,
+                            "bottleneck_type": col, "case": case,
+                            "feature_name": feat_name, "feature_value": float(feat_val),
+                        })
+
+                for win_id, case in zip(valid_idx, cases):
+                    if case in ("FN", "FP"):
+                        _dump_features(win_id, str(case))
+
+                # Bounded random sample of agreement-case windows, as a
+                # baseline to compare FN/FP feature distributions against.
+                valid_idx_arr = np.asarray(valid_idx)
+                for ref_case in ("TP", "TN"):
+                    ref_ids = valid_idx_arr[cases == ref_case]
+                    if len(ref_ids) > feature_reference_sample:
+                        ref_ids = rng.choice(
+                            ref_ids, size=feature_reference_sample, replace=False
+                        )
+                    for win_id in ref_ids:
+                        _dump_features(win_id, ref_case)
+
             print(
                 f"    {col:<42}  "
                 f"pos={n_pos:>4}  neg={n_neg:>4}  "
@@ -296,6 +413,16 @@ def run_loo(
         scores_df.to_parquet(out, index=False)
         print(f"[INFO] Raw scores saved to: {out}")
 
+    if save_window_detail_path and window_detail_records:
+        out = Path(save_window_detail_path)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        pd.DataFrame(window_detail_records).to_parquet(out, index=False)
+        print(f"[INFO] Per-window detail saved to: {out}")
+
+        feat_out = out.with_name(f"{out.stem}_features{out.suffix}")
+        pd.DataFrame(fn_fp_feature_records).to_parquet(feat_out, index=False)
+        print(f"[INFO] FN/FP feature dump saved to: {feat_out}")
+
     return pd.DataFrame(records)
 
 
@@ -313,7 +440,7 @@ def run_loo_amllibrary(
     n_splits: int = 5,
     save_scores_path: str | None = None,
 ) -> pd.DataFrame:
-    """LOO CV for AMLLibraryBackend — trains from raw CSVs each fold."""
+    """LOO CV for AMLLibraryBackend - trains from raw CSVs each fold."""
     from hpc_bottleneck_detector.ml.backends.amllibrary_trainer import AMLLibraryTrainer
     from hpc_bottleneck_detector.ml.backends.amllibrary_backend import (
         _ensure_aml_on_path,
@@ -519,6 +646,10 @@ def _parse_args() -> argparse.Namespace:
                    help="ML backend to evaluate: 'default' (tsfresh+sklearn) or 'amllibrary' (default: default).")
     p.add_argument("--save-scores", default=None, dest="save_scores",
                    help="Optional path (.parquet) to save per-window (y_true, score) for calibration analysis.")
+    p.add_argument("--save-window-detail", default=None, dest="save_window_detail",
+                   help="Optional path (.parquet) to save per-window (window_id, severity, case) detail "
+                        "plus a sibling '<stem>_features.parquet' feature dump for FN/FP windows, "
+                        "for the heuristic-vs-ML disagreement analysis. Not supported for --backend amllibrary.")
     return p.parse_args()
 
 
@@ -533,6 +664,9 @@ if __name__ == "__main__":
     print(f"[INFO] Found {len(csv_paths)} labelled CSV(s) - running {len(csv_paths)}-fold LOO CV")
 
     if args.backend == "amllibrary":
+        if args.save_window_detail:
+            print("[ERROR] --save-window-detail is not supported for --backend amllibrary.")
+            sys.exit(1)
         results = run_loo_amllibrary(
             csv_paths          = csv_paths,
             window_size        = args.window_size,
@@ -555,6 +689,7 @@ if __name__ == "__main__":
             calibrate          = args.calibrate,
             n_splits           = args.n_splits,
             save_scores_path   = args.save_scores,
+            save_window_detail_path = args.save_window_detail,
         )
 
     if results.empty:
