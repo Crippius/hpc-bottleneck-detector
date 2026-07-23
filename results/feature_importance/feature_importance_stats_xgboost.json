@@ -1,0 +1,762 @@
+{
+  "run_key": "xgboost_new_20260715_180130",
+  "model_path": "/home/crippius/uni/master-thesis/hpc-bottleneck-detector/models/xgboost_new.pkl",
+  "model_name": "xgboost_new",
+  "timestamp": "20260715_180130",
+  "per_bottleneck": {
+    "PIPELINE_STALL": {
+      "n_features": 37,
+      "top_features": [
+        {
+          "feature": "cpu_CPI_CPI__mean",
+          "importance": 0.23606368899345398
+        },
+        {
+          "feature": "cpu_Stall Count_total_stalls__quantile__q_0.95",
+          "importance": 0.2115032970905304
+        },
+        {
+          "feature": "cpu_CPI_CPI__agg_linear_trend__attr_\"intercept\"__chunk_len_5__f_agg_\"mean\"",
+          "importance": 0.1475067138671875
+        },
+        {
+          "feature": "cpu_CPI_CPI__quantile__q_0.05",
+          "importance": 0.08770062774419785
+        },
+        {
+          "feature": "cpu_Stalls_stall_rate__quantile__q_0.95",
+          "importance": 0.07803050428628922
+        },
+        {
+          "feature": "cpu_Instructions per Branch (IPB)_ipb__quantile__q_0.5",
+          "importance": 0.052899911999702454
+        },
+        {
+          "feature": "cpu_Stalls_stall_rate__quantile__q_0.25",
+          "importance": 0.026145968586206436
+        },
+        {
+          "feature": "cache_Miss Rate_L2_miss_rate__quantile__q_0.5",
+          "importance": 0.021601654589176178
+        },
+        {
+          "feature": "cpu_Stall Count_total_stalls__agg_autocorrelation__f_agg_\"median\"__maxlag_3",
+          "importance": 0.017354588955640793
+        },
+        {
+          "feature": "cpu_Stalls_stall_rate_memory_loads__mean",
+          "importance": 0.01682627573609352
+        },
+        {
+          "feature": "cpu_Stalls_stall_rate_memory_loads__maximum",
+          "importance": 0.01575428992509842
+        },
+        {
+          "feature": "cache_Miss Rate_L3_miss_rate__maximum",
+          "importance": 0.0156265776604414
+        },
+        {
+          "feature": "cpu_CPI_CPI__quantile__q_0.5",
+          "importance": 0.012048458680510521
+        },
+        {
+          "feature": "cpu_Cycles w/o Execution_cycles_w/o_exec__quantile__q_0.25",
+          "importance": 0.008584929630160332
+        },
+        {
+          "feature": "cpu_SSE Operations_packed_DP__agg_autocorrelation__f_agg_\"var\"__maxlag_3",
+          "importance": 0.005752308759838343
+        },
+        {
+          "feature": "cpu_Cycles w/o Execution_cycles_w/o_exec__mean",
+          "importance": 0.005407108459621668
+        },
+        {
+          "feature": "cpu_Branching_branch_rate__quantile__q_0.25",
+          "importance": 0.005001052748411894
+        },
+        {
+          "feature": "cpu_Instructions per Branch (IPB)_ipb__quantile__q_0.25",
+          "importance": 0.004722458776086569
+        },
+        {
+          "feature": "cpu_CPI_CPI__quantile__q_0.25",
+          "importance": 0.004611932206898928
+        },
+        {
+          "feature": "cpu_Instructions per Branch (IPB)_ipb__quantile__q_0.75",
+          "importance": 0.004313321318477392
+        }
+      ]
+    },
+    "COMPUTE_UNDERUTILIZATION": {
+      "n_features": 50,
+      "top_features": [
+        {
+          "feature": "cpu_FLOPS_AVX_DP__quantile__q_0.5",
+          "importance": 0.6088582873344421
+        },
+        {
+          "feature": "cpu_Cycles w/o Execution_cycles_w/o_exec_due_to_L1D__mean",
+          "importance": 0.06376032531261444
+        },
+        {
+          "feature": "cpu_Cycles w/o Execution_cycles_w/o_exec_due_to_L1D__quantile__q_0.95",
+          "importance": 0.019406238570809364
+        },
+        {
+          "feature": "cpu_Vectorization_vectorization_ratio_DP__mean",
+          "importance": 0.01802125759422779
+        },
+        {
+          "feature": "cache_Data Volume_L2_volume__absolute_sum_of_changes",
+          "importance": 0.015149202197790146
+        },
+        {
+          "feature": "cpu_Stalls_stalls_memory_loads__agg_linear_trend__attr_\"intercept\"__chunk_len_2__f_agg_\"mean\"",
+          "importance": 0.015142261981964111
+        },
+        {
+          "feature": "cpu_Cycles w/o Execution_cycles_w/o_exec_due_to_L1D__quantile__q_0.75",
+          "importance": 0.015067254193127155
+        },
+        {
+          "feature": "memory_Data Volume_total__maximum",
+          "importance": 0.01477297954261303
+        },
+        {
+          "feature": "cache_Bandwidth_L3_evict_bandwidth__quantile__q_0.5",
+          "importance": 0.014751492999494076
+        },
+        {
+          "feature": "memory_Load To Store Ratio_load_to_store__agg_linear_trend__attr_\"intercept\"__chunk_len_2__f_agg_\"mean\"",
+          "importance": 0.013705624267458916
+        },
+        {
+          "feature": "cpu_Cycles w/o Execution_cycles_w/o_exec_due_to_L2__agg_linear_trend__attr_\"intercept\"__chunk_len_2__f_agg_\"mean\"",
+          "importance": 0.01287167239934206
+        },
+        {
+          "feature": "cache_Bandwidth_L2D_evict_bandwidth__mean",
+          "importance": 0.012113613076508045
+        },
+        {
+          "feature": "cpu_Stalls_stalls_L1D_misses__mean",
+          "importance": 0.01190088875591755
+        },
+        {
+          "feature": "cache_Bandwidth_L2D_evict_bandwidth__quantile__q_0.05",
+          "importance": 0.011266226880252361
+        },
+        {
+          "feature": "memory_UPI Bandwidth_sent__quantile__q_0.05",
+          "importance": 0.011064955964684486
+        },
+        {
+          "feature": "cache_Miss Ratio_L2_miss_ratio__minimum",
+          "importance": 0.010635127313435078
+        },
+        {
+          "feature": "cpu_Stalls_stall_rate_memory_loads__maximum",
+          "importance": 0.010378747247159481
+        },
+        {
+          "feature": "memory_Bandwidth_total__quantile__q_0.05",
+          "importance": 0.010325191542506218
+        },
+        {
+          "feature": "cpu_Cycles w/o Execution_cycles_w/o_exec_due_to_memory_loads__mean",
+          "importance": 0.00955205038189888
+        },
+        {
+          "feature": "cpu_Usage_system__quantile__q_0.95",
+          "importance": 0.009336837567389011
+        }
+      ]
+    },
+    "PRECISION_WASTE": {
+      "n_features": 38,
+      "top_features": [
+        {
+          "feature": "cpu_FLOPS_AVX_SP__standard_deviation",
+          "importance": 0.5474559664726257
+        },
+        {
+          "feature": "cpu_FLOPS_SP__maximum",
+          "importance": 0.08006983995437622
+        },
+        {
+          "feature": "cpu_FLOPS_DP__agg_linear_trend__attr_\"intercept\"__chunk_len_5__f_agg_\"mean\"",
+          "importance": 0.07769665122032166
+        },
+        {
+          "feature": "cpu_FLOPS_DP__quantile__q_0.25",
+          "importance": 0.07569970935583115
+        },
+        {
+          "feature": "cpu_FLOPS_DP__agg_linear_trend__attr_\"intercept\"__chunk_len_2__f_agg_\"mean\"",
+          "importance": 0.05203087627887726
+        },
+        {
+          "feature": "cpu_SSE Operations_scalar_SP__absolute_sum_of_changes",
+          "importance": 0.030964625999331474
+        },
+        {
+          "feature": "cpu_FLOPS_DP__quantile__q_0.05",
+          "importance": 0.027871984988451004
+        },
+        {
+          "feature": "cpu_Vectorization_vectorization_ratio_DP__agg_linear_trend__attr_\"intercept\"__chunk_len_2__f_agg_\"mean\"",
+          "importance": 0.015340469777584076
+        },
+        {
+          "feature": "cpu_SSE Operations_packed_SP__absolute_sum_of_changes",
+          "importance": 0.01175632607191801
+        },
+        {
+          "feature": "cpu_Stalls_stalls_L1D_misses__maximum",
+          "importance": 0.008368344977498055
+        },
+        {
+          "feature": "cpu_FLOPS_DP__quantile__q_0.5",
+          "importance": 0.006957782432436943
+        },
+        {
+          "feature": "memory_Load To Store Ratio_load_to_store__agg_linear_trend__attr_\"intercept\"__chunk_len_5__f_agg_\"mean\"",
+          "importance": 0.006462650839239359
+        },
+        {
+          "feature": "cpu_Stalls_stalls_L1D_misses__quantile__q_0.75",
+          "importance": 0.0047149742022156715
+        },
+        {
+          "feature": "cpu_Vectorization_vectorization_ratio_DP__standard_deviation",
+          "importance": 0.0045553394593298435
+        },
+        {
+          "feature": "cache_Bandwidth_L3_load_bandwidth__minimum",
+          "importance": 0.003836509771645069
+        },
+        {
+          "feature": "cpu_Clock_clock__minimum",
+          "importance": 0.003518973011523485
+        },
+        {
+          "feature": "energy_System Power_system_power__quantile__q_0.25",
+          "importance": 0.003457797924056649
+        },
+        {
+          "feature": "cache_Bandwidth_L2_bandwidth__agg_autocorrelation__f_agg_\"mean\"__maxlag_3",
+          "importance": 0.0034037777222692966
+        },
+        {
+          "feature": "cache_Request Rate_L3_request_rate__absolute_sum_of_changes",
+          "importance": 0.0033244192600250244
+        },
+        {
+          "feature": "cpu_FLOPS_DP__minimum",
+          "importance": 0.0032642672304064035
+        }
+      ]
+    },
+    "BRANCH_MISPREDICTION": {
+      "n_features": 32,
+      "top_features": [
+        {
+          "feature": "cpu_Branching_branch_misprediction_ratio__mean",
+          "importance": 0.6917400360107422
+        },
+        {
+          "feature": "cpu_Branching_branch_misprediction_ratio__agg_linear_trend__attr_\"intercept\"__chunk_len_5__f_agg_\"mean\"",
+          "importance": 0.15601077675819397
+        },
+        {
+          "feature": "cpu_Branching_branch_misprediction_ratio__quantile__q_0.5",
+          "importance": 0.015353033319115639
+        },
+        {
+          "feature": "cpu_Branching_branch_misprediction_ratio__quantile__q_0.25",
+          "importance": 0.012386761605739594
+        },
+        {
+          "feature": "cpu_Branching_branch_misprediction_rate__agg_linear_trend__attr_\"intercept\"__chunk_len_5__f_agg_\"mean\"",
+          "importance": 0.01228400133550167
+        },
+        {
+          "feature": "load_imbalance_FLOPS_intra_node__agg_linear_trend__attr_\"intercept\"__chunk_len_5__f_agg_\"mean\"",
+          "importance": 0.011841056868433952
+        },
+        {
+          "feature": "cpu_Usage_user__kurtosis",
+          "importance": 0.009823746979236603
+        },
+        {
+          "feature": "cache_Miss Ratio_L2_miss_ratio__agg_linear_trend__attr_\"intercept\"__chunk_len_5__f_agg_\"mean\"",
+          "importance": 0.009518706239759922
+        },
+        {
+          "feature": "cpu_SSE Operations_scalar_DP__skewness",
+          "importance": 0.007815254852175713
+        },
+        {
+          "feature": "load_imbalance_FLOPS_intra_node__quantile__q_0.75",
+          "importance": 0.006698649376630783
+        },
+        {
+          "feature": "cpu_Branching_branch_misprediction_rate__mean",
+          "importance": 0.0064204963855445385
+        },
+        {
+          "feature": "cpu_FLOPS_DP__skewness",
+          "importance": 0.0061635300517082214
+        },
+        {
+          "feature": "cpu_Vectorization_vectorization_ratio_DP__agg_linear_trend__attr_\"intercept\"__chunk_len_5__f_agg_\"mean\"",
+          "importance": 0.005802220664918423
+        },
+        {
+          "feature": "cpu_Stall Count_total_stalls__skewness",
+          "importance": 0.004800477996468544
+        },
+        {
+          "feature": "cpu_Vectorization_vectorization_ratio_DP__mean",
+          "importance": 0.004555407911539078
+        },
+        {
+          "feature": "cpu_CPI_CPI__quantile__q_0.25",
+          "importance": 0.003815602045506239
+        },
+        {
+          "feature": "cache_Miss Rate_L2_miss_rate__agg_autocorrelation__f_agg_\"median\"__maxlag_3",
+          "importance": 0.003810159396380186
+        },
+        {
+          "feature": "memory_Load To Store Ratio_load_to_store__agg_linear_trend__attr_\"intercept\"__chunk_len_2__f_agg_\"mean\"",
+          "importance": 0.0037386533804237843
+        },
+        {
+          "feature": "cpu_Branching_branch_misprediction_rate__agg_linear_trend__attr_\"slope\"__chunk_len_5__f_agg_\"mean\"",
+          "importance": 0.003529530018568039
+        },
+        {
+          "feature": "cpu_Branching_branch_rate__kurtosis",
+          "importance": 0.003246408887207508
+        }
+      ]
+    },
+    "CACHE_PRESSURE": {
+      "n_features": 59,
+      "top_features": [
+        {
+          "feature": "memory_Bandwidth_total__quantile__q_0.5",
+          "importance": 0.6989209651947021
+        },
+        {
+          "feature": "memory_Bandwidth_total__quantile__q_0.25",
+          "importance": 0.106843501329422
+        },
+        {
+          "feature": "cpu_Usage_user__mean",
+          "importance": 0.0371600016951561
+        },
+        {
+          "feature": "memory_Bandwidth_total__quantile__q_0.05",
+          "importance": 0.018947649747133255
+        },
+        {
+          "feature": "cpu_Stalls_stalls_L1D_misses__agg_linear_trend__attr_\"intercept\"__chunk_len_2__f_agg_\"mean\"",
+          "importance": 0.018632106482982635
+        },
+        {
+          "feature": "cache_Miss Ratio_L3_miss_ratio__quantile__q_0.25",
+          "importance": 0.01185931172221899
+        },
+        {
+          "feature": "memory_Bandwidth_write__quantile__q_0.05",
+          "importance": 0.009972690604627132
+        },
+        {
+          "feature": "cache_Data Volume_L2_volume__agg_autocorrelation__f_agg_\"mean\"__maxlag_3",
+          "importance": 0.009885941632091999
+        },
+        {
+          "feature": "memory_Data Volume_read__quantile__q_0.5",
+          "importance": 0.009031944908201694
+        },
+        {
+          "feature": "cpu_Usage_user__quantile__q_0.05",
+          "importance": 0.00827364157885313
+        },
+        {
+          "feature": "cpu_SSE Operations_scalar_SP__agg_autocorrelation__f_agg_\"median\"__maxlag_3",
+          "importance": 0.007912221364676952
+        },
+        {
+          "feature": "energy_DRAM Power_dram_power__standard_deviation",
+          "importance": 0.0069401939399540424
+        },
+        {
+          "feature": "cache_Bandwidth_L3_evict_bandwidth__mean",
+          "importance": 0.006633002310991287
+        },
+        {
+          "feature": "cpu_Stalls_stalls_L1D_misses__quantile__q_0.5",
+          "importance": 0.005614501424133778
+        },
+        {
+          "feature": "cpu_Stalls_stalls_L1D_misses__mean",
+          "importance": 0.004172169137746096
+        },
+        {
+          "feature": "cpu_Stalls_stall_rate_L1D_misses__skewness",
+          "importance": 0.003825635416433215
+        },
+        {
+          "feature": "memory_UPI Data Volume_total__standard_deviation",
+          "importance": 0.003764621214941144
+        },
+        {
+          "feature": "memory_Bandwidth_read__quantile__q_0.25",
+          "importance": 0.003052913350984454
+        },
+        {
+          "feature": "cache_Request Rate_L2_request_rate__quantile__q_0.05",
+          "importance": 0.0018233860610052943
+        },
+        {
+          "feature": "cache_Miss Ratio_L3_miss_ratio__mean",
+          "importance": 0.0018130942480638623
+        }
+      ]
+    },
+    "INTRA_NODE_LOAD_IMBALANCE": {
+      "n_features": 2,
+      "top_features": [
+        {
+          "feature": "load_imbalance_FLOPS_intra_node__mean",
+          "importance": 0.9865296483039856
+        },
+        {
+          "feature": "load_imbalance_FLOPS_intra_node__quantile__q_0.25",
+          "importance": 0.013470386154949665
+        }
+      ]
+    }
+  },
+  "global": {
+    "top_features": [
+      {
+        "feature": "load_imbalance_FLOPS_intra_node__mean",
+        "mean_importance": 0.9865296483039856,
+        "max_importance": 0.9865296483039856,
+        "n_models": 1
+      },
+      {
+        "feature": "memory_Bandwidth_total__quantile__q_0.5",
+        "mean_importance": 0.6989209651947021,
+        "max_importance": 0.6989209651947021,
+        "n_models": 1
+      },
+      {
+        "feature": "cpu_Branching_branch_misprediction_ratio__mean",
+        "mean_importance": 0.6917400360107422,
+        "max_importance": 0.6917400360107422,
+        "n_models": 1
+      },
+      {
+        "feature": "cpu_FLOPS_AVX_DP__quantile__q_0.5",
+        "mean_importance": 0.6088582873344421,
+        "max_importance": 0.6088582873344421,
+        "n_models": 1
+      },
+      {
+        "feature": "cpu_FLOPS_AVX_SP__standard_deviation",
+        "mean_importance": 0.5474559664726257,
+        "max_importance": 0.5474559664726257,
+        "n_models": 1
+      },
+      {
+        "feature": "cpu_CPI_CPI__mean",
+        "mean_importance": 0.23606368899345398,
+        "max_importance": 0.23606368899345398,
+        "n_models": 1
+      },
+      {
+        "feature": "cpu_Stall Count_total_stalls__quantile__q_0.95",
+        "mean_importance": 0.2115032970905304,
+        "max_importance": 0.2115032970905304,
+        "n_models": 1
+      },
+      {
+        "feature": "cpu_Branching_branch_misprediction_ratio__agg_linear_trend__attr_\"intercept\"__chunk_len_5__f_agg_\"mean\"",
+        "mean_importance": 0.15601077675819397,
+        "max_importance": 0.15601077675819397,
+        "n_models": 1
+      },
+      {
+        "feature": "cpu_CPI_CPI__agg_linear_trend__attr_\"intercept\"__chunk_len_5__f_agg_\"mean\"",
+        "mean_importance": 0.1475067138671875,
+        "max_importance": 0.1475067138671875,
+        "n_models": 1
+      },
+      {
+        "feature": "memory_Bandwidth_total__quantile__q_0.25",
+        "mean_importance": 0.106843501329422,
+        "max_importance": 0.106843501329422,
+        "n_models": 1
+      },
+      {
+        "feature": "cpu_CPI_CPI__quantile__q_0.05",
+        "mean_importance": 0.08770062774419785,
+        "max_importance": 0.08770062774419785,
+        "n_models": 1
+      },
+      {
+        "feature": "cpu_FLOPS_SP__maximum",
+        "mean_importance": 0.08006983995437622,
+        "max_importance": 0.08006983995437622,
+        "n_models": 1
+      },
+      {
+        "feature": "cpu_Stalls_stall_rate__quantile__q_0.95",
+        "mean_importance": 0.07803050428628922,
+        "max_importance": 0.07803050428628922,
+        "n_models": 1
+      },
+      {
+        "feature": "cpu_FLOPS_DP__agg_linear_trend__attr_\"intercept\"__chunk_len_5__f_agg_\"mean\"",
+        "mean_importance": 0.07769665122032166,
+        "max_importance": 0.07769665122032166,
+        "n_models": 1
+      },
+      {
+        "feature": "cpu_FLOPS_DP__quantile__q_0.25",
+        "mean_importance": 0.07569970935583115,
+        "max_importance": 0.07569970935583115,
+        "n_models": 1
+      },
+      {
+        "feature": "cpu_Cycles w/o Execution_cycles_w/o_exec_due_to_L1D__mean",
+        "mean_importance": 0.06376032531261444,
+        "max_importance": 0.06376032531261444,
+        "n_models": 1
+      },
+      {
+        "feature": "cpu_Instructions per Branch (IPB)_ipb__quantile__q_0.5",
+        "mean_importance": 0.052899911999702454,
+        "max_importance": 0.052899911999702454,
+        "n_models": 1
+      },
+      {
+        "feature": "cpu_FLOPS_DP__agg_linear_trend__attr_\"intercept\"__chunk_len_2__f_agg_\"mean\"",
+        "mean_importance": 0.05203087627887726,
+        "max_importance": 0.05203087627887726,
+        "n_models": 1
+      },
+      {
+        "feature": "cpu_Usage_user__mean",
+        "mean_importance": 0.0371600016951561,
+        "max_importance": 0.0371600016951561,
+        "n_models": 1
+      },
+      {
+        "feature": "cpu_SSE Operations_scalar_SP__absolute_sum_of_changes",
+        "mean_importance": 0.030964625999331474,
+        "max_importance": 0.030964625999331474,
+        "n_models": 1
+      }
+    ]
+  },
+  "statistics": {
+    "by_family": [
+      {
+        "stat_base": "mean",
+        "mean_importance": 0.10073911398649216,
+        "total_importance": 2.1155214309692383,
+        "n_features": 21
+      },
+      {
+        "stat_base": "standard_deviation",
+        "mean_importance": 0.05760430544614792,
+        "total_importance": 0.5760430693626404,
+        "n_features": 10
+      },
+      {
+        "stat_base": "quantile",
+        "mean_importance": 0.02603745460510254,
+        "total_importance": 2.3433709144592285,
+        "n_features": 90
+      },
+      {
+        "stat_base": "agg_linear_trend",
+        "mean_importance": 0.017736028879880905,
+        "total_importance": 0.585288941860199,
+        "n_features": 33
+      },
+      {
+        "stat_base": "maximum",
+        "mean_importance": 0.013780075125396252,
+        "total_importance": 0.1515808254480362,
+        "n_features": 11
+      },
+      {
+        "stat_base": "absolute_sum_of_changes",
+        "mean_importance": 0.009009321220219135,
+        "total_importance": 0.07207456976175308,
+        "n_features": 8
+      },
+      {
+        "stat_base": "kurtosis",
+        "mean_importance": 0.004165940918028355,
+        "total_importance": 0.0208297036588192,
+        "n_features": 5
+      },
+      {
+        "stat_base": "agg_autocorrelation",
+        "mean_importance": 0.003946908749639988,
+        "total_importance": 0.06709744781255722,
+        "n_features": 17
+      },
+      {
+        "stat_base": "skewness",
+        "mean_importance": 0.0032983017154037952,
+        "total_importance": 0.02968471497297287,
+        "n_features": 9
+      },
+      {
+        "stat_base": "minimum",
+        "mean_importance": 0.0027505832258611917,
+        "total_importance": 0.03850816562771797,
+        "n_features": 14
+      }
+    ],
+    "by_full_spec": [
+      {
+        "stat_base": "mean",
+        "stat_full": "mean",
+        "mean_importance": 0.10073911398649216,
+        "total_importance": 2.1155214309692383,
+        "n_features": 21
+      },
+      {
+        "stat_base": "quantile",
+        "stat_full": "quantile__q_0.5",
+        "mean_importance": 0.06651978194713593,
+        "total_importance": 1.463435173034668,
+        "n_features": 22
+      },
+      {
+        "stat_base": "standard_deviation",
+        "stat_full": "standard_deviation",
+        "mean_importance": 0.05760430544614792,
+        "total_importance": 0.5760430693626404,
+        "n_features": 10
+      },
+      {
+        "stat_base": "quantile",
+        "stat_full": "quantile__q_0.95",
+        "mean_importance": 0.027543507516384125,
+        "total_importance": 0.3305220901966095,
+        "n_features": 12
+      },
+      {
+        "stat_base": "agg_linear_trend",
+        "stat_full": "agg_linear_trend__attr_\"intercept\"__chunk_len_5__f_agg_\"mean\"",
+        "mean_importance": 0.023337287828326225,
+        "total_importance": 0.44340845942497253,
+        "n_features": 19
+      },
+      {
+        "stat_base": "maximum",
+        "stat_full": "maximum",
+        "mean_importance": 0.013780075125396252,
+        "total_importance": 0.1515808254480362,
+        "n_features": 11
+      },
+      {
+        "stat_base": "quantile",
+        "stat_full": "quantile__q_0.05",
+        "mean_importance": 0.012877156026661396,
+        "total_importance": 0.1931573450565338,
+        "n_features": 15
+      },
+      {
+        "stat_base": "quantile",
+        "stat_full": "quantile__q_0.25",
+        "mean_importance": 0.011524633504450321,
+        "total_importance": 0.2996404767036438,
+        "n_features": 26
+      },
+      {
+        "stat_base": "agg_linear_trend",
+        "stat_full": "agg_linear_trend__attr_\"intercept\"__chunk_len_2__f_agg_\"mean\"",
+        "mean_importance": 0.010642379522323608,
+        "total_importance": 0.1383509337902069,
+        "n_features": 13
+      },
+      {
+        "stat_base": "absolute_sum_of_changes",
+        "stat_full": "absolute_sum_of_changes",
+        "mean_importance": 0.009009321220219135,
+        "total_importance": 0.07207456976175308,
+        "n_features": 8
+      },
+      {
+        "stat_base": "agg_autocorrelation",
+        "stat_full": "agg_autocorrelation__f_agg_\"median\"__maxlag_3",
+        "mean_importance": 0.006048142444342375,
+        "total_importance": 0.036288853734731674,
+        "n_features": 6
+      },
+      {
+        "stat_base": "kurtosis",
+        "stat_full": "kurtosis",
+        "mean_importance": 0.004165940918028355,
+        "total_importance": 0.0208297036588192,
+        "n_features": 5
+      },
+      {
+        "stat_base": "quantile",
+        "stat_full": "quantile__q_0.75",
+        "mean_importance": 0.00377439777366817,
+        "total_importance": 0.05661596730351448,
+        "n_features": 15
+      },
+      {
+        "stat_base": "agg_linear_trend",
+        "stat_full": "agg_linear_trend__attr_\"slope\"__chunk_len_5__f_agg_\"mean\"",
+        "mean_importance": 0.003529530018568039,
+        "total_importance": 0.003529530018568039,
+        "n_features": 1
+      },
+      {
+        "stat_base": "skewness",
+        "stat_full": "skewness",
+        "mean_importance": 0.0032983017154037952,
+        "total_importance": 0.02968471497297287,
+        "n_features": 9
+      },
+      {
+        "stat_base": "agg_autocorrelation",
+        "stat_full": "agg_autocorrelation__f_agg_\"mean\"__maxlag_3",
+        "mean_importance": 0.0030505636241286993,
+        "total_importance": 0.01830338127911091,
+        "n_features": 6
+      },
+      {
+        "stat_base": "minimum",
+        "stat_full": "minimum",
+        "mean_importance": 0.0027505832258611917,
+        "total_importance": 0.03850816562771797,
+        "n_features": 14
+      },
+      {
+        "stat_base": "agg_autocorrelation",
+        "stat_full": "agg_autocorrelation__f_agg_\"var\"__maxlag_3",
+        "mean_importance": 0.002501043025404215,
+        "total_importance": 0.012505214661359787,
+        "n_features": 5
+      }
+    ]
+  }
+}
