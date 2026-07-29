@@ -55,7 +55,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 REPO_ROOT  = Path(__file__).parent.parent.parent
-TRAIN_DIR  = REPO_ROOT / "data" / "labelled_data" / "training_set"
+TRAIN_DIR  = REPO_ROOT / "data" / "training_corpus"
 
 _BT_SHORT: dict[str, str] = {
     "PIPELINE_STALL":            "Pipeline Stall",
@@ -221,7 +221,7 @@ def run_gradual_scaling(
 
         for combo_idx, combo in enumerate(combos):
             combo_set = set(combo)
-            app_names = [all_paths[i].stem.replace("_labelled", "") for i in combo]
+            app_names = [all_paths[i].stem for i in combo]
 
             X_train = pd.concat([app_features[i][0] for i in combo]).fillna(0.0)
             y_dict_train: dict[str, pd.Series] = {}
@@ -471,7 +471,7 @@ if __name__ == "__main__":
     from math import comb
     print(f"\n[INFO] App pool: {n_total} apps (test set is dynamic per combo)")
     for i, p in enumerate(all_paths):
-        print(f"    [{i+1:>2}] {p.stem.replace('_labelled', '')}")
+        print(f"    [{i+1:>2}] {p.stem}")
 
     total_combos = sum(
         comb(n_total, k) for k in steps if k < n_total
@@ -496,7 +496,7 @@ if __name__ == "__main__":
         print(f"\n[INFO] Pre-extracting features for {n_total} apps ...")
         app_features: list[tuple[pd.DataFrame, dict[str, pd.Series]]] = []
         for i, p in enumerate(all_paths):
-            app = p.stem.replace("_labelled", "")
+            app = p.stem
             print(f"  [{i+1}/{n_total}] {app} ...", end=" ", flush=True)
             X_app, y_app = _extract_features_for_app(
                 p, args.window_size, args.step_size, args.severity_threshold

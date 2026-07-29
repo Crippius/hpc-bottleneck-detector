@@ -1,0 +1,6 @@
+outs:
+- md5: 0a206e47dfb808da49b33fdc3f4feadf.dir
+  size: 648585
+  nfiles: 5
+  hash: md5
+  path: hpas_fault_injection

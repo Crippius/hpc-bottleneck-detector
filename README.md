@@ -90,6 +90,8 @@ or override it from the command line without touching the file:
 uv run bottleneck-detect --job-id <JOB_ID> --model-path models/default.pkl
 ```
 
+To run against an offline/archived CSV export instead of a live XBAT connection, set `data_source.type: csv` with a `file_path` pointing at a job CSV in the same format as `data/example.csv`.
+
 (`--model-path` implies `--strategy supervised_ml`; pass `--strategy heuristic` to go back.)
 
 ---
@@ -151,6 +153,21 @@ src/hpc_bottleneck_detector/
 
 ---
 
+## Dataset
+
+The labelled dataset used to train and evaluate this project (the 20-application
+training corpus, the HSUper held-out generalization set, and the HPAS
+fault-injection ground truth) is published separately on
+Zenodo:
+
+**[HPC Bottleneck Detection Dataset: Labelled Performance Counter Traces](https://zenodo.org/records/21679739)**
+— DOI: [10.5281/zenodo.21679739](https://doi.org/10.5281/zenodo.21679739)
+
+---
+
 ## License
 
-See [LICENSE](LICENSE) for details.
+Code is licensed under MIT — see [LICENSE](LICENSE) for details.
+
+The dataset is licensed separately under CC BY 4.0 - see the
+[Zenodo record](https://zenodo.org/records/21679739).

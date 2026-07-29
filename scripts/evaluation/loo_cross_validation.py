@@ -43,7 +43,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 REPO_ROOT = Path(__file__).parent.parent.parent
-DATA_DIR  = REPO_ROOT / "data" / "labelled_data" / "training_set"
+DATA_DIR  = REPO_ROOT / "data" / "training_corpus"
 
 
 # ---------------------------------------------------------------------------
@@ -283,7 +283,7 @@ def run_loo(
             all_app_severity.append(_extract_severity(csv_path, window_size, step_size))
 
     for fold_idx, test_csv in enumerate(csv_paths):
-        app_name = test_csv.stem.replace("_labelled", "")
+        app_name = test_csv.stem
         train_indices = [i for i in range(n) if i != fold_idx]
         train_app_features = [all_app_features[i] for i in train_indices]
 
@@ -456,7 +456,7 @@ def run_loo_amllibrary(
     n = len(csv_paths)
 
     for fold_idx, test_csv in enumerate(csv_paths):
-        app_name = test_csv.stem.replace("_labelled", "")
+        app_name = test_csv.stem
         train_paths = [str(p) for i, p in enumerate(csv_paths) if i != fold_idx]
 
         print(f"\n{'='*70}")

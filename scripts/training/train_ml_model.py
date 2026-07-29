@@ -8,7 +8,7 @@ Usage
 -----
     python scripts/training/train_ml_model.py
     python scripts/training/train_ml_model.py \\
-        --data-dir data/labelled_data/ \\
+        --data-dir data/training_corpus/ \\
         --window-size 12 \\
         --step-size 12 \\
         --output models/default.pkl
@@ -59,7 +59,7 @@ def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Train a DefaultBackend on labelled HPC job CSVs."
     )
-    parser.add_argument("--data-dir", default="data/labelled_data/training_set/",
+    parser.add_argument("--data-dir", default="data/training_corpus/",
         help="Directory containing labelled CSV files.")
     parser.add_argument("--window-size", type=int, default=12,
         help="Number of intervals per analysis window.")

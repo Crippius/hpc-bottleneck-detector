@@ -52,7 +52,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 REPO_ROOT = Path(__file__).parent.parent.parent
-DATA_DIR = REPO_ROOT / "data" / "labelled_data" / "training_set"
+DATA_DIR = REPO_ROOT / "data" / "training_corpus"
 
 VARIANTS: list[tuple[str, bool, bool]] = [
     ("fdr+imp",  True,  True),
@@ -187,7 +187,7 @@ def run(
         ):
             train_features = [all_app_features[i] for i in train_idx]
             test_features  = [all_app_features[i] for i in test_idx]
-            test_names     = [csv_paths[i].stem.replace("_labelled", "") for i in test_idx]
+            test_names     = [csv_paths[i].stem for i in test_idx]
 
             print(f"\n  Outer fold {outer_fold}/{n_outer_splits}  |  test: {test_names}")
 

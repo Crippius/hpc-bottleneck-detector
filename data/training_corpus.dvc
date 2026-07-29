@@ -1,0 +1,6 @@
+outs:
+- md5: 30d3e7fd2fa82ddd861754f069733e17.dir
+  size: 3831586
+  nfiles: 20
+  hash: md5
+  path: training_corpus

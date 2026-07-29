@@ -6,7 +6,7 @@ use_fdr x use_importance_pruning and prints a side-by-side comparison.
 
 Usage:
     python scripts/loo_variants.py
-    python scripts/loo_variants.py --data-dir data/labelled_data/training_set --output-csv results/loo_variants.csv
+    python scripts/loo_variants.py --data-dir data/training_corpus --output-csv results/loo_variants.csv
 """
 
 from __future__ import annotations
@@ -53,7 +53,7 @@ VARIANTS: list[tuple[str, bool, bool]] = [
 
 def _parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser()
-    p.add_argument("--data-dir", default="data/labelled_data/training_set")
+    p.add_argument("--data-dir", default="data/training_corpus")
     p.add_argument("--window-size",        type=int,   default=12)
     p.add_argument("--step-size",          type=int,   default=12)
     p.add_argument("--severity-threshold", type=float, default=0.0)
@@ -140,7 +140,7 @@ def run_loo_variant(
     n = len(csv_paths)
 
     for fold_idx, test_csv in enumerate(csv_paths):
-        app_name = test_csv.stem.replace("_labelled", "")
+        app_name = test_csv.stem
         train_paths = [p for p in csv_paths if p != test_csv]
 
         print(f"  [{variant_name}] fold {fold_idx+1}/{n} - held-out: {app_name}")

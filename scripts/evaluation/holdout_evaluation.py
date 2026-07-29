@@ -35,7 +35,7 @@ def run(
     records: list[dict] = []
 
     for csv_path in csv_paths:
-        app_name = csv_path.stem.replace("_labelled", "")
+        app_name = csv_path.stem
         logger.info("Extracting features: %s", csv_path.name)
         X, y_dict = _extract_test_features_and_labels(csv_path, window_size, step_size, severity_threshold)
 

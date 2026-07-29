@@ -1,0 +1,6 @@
+outs:
+- md5: 014bf843cf0d02043c78e11fb674de14.dir
+  size: 6888957
+  nfiles: 7
+  hash: md5
+  path: hsuper_dataset

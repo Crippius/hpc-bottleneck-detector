@@ -46,7 +46,7 @@ from hpc_bottleneck_detector.ml.backends.amllibrary_backend import (
 logging.basicConfig(level=logging.INFO, format="%(asctime)s  %(message)s", datefmt="%H:%M:%S")
 logger = logging.getLogger(__name__)
 
-DATA_DIR = ROOT / "data" / "labelled_data" / "training_set"
+DATA_DIR = ROOT / "data" / "training_corpus"
 
 FIXED_SCENARIOS: dict[str, list[str]] = {
     "no_L3":        ["cache_*L3*"],

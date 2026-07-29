@@ -9,7 +9,7 @@ Usage
 -----
     conda run -n thesisEnv python scripts/training/train_amllibrary_model.py
     conda run -n thesisEnv python scripts/training/train_amllibrary_model.py \\
-        --data-dir data/labelled_data/ \\
+        --data-dir data/training_corpus/ \\
         --window-size 12 \\
         --step-size 12 \\
         --output models/amllibrary.pkl
@@ -42,7 +42,7 @@ def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Train an AMLLibraryBackend on labelled HPC job CSVs."
     )
-    parser.add_argument("--data-dir", default="data/labelled_data/",
+    parser.add_argument("--data-dir", default="data/training_corpus/",
         help="Directory containing labelled CSV files.")
     parser.add_argument("--window-size", type=int, default=12,
         help="Number of intervals per analysis window.")

@@ -71,8 +71,8 @@ def label_single_job(job_id: int, source: XBATDataSource, strategy: HeuristicStr
     print(labelled[preview_cols].head().to_string(index=False))
 
     # --- Save to CSV ----------------------------------------------------------------------------------------
-    base_dir = output_dir or (Path(__file__).parent.parent.parent / "data" / "labelled_data")
-    out_path = base_dir / f"{dm.job_id}_labelled.csv"
+    base_dir = output_dir or (Path(__file__).parent.parent.parent / "data" / "training_corpus")
+    out_path = base_dir / f"{dm.job_id}.csv"
     labelled.to_csv(out_path, index=False)
     print(f"\n[INFO] Saved labelled CSV -> {out_path}")
 
@@ -88,7 +88,7 @@ def main() -> None:
         help="One or more job IDs to label (default: 43141)",
     )
     parser.add_argument("--env-file", default=".env", help="Path to .env credentials file (default: .env)")
-    parser.add_argument("--output-dir", default=None, help="Directory to save labelled CSVs (default: data/labelled_data/)")
+    parser.add_argument("--output-dir", default=None, help="Directory to save labelled CSVs (default: data/training_corpus/)")
     parser.add_argument("--sampling-interval", type=int, default=None, metavar="SECONDS",
                         help="Override the inferred sampling interval in seconds (default: auto from job runtime/n_intervals)")
     parser.add_argument("--hardware-profile", default=None, metavar="NAME_OR_PATH",
