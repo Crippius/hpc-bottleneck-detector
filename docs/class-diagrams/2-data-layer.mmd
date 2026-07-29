@@ -55,8 +55,9 @@ classDiagram
         +job_id: str
         +job_metadata: dict
         +node_hardware: dict
-        +__init__(job_id: str, job_metadata: dict, node_hardware: dict)
-        +from_xbat(job_id: str, job_entry: dict, node_hardware_raw: dict) JobContext$
+        +supplemental_benchmarks: dict~str, float~
+        +__init__(job_id: str, job_metadata: dict, node_hardware: dict, supplemental_benchmarks: Optional~dict~str, float~~)
+        +from_xbat(job_id: str, job_entry: dict, node_hardware_raw: dict, interval_seconds: Optional~float~) JobContext$
         +get_job_id() str
         +get_metadata(key: str, default: Any) Any
         +get_node_hashes() List~str~
@@ -66,6 +67,13 @@ classDiagram
         +get_memory_info(key: str) Optional~Any~
     }
 
+    class HardwareProfileLoader {
+        +__init__(profiles_dir: Optional~str~)
+        +match(cpu_model: str) dict
+        -_load_dir(directory: Path) None
+        -_load_benchmarks(path: Path) dict
+    }
+
     %% Relationships
     IDataSource <|.. CSVDataSource : implements
     IDataSource <|.. XBATDataSource : implements
@@ -73,3 +81,4 @@ classDiagram
 
     DataManager o-- JobContext : job_context
     XBATDataSource --> JobContext : builds
+    HardwareProfileLoader ..> JobContext : fills supplemental_benchmarks (via AnalysisOrchestrator)

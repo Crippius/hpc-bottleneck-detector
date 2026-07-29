@@ -32,6 +32,8 @@ classDiagram
         -_validate_token() bool
         -_request_new_token() None
         -_build_url(job_id: str) str
+        -_compute_load_imbalance_rows(job_id: str, main_df: DataFrame, job_entry: Optional~dict~) List~dict~
+        -_build_job_context_from_entry(job_id: str, job_entry: Optional~dict~, interval_seconds: Optional~float~) Optional~JobContext~
     }
 
     IDataSource <|.. CSVDataSource : implements
@@ -48,9 +50,11 @@ classDiagram
         +window_size: int
         +step_size: int
         +output_cfg: dict
-        +__init__(data_source: IDataSource, strategy: IAnalysisStrategy, window_size: int, step_size: int, output_cfg: dict)
-        +from_config(config_path: str) AnalysisOrchestrator$
+        -_hw_profile_loader: Optional~HardwareProfileLoader~
+        +__init__(data_source: IDataSource, strategy: IAnalysisStrategy, window_size: int, step_size: int, output_cfg: dict, hw_profile_loader: Optional~HardwareProfileLoader~)
+        +from_config(config_path: str, strategy_overrides: Optional~dict~) AnalysisOrchestrator$
         +run_pipeline(job_id: str) List~WindowDiagnosis~
+        +inject_supplemental_benchmarks(data_mgr: DataManager) None
         -_apply_filters(window_diagnoses: List~WindowDiagnosis~) List~WindowDiagnosis~
         -_build_data_source(cfg: dict)$ IDataSource
         -_build_strategy(cfg: dict)$ IAnalysisStrategy
@@ -58,6 +62,7 @@ classDiagram
 
     AnalysisOrchestrator --> IDataSource : uses
     AnalysisOrchestrator o-- IAnalysisStrategy : strategy
+    AnalysisOrchestrator o-- HardwareProfileLoader : _hw_profile_loader
     AnalysisOrchestrator --> DataManager : uses
     AnalysisOrchestrator --> WindowDiagnosis : produces
 
@@ -75,18 +80,21 @@ classDiagram
         +list_available_metrics() DataFrame
         +has_metric(group: str, metric: str, trace: Optional~str~) bool
         +get_time_series_length() int
+        +sampling_interval Optional~int~
         +get_all_time_series() DataFrame
-        +get_flat_dataframe(interval_seconds: int) DataFrame
+        +get_flat_dataframe(interval_seconds: Optional~int~) DataFrame
         +slice_window(start: int, end: int) DataManager
         +iterate_windows(window_size: int, step_size: int) Generator
+        -_apply_benchmark_normalization(df: DataFrame) DataFrame
     }
 
     class JobContext {
         +job_id: str
         +job_metadata: dict
         +node_hardware: dict
-        +__init__(job_id: str, job_metadata: dict, node_hardware: dict)
-        +from_xbat(job_id: str, job_entry: dict, node_hardware_raw: dict) JobContext$
+        +supplemental_benchmarks: dict~str, float~
+        +__init__(job_id: str, job_metadata: dict, node_hardware: dict, supplemental_benchmarks: Optional~dict~str, float~~)
+        +from_xbat(job_id: str, job_entry: dict, node_hardware_raw: dict, interval_seconds: Optional~float~) JobContext$
         +get_job_id() str
         +get_metadata(key: str, default: Any) Any
         +get_node_hashes() List~str~
@@ -96,8 +104,16 @@ classDiagram
         +get_memory_info(key: str) Optional~Any~
     }
 
+    class HardwareProfileLoader {
+        +__init__(profiles_dir: Optional~str~)
+        +match(cpu_model: str) dict
+        -_load_dir(directory: Path) None
+        -_load_benchmarks(path: Path) dict
+    }
+
     DataManager o-- JobContext : job_context
     XBATDataSource --> JobContext : builds
+    HardwareProfileLoader ..> JobContext : fills supplemental_benchmarks (via AnalysisOrchestrator)
 
     %% ============================================
     %% 4. STRATEGY PATTERN
@@ -154,7 +170,7 @@ classDiagram
         +is_leaf() bool
         +evaluate(data_mgr: DataManager) Tuple~bool, float, float~
         +get_child(branch: bool) PropertyNode
-        +get_diagnosis(source: str, triggered_metrics: List~str~, metric_value: float) Diagnosis
+        +get_diagnosis(source: str, triggered_metrics: List~str~, metric_value: float, resolved_threshold: Optional~float~) Diagnosis
     }
 
     HeuristicStrategy o-- StrategyTree : _strategy_trees
@@ -165,29 +181,68 @@ classDiagram
 
     %% ============================================
     %% 6. ML COMPONENTS
+    %% Backends hold fitted state and perform inference (used at analysis time).
+    %% Trainers consume labelled data and produce a fitted backend (offline).
     %% ============================================
 
     class IMLBackend {
         <<interface>>
-        +train(labelled_csv_paths: List~str~, window_size: int, step_size: int, severity_threshold: float) None
         +predict_probabilities(window_df: DataFrame) dict~str, float~
         +save(path: str) None
         +load(path: str) IMLBackend$
     }
 
+    class IMLTrainer {
+        <<interface>>
+        +train(labelled_csv_paths: List~str~, window_size: int, step_size: int, severity_threshold: float) IMLBackend
+    }
+
     class DefaultBackend {
-        -_classifier: ClassifierMixin
         -_models: dict~str, ClassifierMixin~
         -_feature_cols: dict~str, List~str~~
+        -_thresholds: dict~str, float~
         -_fc_params: dict
-        +__init__(classifier: ClassifierMixin)
-        +train(labelled_csv_paths: List~str~, window_size: int, step_size: int, severity_threshold: float) None
+        -_window_size: Optional~int~
+        -_training_meta: dict
+        +__init__(missing_fill_value: float)
+        +calibrate_thresholds(X_val: DataFrame, y_dict_val: dict~str, Series~) dict~str, float~
         +predict_probabilities(window_df: DataFrame) dict~str, float~
         +save(path: str) None
         +load(path: str) DefaultBackend$
     }
 
+    class DefaultTrainer {
+        -_classifier: ClassifierMixin
+        -_use_fdr: bool
+        -_use_importance_pruning: bool
+        +__init__(classifier: ClassifierMixin, use_fdr: bool, use_importance_pruning: bool)
+        +train(labelled_csv_paths: List~str~, window_size: int, step_size: int, severity_threshold: float) DefaultBackend
+        +from_preextracted_features(X_train: DataFrame, y_dict_train: dict~str, Series~) DefaultBackend
+        +calibrate_thresholds_cv(app_features: List~Tuple~, n_splits: int) dict~str, float~
+        +tune(app_features: List~Tuple~, classifier: ClassifierMixin, param_grid: Optional~dict~) Tuple~ClassifierMixin, dict~str, float~~$
+    }
+
+    class AMLLibraryBackend {
+        -_regressors: dict~str, MTSRegressor~
+        -_window_size: int
+        -_thresholds: dict~str, float~
+        +__init__()
+        +predict_probabilities(window_df: DataFrame) dict~str, float~
+        +save(path: str) None
+        +load(path: str) AMLLibraryBackend$
+    }
+
+    class AMLLibraryTrainer {
+        +train(labelled_csv_paths: List~str~, window_size: int, step_size: int, severity_threshold: float) AMLLibraryBackend
+        +calibrate_thresholds_cv(backend: AMLLibraryBackend, labelled_csv_paths: List~str~, window_size: int, step_size: int) dict~str, float~
+    }
+
     IMLBackend <|.. DefaultBackend : implements
+    IMLBackend <|.. AMLLibraryBackend : implements
+    IMLTrainer <|.. DefaultTrainer : implements
+    IMLTrainer <|.. AMLLibraryTrainer : implements
+    DefaultTrainer ..> DefaultBackend : produces (offline)
+    AMLLibraryTrainer ..> AMLLibraryBackend : produces (offline)
     SupervisedMLStrategy *-- IMLBackend : backend
 
     %% ============================================

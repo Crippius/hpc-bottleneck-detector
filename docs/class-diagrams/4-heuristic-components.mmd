@@ -32,7 +32,7 @@ classDiagram
         +is_leaf() bool
         +evaluate(data_mgr: DataManager) Tuple~bool, float, float~
         +get_child(branch: bool) PropertyNode
-        +get_diagnosis(source: str, triggered_metrics: List~str~, metric_value: float) Diagnosis
+        +get_diagnosis(source: str, triggered_metrics: List~str~, metric_value: float, resolved_threshold: Optional~float~) Diagnosis
     }
 
     class DataManager {

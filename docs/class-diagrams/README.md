@@ -15,35 +15,23 @@ This directory contains multiple views of the HPC Bottleneck Detector architectu
 
 Shows how data flows through the system:
 
-- **Data Sources** (CSV, REST API, Database)
-- **Window Management** (WindowProvider)
-- **Feature Extraction** (FeatureService, FeatureExtractor)
-- **Context Management** (JobContext)
+- **Data Sources** (CSVDataSource, XBATDataSource)
+- **Window Management** (`DataManager.iterate_windows` / `slice_window`)
+- **Context Management** (JobContext, HardwareProfileLoader)
 
-### 3. Strategy Pattern View
+### 3. Supervised ML View
 
-**File:** [3-strategy-pattern.mmd](3-strategy-pattern.mmd)
-
-Focuses on the analysis strategies:
-
-- **Strategy Interface** (IAnalysisStrategy)
-- **Two Implementations:**
-  - HeuristicStrategy (Rule-based)
-  - SupervisedMLStrategy (ML-based)
-
-### 4. Supervised ML View
-
-**File:** [4-supervised-ml.mmd](4-supervised-ml.mmd)
+**File:** [3-supervised-ml.mmd](3-supervised-ml.mmd)
 
 Details the machine learning pipeline:
 
-- **Feature Engineering** (FeatureExtractor, FeatureVector)
-- **ML Detection** (MLDetector)
-- **Supervised Learning Strategy**
+- **Inference Backends** (IMLBackend, DefaultBackend, AMLLibraryBackend) - hold fitted state, used at analysis time
+- **Offline Trainers** (IMLTrainer, DefaultTrainer, AMLLibraryTrainer) - produce a fitted backend from labelled CSVs
+- **Supervised Learning Strategy** (SupervisedMLStrategy)
 
-### 5. Heuristic Components View
+### 4. Heuristic Components View
 
-**File:** [5-heuristic-components.mmd](5-heuristic-components.mmd)
+**File:** [4-heuristic-components.mmd](4-heuristic-components.mmd)
 
 Details the rule-based diagnosis:
 
