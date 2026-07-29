@@ -43,8 +43,8 @@ EXCLUDE_METRIC_PREFIXES: tuple[str, ...] = ("gpu_",)
 EXCLUDE_METRIC_COLS: frozenset[str] = frozenset({"INTER_NODE_LOAD_IMBALANCE"})
 
 _DEFAULT_CLASSIFIER = XGBClassifier(
-    n_estimators=200,
-    max_depth=5,
+    n_estimators=100,
+    max_depth=3,
     learning_rate=0.1,
     scale_pos_weight=10,
     random_state=42,

@@ -86,17 +86,6 @@ strategy:
 #   significance_threshold: 0.5
 
 # ---------------------------------------------------------------------------
-# Strategy: HYBRID
-# Intervals flagged as anomalous by the ML model are passed to the heuristic
-# trees for a finer-grained root-cause classification.
-# ---------------------------------------------------------------------------
-# strategy:
-#   type:                  hybrid
-#   model_path:            models/hybrid.pkl
-#   significance_threshold: 0.5
-#   strategy_folder:       configs/strategies/persyst_strategy
-
-# ---------------------------------------------------------------------------
 # Output
 # ---------------------------------------------------------------------------
 output:

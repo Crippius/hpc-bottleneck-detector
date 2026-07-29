@@ -52,8 +52,8 @@ FIXED_SCENARIOS: dict[str, list[str]] = {
     "no_L3":        ["cache_*L3*"],
     "no_cache":     ["cache_*L2*", "cache_*L3*"],
     "no_branch":    ["cpu_Branch*"],
-    # Metrics present in training set but missing in the demo system
-    "missing_demo": [
+    # L3 rate/ratio/request-rate columns absent on HSUper
+    "missing_hsu": [
         "cache_Miss Rate_L3*", "cache_Miss Ratio_L3*", "cache_Request Rate_L3*",
         "disk_*",
     ],
@@ -228,6 +228,7 @@ def run(args: argparse.Namespace) -> None:
     print()
     print("  " + "-" * (18 + (col_w + 2) * (1 + len(bt_cols)) + 2))
 
+    out_rows: list[dict] = []
     for scenario, patterns in FIXED_SCENARIOS.items():
         blank = _tsfresh_cols_for_metrics(X_all, patterns)
         n_blanked = len(blank)
@@ -240,6 +241,16 @@ def run(args: argparse.Namespace) -> None:
         for bt in bt_cols:
             print(f"  {per_class.get(bt, float('nan')):>{col_w}.3f}", end="")
         print(f"  ({n_blanked} tsfresh cols blanked)")
+
+        row = {"scenario": scenario, "overall": overall, "n_blanked": n_blanked}
+        row.update({bt: per_class.get(bt, float("nan")) for bt in bt_cols})
+        out_rows.append(row)
+
+    if args.output:
+        out_path = Path(args.output)
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        pd.DataFrame(out_rows).to_csv(out_path, index=False)
+        print(f"\n[INFO] Results saved to: {out_path}")
 
 
 # ---------------------------------------------------------------------------
@@ -368,6 +379,9 @@ def main() -> None:
                    help="Fallback window size if not stored in model.")
     p.add_argument("--backend", choices=["default", "amllibrary"], default="default",
                    help="ML backend to evaluate (default: default).")
+    p.add_argument("--output", default=None,
+                   help="Optional path to save per-scenario stability results as CSV "
+                        "(default backend only).")
     args = p.parse_args()
     if args.backend == "amllibrary":
         run_amllibrary(args)

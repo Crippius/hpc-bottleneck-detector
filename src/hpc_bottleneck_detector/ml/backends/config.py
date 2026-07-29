@@ -16,7 +16,7 @@ _CLASSIFIER_FIXED_PARAMS = {
 def build_classifier(name: str, config_path: str | Path | None = None):
     import yaml
     if config_path is None:
-        config_path = _CONFIGS_DIR / f"{'rf' if name == 'rf' else 'xgboost'}_default.yaml"
+        config_path = _CONFIGS_DIR / f"{'rf' if name == 'rf' else 'xgboost'}.yaml"
     with open(config_path) as f:
         params = yaml.safe_load(f)
     params.update(_CLASSIFIER_FIXED_PARAMS[name])

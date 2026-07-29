@@ -27,10 +27,9 @@ Shows how data flows through the system:
 Focuses on the analysis strategies:
 
 - **Strategy Interface** (IAnalysisStrategy)
-- **Three Implementations:**
+- **Two Implementations:**
   - HeuristicStrategy (Rule-based)
   - SupervisedMLStrategy (ML-based)
-  - HybridStrategy (Combined)
 
 ### 4. Supervised ML View
 
@@ -51,17 +50,6 @@ Details the rule-based diagnosis:
 - **Decision Trees** (StrategyTree, PropertyNode)
 - **Rule Evaluation**
 - **Heuristic Strategy**
-
-### 6. Hybrid Strategy View
-
-**File:** [6-hybrid-strategy.mmd](6-hybrid-strategy.mmd)
-
-Shows the combined ML + Heuristic approach:
-
-- **Two-Phase Detection:**
-  1. ML Detection (apply_ml)
-  2. Heuristic Diagnosis (apply_heuristic)
-- **Result Integration**
 
 ## Rendering
 

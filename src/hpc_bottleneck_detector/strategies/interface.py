@@ -1,7 +1,7 @@
 """
 Analysis Strategy Interface
 
-All concrete strategies (heuristic, supervised-ML, hybrid) must implement
+All concrete strategies (heuristic, supervised-ML) must implement
 :class:`IAnalysisStrategy`.
 """
 
