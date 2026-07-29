@@ -95,6 +95,17 @@ def build_parser() -> argparse.ArgumentParser:
         help="Override the config's output.format",
     )
     p.add_argument(
+        "--strategy",
+        choices=["heuristic", "supervised_ml"],
+        default=None,
+        help="Override the config's strategy.type",
+    )
+    p.add_argument(
+        "--model-path",
+        default=None,
+        help="Override the config's strategy.model_path (implies --strategy supervised_ml unless given)",
+    )
+    p.add_argument(
         "--output",
         default=None,
         help="Write results to this path (overrides output.save_path)",
@@ -116,8 +127,15 @@ def main(argv: list[str] | None = None) -> int:
         format="%(levelname)s %(name)s: %(message)s",
     )
 
+    strategy_overrides: dict = {}
+    if args.model_path:
+        strategy_overrides["type"] = "supervised_ml"
+        strategy_overrides["model_path"] = args.model_path
+    if args.strategy:
+        strategy_overrides["type"] = args.strategy
+
     try:
-        orchestrator = AnalysisOrchestrator.from_config(args.config)
+        orchestrator = AnalysisOrchestrator.from_config(args.config, strategy_overrides or None)
     except (FileNotFoundError, ValueError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2

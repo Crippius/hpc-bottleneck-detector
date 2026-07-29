@@ -12,7 +12,7 @@ The :class:`AnalysisOrchestrator` ties every component together:
 
 Configuration file format
 -------------------------
-See ``configs/orchestrator.yaml`` for the canonical example.  The top-level
+See ``configs/xbat_cli.yaml`` for the canonical example.  The top-level
 keys are ``pipeline``, ``data_source``, ``strategy`` and ``output``.
 """
 
@@ -79,12 +79,19 @@ class AnalysisOrchestrator:
     # ------------------------------------------------------------------
 
     @classmethod
-    def from_config(cls, config_path: str) -> "AnalysisOrchestrator":
+    def from_config(
+        cls,
+        config_path: str,
+        strategy_overrides: Optional[dict] = None,
+    ) -> "AnalysisOrchestrator":
         """
         Build an :class:`AnalysisOrchestrator` from a YAML configuration file.
 
         Args:
             config_path: Path to the YAML configuration file.
+            strategy_overrides: Optional dict merged over the config's
+                ``strategy`` section (e.g. to switch ``type``/``model_path``
+                from the command line without a separate config file).
 
         Returns:
             A fully-configured :class:`AnalysisOrchestrator` instance.
@@ -113,13 +120,13 @@ class AnalysisOrchestrator:
         data_source = cls._build_data_source(ds_cfg)
 
         # --- strategy ---------------------------------------------------------------------------
-        strat_cfg = config.get("strategy", {})
+        strat_cfg = {**config.get("strategy", {}), **(strategy_overrides or {})}
         strategy = cls._build_strategy(strat_cfg)
 
         # --- hardware profiles -------------------------------------------------------------
         hw_cfg = config.get("hardware", {})
-        profiles_dir = hw_cfg.get("profiles_dir")
-        hw_profile_loader = HardwareProfileLoader(profiles_dir) if profiles_dir else None
+        profiles_dir = hw_cfg.get("profiles_dir", "configs/hardware_profiles")
+        hw_profile_loader = HardwareProfileLoader(profiles_dir)
 
         # --- output ------------------------------------------------------------------------------
         output_cfg = config.get("output", {})

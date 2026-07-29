@@ -44,7 +44,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 REPO_ROOT = Path(__file__).parent.parent.parent
-PARAM_GRIDS_PATH = REPO_ROOT / "configs" / "param_grids.yaml"
+PARAM_GRIDS_PATH = REPO_ROOT / "configs" / "classifiers" / "param_grids.yaml"
 DEFAULT_DATA_DIR = REPO_ROOT / "data" / "labelled_data" / "training_set"
 
 

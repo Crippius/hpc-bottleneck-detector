@@ -75,7 +75,7 @@ The main config is `configs/xbat_cli.yaml`. Key options:
 | `output.min_confidence`       | `0.3`       | Suppress diagnoses below this confidence (ML output)      |
 | `output.show_healthy_windows` | `false`     | Whether to print windows with no bottlenecks              |
 
-To switch to the ML strategy, comment out the heuristic block and uncomment `supervised_ml` in the config, pointing `model_path` at a trained model:
+To switch to the ML strategy, either edit `strategy` in the config:
 
 ```yaml
 strategy:
@@ -83,6 +83,14 @@ strategy:
   model_path: models/default.pkl
   significance_threshold: 0.3
 ```
+
+or override it from the command line without touching the file:
+
+```bash
+uv run bottleneck-detect --job-id <JOB_ID> --model-path models/default.pkl
+```
+
+(`--model-path` implies `--strategy supervised_ml`; pass `--strategy heuristic` to go back.)
 
 ---
 

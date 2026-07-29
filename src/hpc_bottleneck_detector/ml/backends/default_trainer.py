@@ -41,7 +41,7 @@ import yaml
 
 from .config import BASIC_FC_PARAMETERS
 
-_PARAM_GRIDS_PATH = Path(__file__).parents[4] / "configs" / "param_grids.yaml"
+_PARAM_GRIDS_PATH = Path(__file__).parents[4] / "configs" / "classifiers" / "param_grids.yaml"
 
 
 def _load_param_grids() -> dict:

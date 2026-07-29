@@ -35,17 +35,6 @@ def _parse_elapsed(value: str) -> float:
     return hours * 3600 + minutes * 60 + seconds
 
 
-def _model_path_from_config(config_path: Path) -> Path | None:
-    import yaml
-    with open(config_path) as f:
-        cfg = yaml.safe_load(f)
-    model_path = cfg.get("strategy", {}).get("model_path")
-    if not model_path:
-        return None
-    model_path = Path(model_path)
-    return model_path if model_path.is_absolute() else REPO_ROOT / model_path
-
-
 def _benchmark_config(base_config: Path) -> Path:
     import yaml
     with open(base_config) as f:
@@ -61,23 +50,27 @@ def _benchmark_config(base_config: Path) -> Path:
     return Path(tmp.name)
 
 
-def run_one(python_exe: str, config: Path, job_id: str) -> dict:
+def run_one(python_exe: str, config: Path, job_id: str, model_path: Path | None = None) -> dict:
     with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as out_f, \
          tempfile.NamedTemporaryFile(suffix=".time", delete=False) as time_f:
         out_path = Path(out_f.name)
         time_path = Path(time_f.name)
 
+    cmd = [
+        "/usr/bin/time", "-v", "-o", str(time_path),
+        python_exe, "-m", "hpc_bottleneck_detector.cli",
+        "--job-id", str(job_id),
+        "--config", str(config),
+        "--format", "json",
+        "--output", str(out_path),
+        "--quiet",
+    ]
+    if model_path is not None:
+        cmd += ["--model-path", str(model_path)]
+
     try:
         proc = subprocess.run(
-            [
-                "/usr/bin/time", "-v", "-o", str(time_path),
-                python_exe, "-m", "hpc_bottleneck_detector.cli",
-                "--job-id", str(job_id),
-                "--config", str(config),
-                "--format", "json",
-                "--output", str(out_path),
-                "--quiet",
-            ],
+            cmd,
             cwd=REPO_ROOT,  # cli.py resolves config paths relative to cwd
             capture_output=True,
             text=True,
@@ -119,11 +112,12 @@ def main() -> int:
                          help="Sweep manifest CSV with job_id and target_minutes columns")
     parser.add_argument("--strategies", nargs="+", default=["heuristic", "rf", "xgboost"],
                          choices=["heuristic", "rf", "xgboost"])
-    parser.add_argument("--heuristic-config", default=str(REPO_ROOT / "configs" / "xbat_cli.yaml"))
-    parser.add_argument("--rf-config", default=str(REPO_ROOT / "configs" / "xbat_cli_rf.yaml"),
-                         help="rf is skipped if its config's strategy.model_path doesn't exist")
-    parser.add_argument("--xgboost-config", default=str(REPO_ROOT / "configs" / "xbat_cli_xgboost.yaml"),
-                         help="xgboost is skipped if its config's strategy.model_path doesn't exist")
+    parser.add_argument("--config", default=str(REPO_ROOT / "configs" / "xbat_cli.yaml"),
+                         help="Base config; strategy is overridden per-run via --strategy/--model-path")
+    parser.add_argument("--rf-model", default=str(REPO_ROOT / "models" / "rf.pkl"),
+                         help="rf is skipped if this model file doesn't exist")
+    parser.add_argument("--xgboost-model", default=str(REPO_ROOT / "models" / "xgboost.pkl"),
+                         help="xgboost is skipped if this model file doesn't exist")
     parser.add_argument("--output-csv", default=None,
                          help="default: results/scalability/detector_scaling_<manifest-name>.csv")
     parser.add_argument("--python", default=sys.executable, help="Python interpreter to run the CLI with")
@@ -155,36 +149,32 @@ def main() -> int:
             writer.writeheader()
             f.flush()
 
-        config_for_strategy = {
-            "heuristic": Path(args.heuristic_config),
-            "rf": Path(args.rf_config),
-            "xgboost": Path(args.xgboost_config),
+        model_path_for_strategy = {
+            "rf": Path(args.rf_model),
+            "xgboost": Path(args.xgboost_model),
         }
 
-        for strategy in args.strategies:
-            config = config_for_strategy[strategy]
-
-            if strategy != "heuristic":
-                model_path = _model_path_from_config(config)
-                if model_path is None or not model_path.is_file():
+        bench_config = _benchmark_config(Path(args.config))
+        try:
+            for strategy in args.strategies:
+                model_path = model_path_for_strategy.get(strategy)
+                if model_path is not None and not model_path.is_file():
                     log.warning("skipping %s: no model at %s (train one with "
                                 "scripts/training/train_ml_model.py --classifier %s)",
                                 strategy, model_path, strategy)
                     continue
 
-            bench_config = _benchmark_config(config)
-            try:
                 for job_id in job_ids:
                     log.info("running job=%s strategy=%s", job_id, strategy)
-                    row = run_one(args.python, bench_config, job_id)
+                    row = run_one(args.python, bench_config, job_id, model_path=model_path)
                     row["strategy"] = strategy
                     row["runtime"] = runtime_by_job[job_id]
                     writer.writerow(row)
                     f.flush()
                     log.info("  elapsed=%.2fs  max_rss=%.1fMB  windows=%d",
                              row["elapsed_seconds"], row["max_rss_mb"], row["n_windows"])
-            finally:
-                bench_config.unlink(missing_ok=True)
+        finally:
+            bench_config.unlink(missing_ok=True)
 
     log.info("done. results: %s", output_csv)
     return 0

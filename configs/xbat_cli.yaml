@@ -6,9 +6,6 @@
 #
 # Switch strategy by uncommenting the relevant block below.
 
-hardware:
-  profiles_dir: configs/hardware_profiles
-
 pipeline:
   window_size: 12
   step_size: 12
@@ -27,7 +24,6 @@ data_source:
 
 # ---------------------------------------------------------------------------
 # Strategy: HEURISTIC
-# Rule-based decision trees from configs/strategies/persyst_strategy/
 # ---------------------------------------------------------------------------
 strategy:
   type: heuristic
@@ -35,11 +31,17 @@ strategy:
 
 # ---------------------------------------------------------------------------
 # Strategy: SUPERVISED ML (requires a trained model)
-# Train one first:  python scripts/training/train_ml_model.py
 # ---------------------------------------------------------------------------
+# --- Random Forest ---
 # strategy:
 #   type: supervised_ml
-#   model_path: models/default.pkl
+#   model_path: models/rf.pkl
+#   significance_threshold: 0.3
+
+# --- XGBoost ---
+# strategy:
+#   type: supervised_ml
+#   model_path: models/xgboost.pkl
 #   significance_threshold: 0.3
 
 # ---------------------------------------------------------------------------
