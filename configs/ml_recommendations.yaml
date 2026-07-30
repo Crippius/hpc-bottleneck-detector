@@ -1,0 +1,45 @@
+# General, class-level recommendations for the ML strategy.
+# Keyed by BottleneckType name. The ML backend only knows the coarse
+# BottleneckType, not which specific condition triggered it, so each type
+# gets one fixed recommendation (unlike heuristic trees, which author a
+# recommendation per YAML leaf node).
+
+COMPUTE_UNDERUTILIZATION: >-
+  The processor's execution units are underused, most likely because hot
+  code is not exploiting available data-level parallelism. Verify
+  auto-vectorization (compiler reports/flags), remove loop-carried
+  dependencies, and consider restructuring data layout (AoS to SoA) for
+  SIMD alignment.
+
+CACHE_PRESSURE: >-
+  Elevated cache/memory-subsystem pressure, consistent with poor data
+  locality, low temporal reuse, or cross-socket (NUMA) data movement; the
+  classifier does not distinguish which. Consider loop tiling/blocking to
+  improve reuse, restructuring data for sequential access, and checking
+  first-touch NUMA placement and socket affinity.
+
+BRANCH_MISPREDICTION: >-
+  Frequent branch mispredictions are flushing and refilling the pipeline.
+  Consider replacing hot conditional branches with branchless equivalents,
+  sorting data to make branch outcomes more predictable, and profiling
+  with perf stat -e branch-misses to locate the worst offenders.
+
+PIPELINE_STALL: >-
+  Instruction throughput is limited by stalls, typically from memory
+  latency or dependency chains rather than raw instruction count. Consider
+  a Top-Down Microarchitecture Analysis (VTune/perf) to localize the stall
+  source, evaluating SMT/Hyper-Threading to fill idle slots, and checking
+  for long dependency chains that could be shortened with multiple
+  accumulators or software prefetching.
+
+PRECISION_WASTE: >-
+  The code relies more heavily on double-precision arithmetic than the
+  workload appears to require, inflating both compute and memory-bandwidth
+  cost. Consider migrating hot kernels to single precision (after
+  verifying accuracy requirements) or adopting a mixed-precision scheme.
+
+INTRA_NODE_LOAD_IMBALANCE: >-
+  Work is distributed unevenly across the cores of a node. Profile
+  per-core/thread workload distribution (VTune, perf, Extrae) to find
+  idle cores and rebalance loop iterations or task granularity
+  accordingly.

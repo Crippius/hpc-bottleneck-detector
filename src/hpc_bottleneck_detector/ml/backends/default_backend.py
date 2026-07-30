@@ -53,9 +53,7 @@ _DEFAULT_CLASSIFIER = XGBClassifier(
 )
 
 
-# ---------------------------------------------------------------------------
-# Module-level helpers (used by inference, training, and external scripts)
-# ---------------------------------------------------------------------------
+# --- Module-level helpers (used by inference, training, and external scripts) ---
 
 def _fill_metric_nans(df: pd.DataFrame) -> pd.DataFrame:
     """
@@ -166,9 +164,7 @@ def _f1_score(y_true: np.ndarray, y_pred: np.ndarray) -> float:
     return 2 * p * r / (p + r)
 
 
-# ---------------------------------------------------------------------------
-# Backend (inference + persistence)
-# ---------------------------------------------------------------------------
+# --- Backend (inference + persistence) ---------------------------------------
 
 class DefaultBackend(IMLBackend):
     """
@@ -177,13 +173,6 @@ class DefaultBackend(IMLBackend):
 
     Build with :class:`~hpc_bottleneck_detector.ml.backends.DefaultTrainer`,
     or restore a saved one with :meth:`load`.
-
-    Attributes:
-        _models:       ``{bt_name: fitted classifier}``
-        _feature_cols: ``{bt_name: list of selected feature column names}``
-        _thresholds:   ``{bt_name: probability threshold}``
-        _fc_params:    tsfresh feature-calculation parameters.
-        _window_size:  Window size used during training.
     """
 
     def __init__(self, missing_fill_value: float = np.nan) -> None:
@@ -195,9 +184,7 @@ class DefaultBackend(IMLBackend):
         self._missing_fill_value: float = missing_fill_value
         self._training_meta: dict = {}
 
-    # ------------------------------------------------------------------
-    # Threshold calibration (post-training, pre-deployment)
-    # ------------------------------------------------------------------
+    # --- Threshold calibration (post-training, pre-deployment) ---------------
 
     def calibrate_thresholds(
         self,
@@ -235,21 +222,13 @@ class DefaultBackend(IMLBackend):
 
         return dict(self._thresholds)
 
-    # ------------------------------------------------------------------
-    # Inference
-    # ------------------------------------------------------------------
+    # --- Inference -----------------------------------------------------------
 
     def predict_probabilities(self, window_df: pd.DataFrame) -> dict[str, float]:
         """
-        Extract tsfresh features from *window_df* and return per-type
-        probabilities.
-
-        Args:
-            window_df: Raw window DataFrame from
-                       ``DataManager.get_flat_dataframe()``.
-
-        Returns:
-            ``{BottleneckType.value: probability}`` for every trained type.
+        Extract tsfresh features from window_df (raw window DataFrame from
+        ``DataManager.get_flat_dataframe()``) and return per-type
+        probabilities as ``{BottleneckType.value: probability}``.
         """
         if not self._models:
             raise RuntimeError("Backend has not been trained or loaded yet.")
@@ -285,12 +264,10 @@ class DefaultBackend(IMLBackend):
 
         return result
 
-    # ------------------------------------------------------------------
-    # Persistence
-    # ------------------------------------------------------------------
+    # --- Persistence ---------------------------------------------------------
 
     def save(self, path: str) -> None:
-        """Save models and feature pipeline to *path* (.pkl)."""
+        """Save models and feature pipeline to path (.pkl)."""
         out = Path(path)
         out.parent.mkdir(parents=True, exist_ok=True)
         joblib.dump(
@@ -309,12 +286,7 @@ class DefaultBackend(IMLBackend):
 
     @classmethod
     def load(cls, path: str) -> "DefaultBackend":
-        """
-        Restore a backend saved with :meth:`save`.
-
-        Returns:
-            Fully restored :class:`DefaultBackend` ready for inference.
-        """
+        """Restore a backend saved with :meth:`save`, ready for inference."""
         data = joblib.load(path)
         backend = cls()
         backend._models = data["models"]

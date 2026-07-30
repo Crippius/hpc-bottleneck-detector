@@ -26,19 +26,15 @@ class IMLBackend(ABC):
     @abstractmethod
     def predict_probabilities(self, window_df: "pd.DataFrame") -> dict[str, float]:
         """
-        Predict bottleneck probabilities for a single window.
-
-        Args:
-            window_df: Raw window DataFrame from ``DataManager.get_flat_dataframe()``.
-
-        Returns:
-            ``{BottleneckType.value: probability}`` for every trained type.
+        Predict bottleneck probabilities for a single window (window_df is
+        the raw window DataFrame from ``DataManager.get_flat_dataframe()``),
+        returning ``{BottleneckType.value: probability}`` for every trained type.
         """
         ...
 
     @abstractmethod
     def save(self, path: str) -> None:
-        """Serialise the fitted backend to *path*."""
+        """Serialise the fitted backend to path."""
         ...
 
     @classmethod
@@ -65,14 +61,9 @@ class IMLTrainer(ABC):
         severity_threshold: float = 0.0,
     ) -> IMLBackend:
         """
-        Train on labelled CSVs and return a fitted backend ready for inference.
-
-        Args:
-            labelled_csv_paths: Paths to CSVs produced by ``label_job()``.
-            window_size:         Number of intervals per analysis window.
-            step_size:           Interval advance between successive windows.
-            severity_threshold:  Intervals with severity > this value are
-                                 labelled positive (1); others are 0.
-                                 Windows where every label is NaN are dropped.
+        Train on labelled CSVs (labelled_csv_paths, produced by
+        ``label_job()``) and return a fitted backend. severity_threshold:
+        intervals with severity > this value are labelled positive (1),
+        others 0; windows where every label is NaN are dropped.
         """
         ...

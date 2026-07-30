@@ -99,9 +99,6 @@ class AMLLibraryBackend(IMLBackend):
 
     Build with :class:`~hpc_bottleneck_detector.ml.backends.AMLLibraryTrainer`,
     or restore a saved one with :meth:`load`.
-
-    Attributes:
-        _regressors: ``{bottleneck_type_name: MTSRegressor}``
     """
 
     def __init__(self) -> None:
@@ -112,13 +109,9 @@ class AMLLibraryBackend(IMLBackend):
 
     def predict_probabilities(self, window_df: pd.DataFrame) -> dict[str, float]:
         """
-        Return per-bottleneck severity estimates clipped to [0, 1].
-
-        Args:
-            window_df: Raw window DataFrame from DataManager.get_flat_dataframe().
-
-        Returns:
-            ``{BottleneckType.value: probability}`` for every trained type.
+        Return per-bottleneck severity estimates clipped to [0, 1] (window_df
+        is the raw window DataFrame from DataManager.get_flat_dataframe()), as
+        ``{BottleneckType.value: probability}`` for every trained type.
         """
         if not self._regressors:
             raise RuntimeError("Backend has not been trained or loaded yet.")
@@ -138,7 +131,7 @@ class AMLLibraryBackend(IMLBackend):
         return result
 
     def save(self, path: str) -> None:
-        """Serialize all trained MTSRegressors to *path* (.pkl)."""
+        """Serialize all trained MTSRegressors to path (.pkl)."""
         out = Path(path)
         out.parent.mkdir(parents=True, exist_ok=True)
         joblib.dump({"regressors": self._regressors, "window_size": self._window_size, "thresholds": self._thresholds, "training_meta": self._training_meta}, out)

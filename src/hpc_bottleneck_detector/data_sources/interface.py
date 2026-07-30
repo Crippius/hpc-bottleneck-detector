@@ -22,16 +22,8 @@ class IDataSource(ABC):
     @abstractmethod
     def fetch_job_data(self, job_id: str) -> "DataManager":
         """
-        Fetch job metrics data for a given job ID.
-        
-        Args:
-            job_id: The unique identifier for the job
-            
-        Returns:
-            DataManager instance containing job metrics
-                
-        Raises:
-            ValueError: If job_id is invalid or not found
-            IOError: If data cannot be retrieved
+        Fetch job metrics data for job_id. Implementations should raise
+        ValueError if job_id is invalid/not found, IOError if data can't be
+        retrieved.
         """
         pass

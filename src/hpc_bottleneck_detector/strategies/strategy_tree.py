@@ -2,12 +2,6 @@
 Strategy Tree
 
 A single heuristic decision tree loaded from a YAML file.
-
-Each YAML file in the specified folder maps to one
-:class:`StrategyTree` instance.  The tree is traversed depth-first by
-:meth:`traverse`, which walks from the root :class:`PropertyNode` down to
-the first matching leaf and returns a fully evaluated
-:class:`~hpc_bottleneck_detector.output.models.Diagnosis`.
 """
 
 from __future__ import annotations
@@ -29,15 +23,7 @@ logger = logging.getLogger(__name__)
 
 
 class StrategyTree:
-    """
-    A decision tree loaded from a single YAML strategy file.
-
-    Attributes:
-        tree_name:    Human-readable name of this tree (from YAML).
-        description:  Short description of what the tree detects.
-        config_path:  Absolute path to the source YAML file.
-        root_node:    Root :class:`PropertyNode` of the tree.
-    """
+    """A decision tree loaded from a single YAML strategy file."""
 
     def __init__(
         self,
@@ -53,24 +39,14 @@ class StrategyTree:
         self._required_metrics = required_metrics
         self.config_path      = config_path
 
-    # ------------------------------------------------------------------
-    # Factory
-    # ------------------------------------------------------------------
+    # --- Factory -------------------------------------------------------------
 
     @classmethod
     def load_from_yaml(cls, path: str) -> "StrategyTree":
         """
-        Build a :class:`StrategyTree` from a YAML file.
-
-        Args:
-            path: Path to the YAML strategy file.
-
-        Returns:
-            Loaded and validated :class:`StrategyTree`.
-
-        Raises:
-            FileNotFoundError: If *path* does not exist.
-            KeyError: If a required field is missing from the YAML.
+        Build a :class:`StrategyTree` from a YAML file. Raises
+        FileNotFoundError if path doesn't exist, KeyError if a required
+        field is missing from the YAML.
         """
         p = Path(path)
         if not p.exists():
@@ -83,7 +59,7 @@ class StrategyTree:
         description = config.get("description", "").strip()
         req_metrics = list(config.get("required_metrics", []))
 
-        # --- Family gate injection ---------------------------------------------------------
+        # --- Family gate injection -------------------------------------------
         family = config.get("family")
         if family:
             families_path = p.parent / "families.yaml"
@@ -131,31 +107,16 @@ class StrategyTree:
             config_path=str(p.resolve()),
         )
 
-    # ------------------------------------------------------------------
-    # Traversal
-    # ------------------------------------------------------------------
+    # --- Traversal -----------------------------------------------------------
 
     def traverse(self, data_mgr: "DataManager") -> Diagnosis:
         """
-        Walk the decision tree and return the resulting :class:`Diagnosis`.
-
-        The traversal follows ``if_true`` / ``if_false`` branches based on the
-        evaluated metric condition at each decision node.  When a leaf is
-        reached, :meth:`~PropertyNode.get_diagnosis` is called to produce the
-        final diagnosis with the computed severity score.
-
-        If any required metric is **missing** from *data_mgr* the tree cannot
-        be evaluated and a ``NONE`` diagnosis is returned (the missing metric
-        is noted in ``triggered_metrics``).
-
-        Args:
-            data_mgr: :class:`~hpc_bottleneck_detector.data.manager.DataManager`
-                      scoped to the current analysis window.
-
-        Returns:
-            A single :class:`~hpc_bottleneck_detector.output.models.Diagnosis`.
+        Walk the decision tree, following ``if_true``/``if_false`` branches, and
+        return the leaf's :class:`Diagnosis`. If a required metric is missing
+        from data_mgr, returns a ``NONE`` diagnosis noting it in
+        ``triggered_metrics``.
         """
-        # --- Quick check: are all required metrics present? -------------------
+        # --- Quick check: are all required metrics present? ------------------
         missing = self._missing_metrics(data_mgr)
         if missing:
             logger.debug(
@@ -175,7 +136,7 @@ class StrategyTree:
                 triggered_metrics=[f"MISSING:{m}" for m in missing],
             )
 
-        # --- Walk the tree ---------------------------------------------------------------------
+        # --- Walk the tree ---------------------------------------------------
         node           = self.root_node
         triggered      : List[str] = []
         last_value     : float     = 0.0
@@ -208,7 +169,7 @@ class StrategyTree:
             last_threshold = threshold
             node = node.get_child(branch)
 
-        # --- node is a leaf - build the diagnosis ---------------------------------
+        # --- node is a leaf - build the diagnosis ----------------------------
         return node.get_diagnosis(
             source=self.tree_name,
             triggered_metrics=triggered,
@@ -216,9 +177,7 @@ class StrategyTree:
             resolved_threshold=last_threshold,
         )
 
-    # ------------------------------------------------------------------
-    # Required metrics
-    # ------------------------------------------------------------------
+    # --- Required metrics ----------------------------------------------------
 
     def get_required_metrics(self) -> List[dict]:
         """
@@ -229,12 +188,10 @@ class StrategyTree:
         """
         return list(self._required_metrics)
 
-    # ------------------------------------------------------------------
-    # Internals
-    # ------------------------------------------------------------------
+    # --- Internals -----------------------------------------------------------
 
     def _missing_metrics(self, data_mgr: "DataManager") -> List[str]:
-        """Return labels of required metrics not found in *data_mgr*."""
+        """Return labels of required metrics not found in data_mgr."""
         missing = []
         for spec in self._required_metrics:
             group  = spec.get("group", "")
@@ -245,7 +202,7 @@ class StrategyTree:
                 missing.append(label)
         return missing
 
-    # ------------------------------------------------------------------
+    # -------------------------------------------------------------------------
 
     def __repr__(self) -> str:
         return f"StrategyTree(name={self.tree_name!r}, path={self.config_path!r})"

@@ -64,15 +64,6 @@ def _sample_params(grid: dict, n_iter: int, rng: np.random.Generator) -> list[di
 class DefaultTrainer(IMLTrainer):
     """
     Trainer for :class:`DefaultBackend`.
-
-    Holds training configuration and produces a fitted backend via
-    :meth:`train` or :meth:`from_preextracted_features`.
-
-    Args:
-        classifier: Any sklearn-compatible classifier with ``predict_proba()``.
-                    A fresh clone is fitted per ``BottleneckType``.
-        use_fdr:    Apply tsfresh FDR feature selection during training.
-        use_importance_pruning: Drop features below the RF importance threshold.
     """
 
     def __init__(
@@ -85,9 +76,7 @@ class DefaultTrainer(IMLTrainer):
         self._use_fdr = use_fdr
         self._use_importance_pruning = use_importance_pruning
 
-    # ------------------------------------------------------------------
-    # IMLTrainer
-    # ------------------------------------------------------------------
+    # --- IMLTrainer ----------------------------------------------------------
 
     def train(
         self,
@@ -199,9 +188,7 @@ class DefaultTrainer(IMLTrainer):
         }
         return backend
 
-    # ------------------------------------------------------------------
-    # Alternative constructor: fit on pre-extracted features
-    # ------------------------------------------------------------------
+    # --- Alternative constructor: fit on pre-extracted features --------------
 
     def from_preextracted_features(
         self,
@@ -237,9 +224,7 @@ class DefaultTrainer(IMLTrainer):
 
         return backend
 
-    # ------------------------------------------------------------------
-    # Threshold calibration via GroupKFold CV
-    # ------------------------------------------------------------------
+    # --- Threshold calibration via GroupKFold CV -----------------------------
 
     def calibrate_thresholds_cv(
         self,
@@ -296,9 +281,7 @@ class DefaultTrainer(IMLTrainer):
             for col, v in thr_lists.items()
         }
 
-    # ------------------------------------------------------------------
-    # Joint hyperparameter + threshold CV tuning (optional, expensive)
-    # ------------------------------------------------------------------
+    # --- Joint hyperparameter + threshold CV tuning (optional, expensive) ----
 
     @classmethod
     def tune(
@@ -398,9 +381,7 @@ class DefaultTrainer(IMLTrainer):
         tuned_clf = clone(classifier).set_params(**best_params) if best_params else clone(classifier)
         return tuned_clf, best_thresholds
 
-    # ------------------------------------------------------------------
-    # Internal: shared feature selection logic
-    # ------------------------------------------------------------------
+    # --- Internal: shared feature selection logic ----------------------------
 
     def _select_features(
         self,

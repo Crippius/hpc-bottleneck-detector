@@ -1,19 +1,13 @@
 """
 Analysis Orchestrator
 
-The :class:`AnalysisOrchestrator` ties every component together:
+:class:`AnalysisOrchestrator` reads a YAML config, builds the configured
+:class:`~hpc_bottleneck_detector.data_sources.interface.IDataSource` and
+:class:`~hpc_bottleneck_detector.strategies.interface.IAnalysisStrategy`, and
+exposes :meth:`run_pipeline` to fetch, window, and diagnose a job's data.
 
-1. Reads a YAML configuration file.
-2. Instantiates the appropriate :class:`~hpc_bottleneck_detector.data_sources.interface.IDataSource`.
-3. Instantiates the chosen :class:`~hpc_bottleneck_detector.strategies.interface.IAnalysisStrategy`.
-4. Exposes :meth:`run_pipeline` which fetches job data, slices it into
-   windows, invokes the strategy on every window and returns formatted
-   :class:`~hpc_bottleneck_detector.output.models.WindowDiagnosis` results.
-
-Configuration file format
--------------------------
-See ``configs/xbat_cli.yaml`` for the canonical example.  The top-level
-keys are ``pipeline``, ``data_source``, ``strategy`` and ``output``.
+See ``configs/xbat_cli.yaml`` for the canonical config (top-level keys:
+``pipeline``, ``data_source``, ``strategy``, ``output``).
 """
 
 from __future__ import annotations
@@ -42,21 +36,9 @@ logger = logging.getLogger(__name__)
 
 
 class AnalysisOrchestrator:
-    """
-    Central coordinator for the HPC bottleneck-detection pipeline.
+    """Central coordinator for the HPC bottleneck-detection pipeline."""
 
-    Attributes:
-        config:       Parsed configuration dictionary.
-        data_source:  Configured data source instance.
-        strategy:     Configured analysis strategy instance.
-        window_size:  Number of intervals per analysis window.
-        step_size:    Interval advance between successive windows.
-        output_cfg:   Output-related configuration sub-dict.
-    """
-
-    # ------------------------------------------------------------------
-    # Construction
-    # ------------------------------------------------------------------
+    # --- Construction --------------------------------------------------------
 
     def __init__(
         self,
@@ -74,9 +56,7 @@ class AnalysisOrchestrator:
         self.output_cfg: dict = output_cfg or {}
         self._hw_profile_loader = hw_profile_loader
 
-    # ------------------------------------------------------------------
-    # Factory
-    # ------------------------------------------------------------------
+    # --- Factory -------------------------------------------------------------
 
     @classmethod
     def from_config(
@@ -86,20 +66,11 @@ class AnalysisOrchestrator:
     ) -> "AnalysisOrchestrator":
         """
         Build an :class:`AnalysisOrchestrator` from a YAML configuration file.
-
-        Args:
-            config_path: Path to the YAML configuration file.
-            strategy_overrides: Optional dict merged over the config's
-                ``strategy`` section (e.g. to switch ``type``/``model_path``
-                from the command line without a separate config file).
-
-        Returns:
-            A fully-configured :class:`AnalysisOrchestrator` instance.
-
-        Raises:
-            FileNotFoundError: If *config_path* does not exist.
-            ValueError: If a required configuration key is missing or
-                        an unsupported type is specified.
+        strategy_overrides is merged over the config's ``strategy`` section
+        (e.g. to switch ``type``/``model_path`` from the CLI without a
+        separate config file). Raises FileNotFoundError if config_path
+        doesn't exist, ValueError if a required config key is missing or
+        has an unsupported type.
         """
         path = Path(config_path)
         if not path.exists():
@@ -110,25 +81,25 @@ class AnalysisOrchestrator:
 
         logger.info("Loaded configuration from '%s'.", config_path)
 
-        # --- pipeline ---------------------------------------------------------------------------
+        # --- pipeline --------------------------------------------------------
         pipeline_cfg = config.get("pipeline", {})
         window_size = int(pipeline_cfg.get("window_size", 12))
         step_size   = int(pipeline_cfg.get("step_size",   window_size))
 
-        # --- data source ----------------------------------------------------------------------
+        # --- data source -----------------------------------------------------
         ds_cfg = config.get("data_source", {})
         data_source = cls._build_data_source(ds_cfg)
 
-        # --- strategy ---------------------------------------------------------------------------
+        # --- strategy --------------------------------------------------------
         strat_cfg = {**config.get("strategy", {}), **(strategy_overrides or {})}
         strategy = cls._build_strategy(strat_cfg)
 
-        # --- hardware profiles -------------------------------------------------------------
+        # --- hardware profiles -----------------------------------------------
         hw_cfg = config.get("hardware", {})
         profiles_dir = hw_cfg.get("profiles_dir", "configs/hardware_profiles")
         hw_profile_loader = HardwareProfileLoader(profiles_dir)
 
-        # --- output ------------------------------------------------------------------------------
+        # --- output ----------------------------------------------------------
         output_cfg = config.get("output", {})
 
         return cls(
@@ -140,32 +111,17 @@ class AnalysisOrchestrator:
             hw_profile_loader=hw_profile_loader,
         )
 
-    # ------------------------------------------------------------------
-    # Pipeline
-    # ------------------------------------------------------------------
+    # --- Pipeline ------------------------------------------------------------
 
     def run_pipeline(self, job_id: str) -> List[WindowDiagnosis]:
         """
-        Execute the full analysis pipeline for *job_id*.
-
-        Steps:
-            1. Fetch job data from the data source.
-            2. Slide the analysis window over the time series.
-            3. Call the strategy's ``diagnose`` method for each window.
-            4. Apply output filters (min_severity, min_confidence,
-               show_healthy_windows).
-            5. Render and optionally save results.
-
-        Args:
-            job_id: The identifier of the job to analyse.
-
-        Returns:
-            List of :class:`~hpc_bottleneck_detector.output.models.WindowDiagnosis`
-            objects (after filtering).
+        Execute the full analysis pipeline for job_id: fetch data, slide
+        windows, run the strategy per window, and apply output filters
+        (min_severity, min_confidence, show_healthy_windows).
         """
         logger.info("Starting pipeline for job '%s'.", job_id)
 
-        # --- 1. Fetch data -------------------------------------------------------------------
+        # --- 1. Fetch data ---------------------------------------------------
         data_mgr = self.data_source.fetch_job_data(job_id)
         n = data_mgr.get_time_series_length()
         logger.info(
@@ -174,10 +130,10 @@ class AnalysisOrchestrator:
             job_id,
         )
 
-        # --- 1b. Inject supplemental benchmarks ------------------------------------
+        # --- 1b. Inject supplemental benchmarks ------------------------------
         self.inject_supplemental_benchmarks(data_mgr)
 
-        # --- 2 & 3. Window iteration + strategy ------------------------------------
+        # --- 2 & 3. Window iteration + strategy ------------------------------
         window_diagnoses: List[WindowDiagnosis] = []
 
         for win_idx, (start, end, win_dm) in enumerate(
@@ -196,19 +152,17 @@ class AnalysisOrchestrator:
             "Analysis complete: %d window(s) processed.", len(window_diagnoses)
         )
 
-        # --- 4. Filter -------------------------------------------------------------------------
+        # --- 4. Filter -------------------------------------------------------
         window_diagnoses = self._apply_filters(window_diagnoses)
 
-        # --- 5. Format / save ---------------------------------------------------------------
+        # --- 5. Format / save ------------------------------------------------
         fmt       = self.output_cfg.get("format", "print")
         save_path = self.output_cfg.get("save_path")
         format_results(window_diagnoses, fmt=fmt, save_path=save_path)
 
         return window_diagnoses
 
-    # ------------------------------------------------------------------
-    # Internal helpers
-    # ------------------------------------------------------------------
+    # --- Internal helpers ----------------------------------------------------
 
     def inject_supplemental_benchmarks(self, data_mgr: DataManager) -> None:
         """
@@ -267,9 +221,7 @@ class AnalysisOrchestrator:
 
         return filtered
 
-    # ------------------------------------------------------------------
-    # Static builder helpers
-    # ------------------------------------------------------------------
+    # --- Static builder helpers ----------------------------------------------
 
     @staticmethod
     def _build_data_source(cfg: dict) -> IDataSource:

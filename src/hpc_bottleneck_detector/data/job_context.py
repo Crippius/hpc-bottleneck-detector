@@ -50,12 +50,6 @@ def _filter_memory(mem_raw: dict) -> dict:
 def _extract_node_info(node_raw: dict) -> dict:
     """
     Extract the hardware fields relevant for correlating with time-series data.
-
-    Keeps:
-    - ``cpu``        - model, core counts, NUMA topology, cache sizes
-    - ``memory``     - type, size, speed
-    - ``benchmarks`` - theoretical peak bandwidth / flops
-    - ``os``         - distro and kernel
     """
     info: dict = {}
 
@@ -83,16 +77,10 @@ class JobContext:
     """
     Static context for a single HPC job.
 
-    Attributes:
-        job_id:                 String job identifier.
-        job_metadata:           Dict extracted from the api response for
-                                this job (runtime, capturetime, jobState, node
-                                hostnames, configuration variant).
-        node_hardware:          Dict mapping node hash -> filtered hardware info
-                                (cpu, memory, benchmarks, os).  Nodes that share the
-                                same hardware hash appear under a single entry.
-        supplemental_benchmarks: Fallback benchmark values used when the API
-
+    ``node_hardware`` maps node hash -> filtered hardware info (cpu, memory,
+    benchmarks, os); nodes sharing a hardware hash collapse to one entry.
+    ``supplemental_benchmarks`` is used by :meth:`get_benchmark` as a fallback
+    when a key is absent from every node's own benchmarks.
     """
 
     def __init__(
@@ -107,9 +95,7 @@ class JobContext:
         self.node_hardware = node_hardware
         self.supplemental_benchmarks: Dict[str, float] = supplemental_benchmarks or {}
 
-    # ------------------------------------------------------------------
-    # Accessors
-    # ------------------------------------------------------------------
+    # --- Accessors -----------------------------------------------------------
 
     def get_job_id(self) -> str:
         """Return the job identifier."""
@@ -129,17 +115,7 @@ class JobContext:
 
     def get_benchmark(self, key: str, aggregate: str = "mean") -> Optional[float]:
         """
-        Return a benchmark value
-
-        Args:
-            key:       Benchmark name, e.g. ``'bandwidth_mem'``,
-                       ``'bandwidth_upi'``, ``'peakflops_avx512_fma'``.
-            aggregate: ``'mean'`` (default), ``'min'``, or ``'max'``.
-                       Applied only to API-provided values (supplemental
-                       values are single scalars).
-
-        Returns:
-            Float value, or ``None`` if the key is absent from all sources.
+        Return a benchmark value.
         """
         values = [
             info["benchmarks"][key]
@@ -161,10 +137,6 @@ class JobContext:
     def get_cpu_info(self, key: str) -> Optional[Any]:
         """
         Return a CPU property from the first node.
-
-        For homogeneous clusters all nodes share the same hardware, so the
-        first entry is representative.  Use ``node_hardware`` directly for
-        heterogeneous jobs.
         """
         for info in self.node_hardware.values():
             if "cpu" in info:
@@ -178,9 +150,7 @@ class JobContext:
                 return info["memory"].get(key)
         return None
 
-    # ------------------------------------------------------------------
-    # Helpers
-    # ------------------------------------------------------------------
+    # --- Helpers -------------------------------------------------------------
 
     def __repr__(self) -> str:
         n_nodes = len(self.job_metadata.get("nodes", {}))
@@ -200,17 +170,7 @@ class JobContext:
         interval_seconds: Optional[float] = None,
     ) -> "JobContext":
         """
-        Build a ``JobContext`` from raw XBAT API responses.
-
-        Args:
-            job_id:            String job identifier.
-            job_entry:         Single element from the ``/api/v1/jobs`` data
-                               list matching this job.
-            node_hardware_raw: Full response from ``/api/v1/nodes``, keyed
-                               by hash.
-
-        Returns:
-            Populated ``JobContext`` instance.
+        Build a ``JobContext`` from raw XBAT API responses
         """
         # Flatten the fields that are useful downstream
         job_info = job_entry.get("jobInfo", {})

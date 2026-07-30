@@ -8,7 +8,10 @@ that delegates bottleneck detection to a trained :class:`IMLBackend`.
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 from typing import List
+
+import yaml
 
 from .interface import IAnalysisStrategy
 from ..data.manager import DataManager
@@ -17,16 +20,30 @@ from ..output.models import BottleneckType, Diagnosis
 
 logger = logging.getLogger(__name__)
 
+# General, class-level recommendations for the ML branch, keyed by BottleneckType.
+_ML_RECOMMENDATIONS_PATH = Path(__file__).resolve().parents[3] / "configs" / "ml_recommendations.yaml"
+
+
+def _load_ml_recommendations() -> dict[BottleneckType, str]:
+    if not _ML_RECOMMENDATIONS_PATH.exists():
+        logger.warning("ML recommendations file not found: %s", _ML_RECOMMENDATIONS_PATH)
+        return {}
+    with _ML_RECOMMENDATIONS_PATH.open("r", encoding="utf-8") as fh:
+        raw = yaml.safe_load(fh) or {}
+    recommendations: dict[BottleneckType, str] = {}
+    for name, text in raw.items():
+        try:
+            recommendations[BottleneckType[name]] = text
+        except KeyError:
+            logger.warning("Unknown BottleneckType in ml_recommendations.yaml: %s", name)
+    return recommendations
+
+
+_ML_RECOMMENDATIONS: dict[BottleneckType, str] = _load_ml_recommendations()
+
 
 class SupervisedMLStrategy(IAnalysisStrategy):
-    """
-    Bottleneck-detection strategy backed by a trained ML model.
-
-    Attributes:
-        backend:                Trained :class:`IMLBackend` instance.
-        significance_threshold: Minimum probability to emit a
-                                :class:`Diagnosis`.  Defaults to ``0.3``.
-    """
+    """Bottleneck-detection strategy backed by a trained ML model."""
 
     def __init__(
         self,
@@ -36,9 +53,7 @@ class SupervisedMLStrategy(IAnalysisStrategy):
         self.backend = backend
         self.significance_threshold = significance_threshold
 
-    # ------------------------------------------------------------------
-    # IAnalysisStrategy
-    # ------------------------------------------------------------------
+    # --- IAnalysisStrategy ---------------------------------------------------
 
     def diagnose(self, data_mgr: DataManager) -> List[Diagnosis]:
         """
@@ -77,6 +92,7 @@ class SupervisedMLStrategy(IAnalysisStrategy):
                         severity_score=prob,
                         confidence=prob,
                         source="ml",
+                        recommendation=_ML_RECOMMENDATIONS.get(bt),
                     )
                 )
 

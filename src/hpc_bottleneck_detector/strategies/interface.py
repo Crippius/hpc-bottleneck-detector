@@ -22,25 +22,14 @@ class IAnalysisStrategy(ABC):
     The orchestrator calls :meth:`diagnose` once per analysis window,
     passing a :class:`~hpc_bottleneck_detector.data.manager.DataManager`
     that contains only the intervals belonging to that window.
-
-    Implementations are free to run multiple internal detectors and return
-    one :class:`~hpc_bottleneck_detector.output.models.Diagnosis` per
-    detected bottleneck (or a single ``NONE`` diagnosis when the window
-    is healthy).
     """
 
     @abstractmethod
     def diagnose(self, data_mgr: "DataManager") -> "List[Diagnosis]":
         """
-        Analyse a single window and return a list of diagnoses.
-
-        Args:
-            data_mgr: DataManager scoped to the current analysis window.
-
-        Returns:
-            A list of :class:`~hpc_bottleneck_detector.output.models.Diagnosis`
-            objects.  Return a list with a single ``NONE`` diagnosis (or an
-            empty list) if no bottleneck is detected.
+        Analyse a single window and return a list of
+        :class:`~hpc_bottleneck_detector.output.models.Diagnosis` objects — a
+        single ``NONE`` diagnosis (or an empty list) if no bottleneck is detected.
         """
         ...
 

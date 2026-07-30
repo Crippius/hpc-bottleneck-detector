@@ -23,15 +23,9 @@ def format_results(
     save_path: Optional[str] = None,
 ) -> str:
     """
-    Render *window_diagnoses* according to *fmt*.
-
-    Args:
-        window_diagnoses: Results produced by the orchestrator.
-        fmt:              ``'print'`` | ``'json'`` | ``'csv'``
-        save_path:        When provided the output is also written to this path.
-
-    Returns:
-        The rendered string (useful for testing / logging).
+    Render window_diagnoses as fmt (``'print'`` | ``'json'`` | ``'csv'``),
+    optionally also writing to save_path. Returns the rendered string
+    (useful for testing/logging).
     """
     fmt = fmt.lower().strip()
 
@@ -42,22 +36,20 @@ def format_results(
     else:
         output = _to_print(window_diagnoses)
 
-    # --- write to file if requested -------------------------------------------------------------
+    # --- write to file if requested ------------------------------------------
     if save_path:
         path = Path(save_path)
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(output, encoding="utf-8")
 
-    # --- print to stdout for 'print' fmt ----------------------------------------------------
+    # --- print to stdout for 'print' fmt -------------------------------------
     if fmt == "print":
         sys.stdout.write(output)
 
     return output
 
 
-# ---------------------------------------------------------------------------
-# Private helpers
-# ---------------------------------------------------------------------------
+# --- Private helpers ---------------------------------------------------------
 
 def _to_print(windows: List[WindowDiagnosis]) -> str:
     lines: List[str] = []

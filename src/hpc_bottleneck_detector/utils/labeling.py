@@ -1,21 +1,14 @@
 """
 Labeling Module
 
-Runs a :class:`~hpc_bottleneck_detector.strategies.HeuristicStrategy` over
-sliding windows of a job's time series and produces a flat, labelled
-DataFrame that is ready for downstream ML training.
+Runs :class:`~hpc_bottleneck_detector.strategies.HeuristicStrategy` over sliding
+windows and produces a flat, labelled DataFrame for ML training: one row per
+interval (as in :meth:`~hpc_bottleneck_detector.data.DataManager.get_flat_dataframe`)
+plus one column per :class:`BottleneckType`:
 
-Output shape
-------------
-One row per time interval (same as
-:meth:`~hpc_bottleneck_detector.data.DataManager.get_flat_dataframe`) plus
-one additional column per real :class:`BottleneckType`:
-
-- ``0.0``      - no bottleneck of this type detected for this interval.
-- ``NaN``      - assessment unknown (at least one strategy tree could not run
-                 due to missing metrics, and no real bottleneck was found).
-- ``(0, 1]``   - bottleneck detected; value is the max severity score across
-                 all windows that cover this interval.
+- ``0.0``    - no bottleneck detected for this interval.
+- ``NaN``    - unknown (a strategy tree couldn't run due to missing metrics).
+- ``(0, 1]`` - detected; value is the max severity across covering windows.
 """
 
 from __future__ import annotations
@@ -47,7 +40,7 @@ _REAL_TYPES: Set[BottleneckType] = set(BOTTLENECK_COLUMNS)
 
 
 def _get_leaf_types(node: PropertyNode) -> Set[BottleneckType]:
-    """Recursively collect all real BottleneckTypes reachable from *node*."""
+    """Recursively collect all real BottleneckTypes reachable from node."""
     if node.is_leaf():
         bt_name = node._diag_cfg.get("bottleneck_type", "NONE")
         try:
@@ -76,7 +69,7 @@ def _window_severity(
     Rules:
 
     - Real bottleneck detected -> max severity score across all matching diagnoses.
-    - Not detected AND a tree that *can* produce this type was UNKNOWN -> ``NaN``
+    - Not detected AND a tree that can produce this type was UNKNOWN -> ``NaN``
       (the relevant tree couldn't run; absence cannot be confirmed).
     - Not detected AND no responsible tree was UNKNOWN -> ``0.0``
       (all relevant trees ran cleanly and found nothing).
@@ -108,10 +101,10 @@ def label_job(
     interval_seconds: Optional[int] = None,
 ) -> pd.DataFrame:
     """
-    Label every time interval in *data_mgr* with bottleneck severity scores.
+    Label every time interval in data_mgr with bottleneck severity scores.
 
-    The function slides a window of *window_size* intervals over the full
-    time series (advancing *step_size* intervals at a time), runs
+    The function slides a window of window_size intervals over the full
+    time series (advancing step_size intervals at a time), runs
     ``strategy.diagnose()`` on each window, and maps the resulting
     :class:`~hpc_bottleneck_detector.output.models.Diagnosis` objects back to
     individual intervals.

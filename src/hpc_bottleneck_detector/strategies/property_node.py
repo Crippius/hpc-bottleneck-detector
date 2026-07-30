@@ -28,23 +28,11 @@ from ..output.models import BottleneckType, Diagnosis
 logger = logging.getLogger(__name__)
 
 
-# ---------------------------------------------------------------------------
-# Module-level helpers
-# ---------------------------------------------------------------------------
+# --- Module-level helpers ----------------------------------------------------
 
 def _get_series(metric_cfg: dict, data_mgr: "DataManager") -> pd.Series:
     """
     Resolve a metric configuration to a pandas Series of interval values.
-
-    Handles three cases:
-
-    * **simple** ``{group, metric, trace}`` - direct DataManager lookup.
-    * **sum** ``{type: sum, operands: [...]}`` - element-wise sum of operands.
-    * **ratio** ``{type: ratio, numerator: ..., denominator: ...}`` -
-      element-wise division; zeros in denominator become NaN.
-
-    Raises:
-        ValueError: If a required simple metric is absent from *data_mgr*.
     """
     kind = metric_cfg.get("type")
 
@@ -88,18 +76,6 @@ def _aggregate(series: pd.Series, aggregation: str) -> float:
 def _resolve_threshold(threshold_cfg: Any, data_mgr: "DataManager") -> float:
     """
     Resolve a threshold specification to a concrete float.
-
-    Simple thresholds are plain numbers.  Benchmark-derived thresholds have
-    the form::
-
-        benchmark: bandwidth_mem
-        fraction:  0.85
-        aggregate: mean          # optional, default 'mean'
-
-    Raises:
-        ValueError: If a benchmark key is not found in the API or any loaded
-                    hardware profile.  The caller should catch this and return
-                    an UNKNOWN diagnosis rather than silently using a wrong value.
     """
     if isinstance(threshold_cfg, (int, float)):
         return float(threshold_cfg)
@@ -190,25 +166,17 @@ def _metric_label(metric_cfg: dict) -> str:
     return f"{group}/{metric}/{trace}" if trace else f"{group}/{metric}"
 
 
-# ---------------------------------------------------------------------------
-# PropertyNode
-# ---------------------------------------------------------------------------
+# --- PropertyNode ------------------------------------------------------------
 
 class PropertyNode:
-    """
-    A single node in a heuristic decision tree.
-
-    Attributes:
-        node_id:     Unique identifier for this node (from YAML).
-        description: Human-readable description of the check.
-    """
+    """A single node in a heuristic decision tree."""
 
     def __init__(self, config: dict) -> None:
         self.node_id: str     = config["node_id"]
         self.description: str = config.get("description", "")
 
         if "diagnosis" in config:
-            # --- Leaf node ---------------------------------------------------------------------
+            # --- Leaf node ---------------------------------------------------
             self._is_leaf = True
             self._diag_cfg = config["diagnosis"]
             self._metric_cfg  = None
@@ -218,7 +186,7 @@ class PropertyNode:
             self._if_true  = None
             self._if_false = None
         else:
-            # --- Decision node ---------------------------------------------------------------
+            # --- Decision node -----------------------------------------------
             self._is_leaf = False
             self._diag_cfg = None
             self._metric_cfg    = config["metric"]
@@ -228,9 +196,7 @@ class PropertyNode:
             self._if_true  = PropertyNode(config["if_true"])
             self._if_false = PropertyNode(config["if_false"])
 
-    # ------------------------------------------------------------------
-    # Public API
-    # ------------------------------------------------------------------
+    # --- Public API ----------------------------------------------------------
 
     def is_leaf(self) -> bool:
         """True if this node terminates the traversal."""
@@ -238,14 +204,10 @@ class PropertyNode:
 
     def evaluate(self, data_mgr: "DataManager") -> tuple[bool, float, float]:
         """
-        Evaluate the decision condition at this node.
-
-        Returns:
-            Tuple ``(branch, metric_value, resolved_threshold)`` where
-            *branch* is True if the ``if_true`` child should be followed.
-
-        Raises:
-            ValueError: If a required metric is missing.
+        Evaluate the decision condition at this node. Returns
+        ``(branch, metric_value, resolved_threshold)``, where branch is True
+        if the ``if_true`` child should be followed. Raises ValueError if a
+        required metric is missing.
         """
         series    = _get_series(self._metric_cfg, data_mgr)
         value     = _aggregate(series, self._aggregation)
@@ -272,17 +234,12 @@ class PropertyNode:
     ) -> Diagnosis:
         """
         Build a :class:`~hpc_bottleneck_detector.output.models.Diagnosis`
-        from this leaf node's configuration.
-
-        Args:
-            source:            Name of the enclosing :class:`StrategyTree`.
-            triggered_metrics: Metric labels that fired along the path.
-            metric_value:      The last evaluated metric value; used to
-                               compute severity when a formula is given.
+        from this leaf node's configuration. metric_value (the last
+        evaluated value) is used to compute severity when a formula is given.
         """
         cfg = self._diag_cfg
 
-        # --- Bottleneck type ------------------------------------------------------------------
+        # --- Bottleneck type -------------------------------------------------
         bt_name = cfg.get("bottleneck_type", "NONE")
         try:
             bt = BottleneckType[bt_name]
@@ -290,7 +247,7 @@ class PropertyNode:
             logger.warning("Unknown bottleneck_type '%s'; defaulting to NONE.", bt_name)
             bt = BottleneckType.NONE
 
-        # --- Severity ----------------------------------------------------------------------------
+        # --- Severity --------------------------------------------------------
         formula = str(cfg.get("severity_formula", "0.0"))
 
         raw_threshold = cfg.get("threshold", 1.0)
@@ -309,7 +266,7 @@ class PropertyNode:
         else:
             severity = _compute_severity(formula, 0.0, sev_threshold, sev_cap)
 
-        # --- Other fields ----------------------------------------------------------------------
+        # --- Other fields ----------------------------------------------------
         confidence     = float(cfg.get("confidence", 1.0))
         recommendation = cfg.get("recommendation")
         if isinstance(recommendation, str):
@@ -324,7 +281,7 @@ class PropertyNode:
             triggered_metrics=triggered_metrics,
         )
 
-    # ------------------------------------------------------------------
+    # -------------------------------------------------------------------------
 
     def __repr__(self) -> str:
         kind = "leaf" if self._is_leaf else "decision"

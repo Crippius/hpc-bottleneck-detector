@@ -16,8 +16,6 @@ from .job_context import JobContext
 logger = logging.getLogger(__name__)
 
 # Maps flat-DataFrame column names to benchmark keys in JobContext.
-# Columns present in this map are divided by the corresponding peak value
-# when a JobContext is available.  Adjust keys to match your XBAT instance.
 METRIC_BENCHMARK_MAP: dict[str, str] = {
     "cpu_FLOPS_SP":                  "peakflops_sp",
     "cpu_FLOPS_DP":                  "peakflops",
@@ -35,24 +33,10 @@ METRIC_BENCHMARK_MAP: dict[str, str] = {
 class DataManager:
     """
     DataManager for accessing job metrics.
-
-    Attributes:
-        job_data:    DataFrame containing all job metrics (time-series rows).
-        job_id:      The job identifier extracted from the data.
-        job_context: Optional :class:`JobContext` carrying static hardware
-                     metadata (benchmarks, CPU/memory specs, job runtime ...).
-                     ``None`` when the data source cannot provide it.
     """
 
     def __init__(self, job_data: pd.DataFrame, job_context: Optional[JobContext] = None):
-        """
-        Initialize the DataManager with job data.
-
-        Args:
-            job_data:    DataFrame with columns: jobId, group, metric, trace,
-                         interval 0, interval 1, ...
-            job_context: Optional static job / hardware context.
-        """
+        """job_data columns: jobId, group, metric, trace, interval 0, interval 1, ..."""
         self.job_data = job_data
         self.job_context = job_context
 
@@ -64,18 +48,9 @@ class DataManager:
     
     def get_metric(self, group: str, metric: str, trace: Optional[str] = None) -> pd.Series:
         """
-        Get time series data for a specific metric.
-        
-        Args:
-            group: Metric group (e.g., 'cpu', 'memory')
-            metric: Metric name (e.g., 'Branching')
-            trace: Trace name (optional, e.g., 'branch rate')
-            
-        Returns:
-            Series containing the time series values (interval 0, interval 1, ...)
-            
-        Raises:
-            ValueError: If the metric is not found
+        Get time series data for a specific metric (group e.g. 'cpu', metric
+        e.g. 'Branching', trace optional e.g. 'branch rate'). Raises
+        ValueError if not found.
         """
         # Build filter conditions
         condition = (self.job_data['group'] == group) & (self.job_data['metric'] == metric)
@@ -97,14 +72,10 @@ class DataManager:
     
     def get_metrics(self, metric_specs: List[Dict[str, str]]) -> pd.DataFrame:
         """
-        Get multiple metrics at once.
-        
-        Args:
-            metric_specs: List of dicts with keys 'group', 'metric', and optionally 'trace'
-                Example: [{'group': 'cpu', 'metric': 'Branching', 'trace': 'branch rate'}]
-            
-        Returns:
-            DataFrame where each row is a metric time series, indexed by descriptive names
+        Get multiple metrics at once: metric_specs is a list of dicts with
+        keys 'group', 'metric', and optionally 'trace', e.g.
+        ``[{'group': 'cpu', 'metric': 'Branching', 'trace': 'branch rate'}]``.
+        Returns a DataFrame with one row per metric, indexed by descriptive name.
         """
         result = {}
         
@@ -129,12 +100,7 @@ class DataManager:
         return pd.DataFrame(result).T
     
     def list_available_metrics(self) -> pd.DataFrame:
-        """
-        List all available metrics in the job data.
-        
-        Returns:
-            DataFrame with columns: group, metric, trace
-        """
+        """List all available metrics in the job data (columns: group, metric, trace)."""
         return self.job_data[['group', 'metric', 'trace']].drop_duplicates().reset_index(drop=True)
 
     def has_metric(self, group: str, metric: str, trace: Optional[str] = None) -> bool:
@@ -146,19 +112,13 @@ class DataManager:
             return False
     
     def get_time_series_length(self) -> int:
-        """
-        Get the length of the time series (number of intervals).
-
-        Returns:
-            Number of time intervals
-        """
+        """Number of intervals in the time series."""
         interval_cols = [col for col in self.job_data.columns if col.startswith('interval ')]
         return len(interval_cols)
 
     @property
     def sampling_interval(self) -> Optional[int]:
-        """
-        """
+        """Sampling interval in seconds, from job metadata or computed from runtime/interval count."""
         if self.job_context is None:
             return None
 
@@ -187,53 +147,16 @@ class DataManager:
     
     def get_all_time_series(self) -> pd.DataFrame:
         """
-        Get all metrics as a DataFrame with one row per metric.
-        
-        Returns:
-            DataFrame where each row is a metric, with columns:
-                - group, metric, trace (identifiers)
-                - interval 0, interval 1, ... (time series values)
+        Get all metrics as a DataFrame: one row per metric, columns
+        group/metric/trace plus interval 0, interval 1, ...
         """
         return self.job_data.copy()
 
     def get_flat_dataframe(self, interval_seconds: Optional[int] = None) -> pd.DataFrame:
         """
-        Return a flat (wide) DataFrame version of data.
-
-        The returned DataFrame has one row per time interval and the
-        following columns:
-
-        - ``id``   : job identifier (same value for every row).
-        - ``time`` : elapsed time in seconds (0, 5, 10, ...), stepping by
-                     *interval_seconds* per interval.
-        - One column per metric, named ``<group>_<metric>`` or
-          ``<group>_<metric>_<trace>`` (spaces replaced by underscores).
-
-        When a :class:`JobContext` is attached, columns listed in
-        :data:`METRIC_BENCHMARK_MAP` are divided by their corresponding
-        hardware peak (obtained via :meth:`JobContext.get_benchmark`).
-        Columns whose benchmark value is unavailable or zero are left as-is.
-
-        To extract features with tsfresh pass::
-
-            tsfresh.extract_features(
-                df,
-                column_id="id",
-                column_sort="time",
-            )
-
-        Args:
-            interval_seconds: Duration of each interval in seconds.  When
-                              ``None`` (default), the value is inferred from
-                              ``job_context.runtime`` via the
-                              :attr:`sampling_interval` property.
-
-        Raises:
-            ValueError: If *interval_seconds* is ``None`` and the sampling
-                        interval cannot be inferred from the job context.
-
-        Returns:
-            DataFrame with shape ``(n_intervals, 2 + n_metrics)``.
+        Return a flat DataFrame: one row per interval, columns ``id``,
+        ``time`` (seconds, stepping by interval_seconds), and one per metric
+        named ``<group>_<metric>`` or ``<group>_<metric>_<trace>``. 
         """
         if interval_seconds is None:
             interval_seconds = self.sampling_interval
@@ -272,9 +195,6 @@ class DataManager:
     def _apply_benchmark_normalization(self, df: pd.DataFrame) -> pd.DataFrame:
         """
         Divide metric columns by their hardware peak from ``job_context``.
-
-        Only columns listed in :data:`METRIC_BENCHMARK_MAP` are touched.
-        If the benchmark value is absent or zero, the column is left unchanged.
         """
         df = df.copy()
         normalized: list[str] = []
@@ -299,9 +219,7 @@ class DataManager:
 
         return df
 
-    # ------------------------------------------------------------------
-    # Windowing helpers
-    # ------------------------------------------------------------------
+    # --- Windowing helpers ---------------------------------------------------
 
     def _interval_columns(self) -> List[str]:
         """Return the ordered list of interval column names."""
@@ -309,18 +227,9 @@ class DataManager:
 
     def slice_window(self, start: int, end: int) -> "DataManager":
         """
-        Return a new DataManager containing only intervals [start, end).
-
-        The interval columns in the returned instance are **renumbered**
-        starting from 0 so that strategies can treat every window
-        uniformly.
-
-        Args:
-            start: Inclusive start index (0-based over interval columns).
-            end:   Exclusive end index.
-
-        Returns:
-            A new :class:`DataManager` scoped to the requested interval slice.
+        Return a new DataManager containing only intervals [start, end), with
+        interval columns renumbered from 0 so strategies can treat every
+        window uniformly.
         """
         all_interval_cols = self._interval_columns()
         slice_cols = all_interval_cols[start:end]
@@ -342,19 +251,10 @@ class DataManager:
         step_size: int,
     ) -> Generator[Tuple[int, int, "DataManager"], None, None]:
         """
-        Slide a window over the time series and yield sub-DataManagers.
-
-        Args:
-            window_size: Number of intervals per window.
-            step_size:   Number of intervals to advance between windows.
-                         Setting ``step_size == window_size`` gives
-                         tumbling (non-overlapping) windows; smaller
-                         values give sliding (overlapping) windows.
-
-        Yields:
-            Tuples of ``(start_interval, end_interval, window_data_manager)``
-            where *end_interval* is the **inclusive** last interval index in
-            the original time series.
+        Slide a window over the time series, yielding
+        ``(start_interval, end_interval, window_data_manager)`` tuples where
+        end_interval is inclusive. ``step_size == window_size`` gives tumbling
+        (non-overlapping) windows; smaller values give sliding (overlapping) ones.
         """
         n_intervals = self.get_time_series_length()
 

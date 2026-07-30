@@ -1,15 +1,11 @@
 """
 Heuristic Strategy
 
-Rule-based bottleneck detection strategy.  Every ``*.yaml`` file found in
-*strategy_folder* is loaded as an independent
-:class:`~hpc_bottleneck_detector.strategies.strategy_tree.StrategyTree`.
-
-During :meth:`diagnose` all trees are executed against the supplied window
-:class:`~hpc_bottleneck_detector.data.manager.DataManager`.  Trees whose
-required metrics are missing are silently skipped (they return a
-zero-confidence NONE diagnosis).  Only non-healthy diagnoses are returned;
-if all trees pass clean a single NONE diagnosis is returned.
+Rule-based bottleneck detection. Every ``*.yaml`` file in strategy_folder is
+loaded as a :class:`~hpc_bottleneck_detector.strategies.strategy_tree.StrategyTree`
+and run against each window; trees missing required metrics are skipped
+(zero-confidence NONE). Only non-healthy diagnoses are returned, or a single
+NONE if every tree passes clean.
 """
 
 from __future__ import annotations
@@ -30,15 +26,8 @@ class HeuristicStrategy(IAnalysisStrategy):
     """
     Rule-based bottleneck detection strategy.
 
-    Each ``*.yaml`` file in *strategy_folder* is loaded as a separate
-    :class:`~hpc_bottleneck_detector.strategies.strategy_tree.StrategyTree`.
-    All trees are evaluated for every analysis window; results are merged so
-    that only meaningful findings are returned.
-
-    Args:
-        strategy_folder: Path to the directory containing strategy YAML files.
-                         If *None*, no trees are loaded and every window will
-                         be reported as healthy.
+    If strategy_folder is ``None``, no trees are loaded and every window is
+    reported as healthy.
     """
 
     def __init__(self, strategy_folder: Optional[str] = None) -> None:
@@ -53,22 +42,13 @@ class HeuristicStrategy(IAnalysisStrategy):
                 "no trees loaded - every window will be diagnosed as healthy."
             )
 
-    # ------------------------------------------------------------------
-    # IAnalysisStrategy interface
-    # ------------------------------------------------------------------
+    # --- IAnalysisStrategy interface -----------------------------------------
 
     def diagnose(self, data_mgr: DataManager) -> List[Diagnosis]:
         """
-        Run all loaded strategy trees against *data_mgr* and return the
-        aggregated bottleneck findings.
-
-        Trees whose required metrics are not present in *data_mgr* are
-        skipped gracefully (zero-confidence NONE result).
-
-        Returns:
-            A list of :class:`~hpc_bottleneck_detector.output.models.Diagnosis`
-            objects.  Contains at least one entry (``NONE`` if nothing is
-            detected or no trees are loaded).
+        Run all loaded strategy trees against data_mgr and return the
+        aggregated findings (at least one entry; ``NONE`` if nothing is
+        detected or no trees are loaded).
         """
         if not self._strategy_trees:
             return [
@@ -120,12 +100,10 @@ class HeuristicStrategy(IAnalysisStrategy):
                     labels.append(label)
         return labels
 
-    # ------------------------------------------------------------------
-    # Internals
-    # ------------------------------------------------------------------
+    # --- Internals -----------------------------------------------------------
 
     def _load_trees(self, folder: Path) -> None:
-        """Load every ``*.yaml`` file in *folder* as a :class:`StrategyTree`."""
+        """Load every ``*.yaml`` file in folder as a :class:`StrategyTree`."""
         yaml_files = sorted(folder.glob("*.yaml"))
 
         if not yaml_files:

@@ -16,9 +16,7 @@ from enum import Enum
 from typing import List, Optional
 
 
-# ---------------------------------------------------------------------------
-# Enumerations
-# ---------------------------------------------------------------------------
+# --- Enumerations ------------------------------------------------------------
 
 class MacroCategoryType(Enum):
     """Coarse family a bottleneck belongs to."""
@@ -55,7 +53,7 @@ class BottleneckType(Enum):
     NONE    = "NONE"
     UNKNOWN = "UNKNOWN"  # analysis could not be performed (e.g. missing metrics)
 
-    # ------------------------------------------------------------------
+    # -------------------------------------------------------------------------
     def get_macro_category(self) -> MacroCategoryType:
         """Return the macro category this bottleneck belongs to."""
         _MAP: dict[BottleneckType, MacroCategoryType] = {
@@ -72,9 +70,7 @@ class BottleneckType(Enum):
         return _MAP.get(self, MacroCategoryType.NONE)
 
 
-# ---------------------------------------------------------------------------
-# Diagnosis
-# ---------------------------------------------------------------------------
+# --- Diagnosis ---------------------------------------------------------------
 
 @dataclass
 class Diagnosis:
@@ -97,7 +93,7 @@ class Diagnosis:
     source:            str                  = field(default="")
     triggered_metrics: List[str]            = field(default_factory=list)
 
-    # ------------------------------------------------------------------
+    # -------------------------------------------------------------------------
     @property
     def is_healthy(self) -> bool:
         """True when no bottleneck was detected."""
@@ -119,9 +115,7 @@ class Diagnosis:
         }
 
 
-# ---------------------------------------------------------------------------
-# WindowDiagnosis
-# ---------------------------------------------------------------------------
+# --- WindowDiagnosis ---------------------------------------------------------
 
 @dataclass
 class WindowDiagnosis:
@@ -140,7 +134,7 @@ class WindowDiagnosis:
     end_interval:   int
     diagnoses:      List[Diagnosis] = field(default_factory=list)
 
-    # ------------------------------------------------------------------
+    # -------------------------------------------------------------------------
     def has_bottlenecks(self) -> bool:
         """Return True when at least one real (non-NONE, non-UNKNOWN) diagnosis is present."""
         return any(not d.is_healthy and not d.is_unknown for d in self.diagnoses)

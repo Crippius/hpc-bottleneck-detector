@@ -3,13 +3,7 @@ Hardware Profile Loader
 
 Loads per-architecture hardware profiles from a directory of YAML files.
 
-Profile files must live under the configured ``profiles_dir`` and follow
-this structure::
-
-    name: Intel Xeon Platinum 8360Y (Ice Lake-SP)
-    cpu_model_pattern: "Intel.*8360Y"   # Python regex, case-insensitive
-    benchmarks:
-      bandwidth_upi: 55600              # MB/s, per-direction, MLC-measured
+Profile files must live under the configured ``profiles_dir``
 """
 
 from __future__ import annotations
@@ -39,9 +33,7 @@ class HardwareProfileLoader:
             else:
                 self._load_dir(p)
 
-    # ------------------------------------------------------------------
-    # Loading
-    # ------------------------------------------------------------------
+    # --- Loading -------------------------------------------------------------
 
     def _load_benchmarks(self, path: Path) -> dict:
         with path.open("r", encoding="utf-8") as fh:
@@ -87,14 +79,12 @@ class HardwareProfileLoader:
 
         logger.info("Loaded %d hardware profile(s) from %s.", loaded, directory)
 
-    # ------------------------------------------------------------------
-    # Matching
-    # ------------------------------------------------------------------
+    # --- Matching ------------------------------------------------------------
 
     def match(self, cpu_model: str) -> dict:
         """
         Return benchmark values from the first profile whose
-        ``cpu_model_pattern`` matches *cpu_model*.
+        ``cpu_model_pattern`` matches cpu_model.
         """
         for pattern, benchmarks in self._profiles:
             if pattern.search(cpu_model):

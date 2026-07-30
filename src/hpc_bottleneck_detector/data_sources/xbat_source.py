@@ -1,31 +1,7 @@
 """
 XBAT REST API Data Source Implementation
 
-This module provides a data source that fetches HPC job metrics directly
-from the XBAT REST API.
-
-Authentication flow:
-    1. Load a cached OAuth token from a local file (if it exists)
-    2. Validate the token via GET /api/v1/current_user
-    3. If invalid/missing, request a new one via POST /oauth/token
-       using the Resource Owner Password Credentials grant
-
-CSV endpoint:
-    GET /api/v1/measurements/{job_id}/csv
-        ?group=<group>   (optional)
-        &metric=<metric> (optional, only when group is set)
-        &level=<level>   (default: 'job')
-        &node=<node>     (only when level='node')
-
-Credentials / environment variables:
-    The recommended way to supply credentials is via a ``.env`` file (which
-    should be git-ignored) and the :meth:`XBATDataSource.from_env` factory.
-    Copy ``.env.example`` to ``.env`` and fill in your values::
-
-        XBAT_API_BASE=https://xbat-master:7000
-        XBAT_USERNAME=your_username
-        XBAT_PASSWORD=your_password
-        XBAT_CLIENT_ID=your_client_id
+Fetches HPC job metrics from the XBAT REST API.
 """
 
 from __future__ import annotations
@@ -33,7 +9,6 @@ from __future__ import annotations
 import csv
 import io
 import os
-import re
 from pathlib import Path
 from typing import Dict, List, Optional
 
@@ -42,13 +17,17 @@ import pandas as pd
 import requests
 
 from .interface import IDataSource
+from ._load_imbalance import (
+    _aligned_values,
+    _build_imbalance_row,
+    _load_imbalance_factor,
+    intra_node_imbalance_row,
+)
 from ..data.manager import DataManager
 from ..data.job_context import JobContext
 
 
-# ---------------------------------------------------------------------------
-# Default fallback credentials (public demo instance)
-# ---------------------------------------------------------------------------
+# --- Default fallback credentials (public demo instance) ---------------------
 _DEFAULT_API_BASE = "https://demo.xbat.dev"
 _DEFAULT_USERNAME = "demo"
 _DEFAULT_PASSWORD = "demo"
@@ -56,51 +35,8 @@ _DEFAULT_CLIENT_ID = "demo"
 _DEFAULT_TOKEN_FILE = ".env.xbat"
 
 
-# ---------------------------------------------------------------------------
-# Load imbalance helper
-# ---------------------------------------------------------------------------
-
-def _load_imbalance_factor(matrix: np.ndarray) -> np.ndarray:
-    """
-    Compute the Load Imbalance Factor per interval from a 2-D matrix.
-
-    Args:
-        matrix: Shape ``(n_entities, n_intervals)`` - total FLOPS/s per
-                entity (core or node) at each interval.
-
-    Returns:
-        1-D array of shape ``(n_intervals,)`` with values in ``[0, 1]``::
-
-            LIF[t] = (T_max[t] - T_avg[t]) / T_max[t]
-
-        Intervals where ``T_max == 0`` are assigned ``LIF = 0``.
-    """
-    t_max = matrix.max(axis=0)
-    t_avg = matrix.mean(axis=0)
-    with np.errstate(invalid="ignore", divide="ignore"):
-        lif = np.where(t_max > 0, (t_max - t_avg) / t_max, 0.0)
-    return lif
-
-
 class XBATDataSource(IDataSource):
-    """
-    Data source that fetches job metrics from the XBAT REST API.
-
-    Attributes:
-        api_base:    Base URL of the XBAT instance (no trailing slash).
-        username:    Username used for the password-grant OAuth flow.
-        password:    Corresponding password.
-        client_id:   OAuth client ID.
-        group:       Metric group to filter (empty -> all groups, job-level only).
-        metric:      Metric name within the group (must be empty when group is empty).
-        level:       Aggregation level: ``'job'`` | ``'node'`` | ``'core'``.
-        node:        Node identifier (required only when level is ``'node'``).
-        token_file:  Path where the cached access token is stored.
-        proxies:     Optional proxy mapping forwarded to the underlying
-                     ``requests.Session``, e.g.
-                     ``{'http': 'socks5h://localhost:xxx', 'https': 'socks5h://localhost:xxx'}``.
-        session:     Underlying ``requests.Session`` (created automatically).
-    """
+    """Data source that fetches job metrics from the XBAT REST API."""
 
     def __init__(
         self,
@@ -148,9 +84,7 @@ class XBATDataSource(IDataSource):
         if not self._validate_token():
             self._request_new_token()
 
-    # ------------------------------------------------------------------
-    # Environment-based factory
-    # ------------------------------------------------------------------
+    # --- Environment-based factory -------------------------------------------
 
     @classmethod
     def from_env(
@@ -165,46 +99,7 @@ class XBATDataSource(IDataSource):
         verify_ssl: bool = True,
     ) -> "XBATDataSource":
         """
-        Construct an :class:`XBATDataSource` from environment variables.
-
-        Reads the following variables from the environment (after optionally
-        loading *env_file* via ``python-dotenv``):
-
-        +--------------------+------------------------------------------+
-        | Variable           | Description                              |
-        +====================+==========================================+
-        | ``XBAT_API_BASE``  | Base URL (``https://xbat-master:7000``)  |
-        | ``XBAT_USERNAME``  | OAuth username                           |
-        | ``XBAT_PASSWORD``  | OAuth password                           |
-        | ``XBAT_CLIENT_ID`` | OAuth client ID                          |
-        | ``XBAT_PROXY``     | Proxy URL, (``socks5h://localhost:xxx``) |
-        | ``XBAT_VERIFY_SSL``| Set to ``false`` to skip TLS validation  |
-        +--------------------+------------------------------------------+
-
-        Each variable falls back to the public demo credentials if not set.
-        ``XBAT_PROXY``, when set, is applied to both ``http`` and ``https``.
-        Copy ``.env.example`` to ``.env`` and fill in your real values.
-
-        Args:
-            env_file:   Path to the ``.env`` file to load. Silently ignored if
-                        the file does not exist or ``python-dotenv`` is not
-                        installed.
-            group:      Forwarded to :meth:`__init__`.
-            metric:     Forwarded to :meth:`__init__`.
-            level:      Forwarded to :meth:`__init__`.
-            node:       Forwarded to :meth:`__init__`.
-            token_file: Forwarded to :meth:`__init__`.
-            proxies:    Explicit proxy dict; overrides ``XBAT_PROXY`` when given.
-            verify_ssl: Whether to verify TLS certificates. Set to ``False`` for
-                        servers with self-signed certs; overrides ``XBAT_VERIFY_SSL``.
-
-        Returns:
-            A fully initialised :class:`XBATDataSource` instance.
-
-        Example::
-
-            # Copy .env.example -> .env and fill in real credentials, then:
-            source = XBATDataSource.from_env()
+        Construct an :class:`XBATDataSource` from environment variables
         """
         try:
             from dotenv import load_dotenv  # optional dependency
@@ -236,26 +131,14 @@ class XBATDataSource(IDataSource):
             verify_ssl=verify_ssl,
         )
 
-    # ------------------------------------------------------------------
-    # IDataSource interface
-    # ------------------------------------------------------------------
+    # --- IDataSource interface -----------------------------------------------
 
     def fetch_job_data(self, job_id: str) -> DataManager:
         """
-        Download the CSV for *job_id* from XBAT and return a DataManager.
-
-        The query parameters (group, metric, level, node) are taken from the
-        values set during construction.
-
-        Args:
-            job_id: XBAT job identifier.
-
-        Returns:
-            DataManager wrapping the downloaded metrics.
-
-        Raises:
-            ValueError: If the server returns 404 (job / combination not found).
-            IOError:    On any other non-200 HTTP status or parse failure.
+        Download the CSV for job_id from XBAT and return a DataManager. Query
+        parameters (group, metric, level, node) come from construction.
+        Raises ValueError on 404, IOError on any other non-200 status or
+        parse failure.
         """
         url = self._build_url(job_id)
 
@@ -290,9 +173,7 @@ class XBATDataSource(IDataSource):
 
         return DataManager(df.reset_index(drop=True), job_context=job_context)
 
-    # ------------------------------------------------------------------
-    # Load imbalance computation
-    # ------------------------------------------------------------------
+    # --- Load imbalance computation ------------------------------------------
 
     def _compute_load_imbalance_rows(
         self,
@@ -302,28 +183,23 @@ class XBATDataSource(IDataSource):
     ) -> List[dict]:
         """
         Compute intra- and inter-node load imbalance rows.
-
-        Both rows live in the synthetic group ``load_imbalance`` with
-        metric ``FLOPS`` and traces ``intra_node`` / ``inter_node``.
-        The value at each interval is ``max(total_flops) - min(total_flops)``
-        across cores (intra) or nodes (inter).
         """
         interval_cols = [c for c in main_df.columns if c.startswith("interval ")]
         rows: List[dict] = []
 
-        # --- Intra-node ------------------------------------------------------------------------
+        # --- Intra-node ------------------------------------------------------
         try:
             core_df = self._fetch_csv_params(
                 job_id, group="cpu", metric="FLOPS", level="core"
             )
             if core_df is not None:
-                row = self._intra_node_imbalance_row(job_id, core_df, interval_cols)
+                row = intra_node_imbalance_row(job_id, core_df, interval_cols)
                 if row is not None:
                     rows.append(row)
         except Exception:
             pass  # non-fatal
 
-        # --- Inter-node ------------------------------------------------------------------------
+        # --- Inter-node ------------------------------------------------------
         if job_entry is not None:
             node_names = list(job_entry.get("nodes", {}).keys())
             if len(node_names) > 1:
@@ -349,44 +225,6 @@ class XBATDataSource(IDataSource):
 
         return rows
 
-    def _intra_node_imbalance_row(
-        self,
-        job_id: str,
-        core_df: pd.DataFrame,
-        interval_cols: List[str],
-    ) -> Optional[dict]:
-        """
-        From core-level FLOPS data, compute the Load Imbalance Factor
-        ``(T_max - T_avg) / T_max`` across all cores for each interval.
-
-        Traces in *core_df* are expected to follow the pattern
-        ``<type> c<N>`` (e.g. ``SP c0``, ``AVX512 DP c3``).
-        """
-        flops_df = core_df[
-            (core_df["group"] == "cpu") & (core_df["metric"] == "FLOPS")
-        ]
-        if flops_df.empty:
-            return None
-
-        core_totals: Dict[str, np.ndarray] = {}
-        for _, row in flops_df.iterrows():
-            m = re.search(r"\bc(\d+)$", str(row["trace"]))
-            if not m:
-                continue
-            core_id = m.group(0)
-            values = self._aligned_values(row, interval_cols)
-            if core_id not in core_totals:
-                core_totals[core_id] = values.copy()
-            else:
-                core_totals[core_id] += values
-
-        if len(core_totals) < 2:
-            return None
-
-        matrix = np.stack(list(core_totals.values()))  # (n_cores, n_intervals)
-        lif = _load_imbalance_factor(matrix)
-        return self._build_imbalance_row(job_id, "intra_node", interval_cols, lif)
-
     def _inter_node_imbalance_row(
         self,
         job_id: str,
@@ -401,14 +239,14 @@ class XBATDataSource(IDataSource):
             return None
         matrix = np.stack(list(node_totals.values()))  # (n_nodes, n_intervals)
         lif = _load_imbalance_factor(matrix)
-        return self._build_imbalance_row(job_id, "inter_node", interval_cols, lif)
+        return _build_imbalance_row(job_id, "inter_node", interval_cols, lif)
 
     def _sum_flops_series(
         self,
         df: pd.DataFrame,
         interval_cols: List[str],
     ) -> Optional[np.ndarray]:
-        """Sum all FLOPS traces in *df* (node-level: ``SP``, ``DP``, etc.)."""
+        """Sum all FLOPS traces in df (node-level: ``SP``, ``DP``, etc.)."""
         flops_df = df[
             (df["group"] == "cpu") & (df["metric"] == "FLOPS")
         ]
@@ -416,39 +254,8 @@ class XBATDataSource(IDataSource):
             return None
         total = np.zeros(len(interval_cols))
         for _, row in flops_df.iterrows():
-            total += self._aligned_values(row, interval_cols)
+            total += _aligned_values(row, interval_cols)
         return total
-
-    @staticmethod
-    def _aligned_values(row: pd.Series, interval_cols: List[str]) -> np.ndarray:
-        """
-        Extract numeric interval values from *row*, aligned to *interval_cols*.
-        Missing columns are filled with 0.
-        """
-        values = np.zeros(len(interval_cols))
-        for i, col in enumerate(interval_cols):
-            if col in row.index:
-                v = row[col]
-                values[i] = float(v) if pd.notna(v) else 0.0
-        return values
-
-    @staticmethod
-    def _build_imbalance_row(
-        job_id: str,
-        trace: str,
-        interval_cols: List[str],
-        imbalance: np.ndarray,
-    ) -> dict:
-        """Construct a DataFrame-compatible row dict for a load-imbalance metric."""
-        row: dict = {
-            "jobId": job_id,
-            "group": "load_imbalance",
-            "metric": "FLOPS",
-            "trace": trace,
-        }
-        for col, val in zip(interval_cols, imbalance):
-            row[col] = float(val)
-        return row
 
     def _fetch_csv_params(
         self,
@@ -460,8 +267,6 @@ class XBATDataSource(IDataSource):
     ) -> Optional[pd.DataFrame]:
         """
         Fetch XBAT CSV with explicit query parameters.
-
-        Returns the parsed DataFrame, or ``None`` on any HTTP / parse failure.
         """
         base = f"{self.api_base}/api/v1/measurements/{job_id}/csv"
         params: dict = {"group": group, "metric": metric, "level": level}
@@ -478,12 +283,10 @@ class XBATDataSource(IDataSource):
         except Exception:
             return None
 
-    # ------------------------------------------------------------------
-    # Authenticated GET helper
-    # ------------------------------------------------------------------
+    # --- Authenticated GET helper --------------------------------------------
 
     def _get_authenticated(self, url: str) -> requests.Response:
-        """GET *url* with the current bearer token, refreshing once on 401."""
+        """GET url with the current bearer token, refreshing once on 401."""
         headers = {
             "accept": "text/csv",
             "Authorization": f"Bearer {self._access_token}",
@@ -510,10 +313,6 @@ class XBATDataSource(IDataSource):
     def _parse_xbat_csv_response(self, csv_text: str) -> pd.DataFrame:
         """
         Parse XBAT CSV robustly across schema differences.
-
-        Current production behavior can produce csv where a subset of metric
-        rows contains one additional trailing interval value. Drop conservatively
-        the trailing overflow values so every metric shares the same interval count.
         """
         rows = list(csv.reader(io.StringIO(csv_text)))
         if not rows:
@@ -547,9 +346,7 @@ class XBATDataSource(IDataSource):
 
         return df
 
-    # ------------------------------------------------------------------
-    # Job context
-    # ------------------------------------------------------------------
+    # --- Job context ---------------------------------------------------------
 
     def _fetch_job_context(self, job_id: str) -> Optional[JobContext]:
         """Build a JobContext by fetching the job entry from XBAT."""
@@ -563,11 +360,8 @@ class XBATDataSource(IDataSource):
     ) -> Optional[JobContext]:
         """
         Build a :class:`~hpc_bottleneck_detector.data.job_context.JobContext`
-        from a pre-fetched job entry dict.
-
-        Returns:
-            :class:`JobContext` on success, ``None`` if *job_entry* is ``None``
-            or the metadata endpoints are unavailable.
+        from a pre-fetched job entry dict. Returns ``None`` if job_entry is
+        ``None`` or the metadata endpoints are unavailable.
         """
         try:
             if job_entry is None:
@@ -607,7 +401,7 @@ class XBATDataSource(IDataSource):
 
     def _find_job_entry(self, job_id: str) -> Optional[dict]:
         """
-        Return the job dict from ``GET /api/v1/jobs?short=true`` for *job_id*.
+        Return the job dict from ``GET /api/v1/jobs?short=true`` for job_id.
 
         Returns ``None`` if the job is not present in the listing.
         """
@@ -642,12 +436,10 @@ class XBATDataSource(IDataSource):
             return {}
         return resp.json()
 
-    # ------------------------------------------------------------------
-    # Token management
-    # ------------------------------------------------------------------
+    # --- Token management ----------------------------------------------------
 
     def _load_token(self) -> None:
-        """Load a previously cached access token from *token_file*, if present."""
+        """Load a previously cached access token from token_file, if present."""
         if not self.token_file.exists():
             return
         with self.token_file.open() as fh:
@@ -658,7 +450,7 @@ class XBATDataSource(IDataSource):
                     break
 
     def _save_token(self) -> None:
-        """Persist the current access token to *token_file*."""
+        """Persist the current access token to token_file."""
         with self.token_file.open("w") as fh:
             fh.write(f"ACCESS_TOKEN={self._access_token}\n")
         # Restrict file permissions so the token is not world-readable
@@ -685,10 +477,9 @@ class XBATDataSource(IDataSource):
 
     def _request_new_token(self) -> None:
         """
-        Obtain a fresh access token via the Resource Owner Password Credentials OAuth Grant.
-
-        Raises:
-            IOError: If the server does not return a valid access_token.
+        Obtain a fresh access token via the Resource Owner Password Credentials
+        OAuth Grant. Raises IOError if the server doesn't return a valid
+        access_token.
         """
         resp = self.session.post(
             f"{self.api_base}/oauth/token",
@@ -710,9 +501,7 @@ class XBATDataSource(IDataSource):
         self._access_token = token
         self._save_token()
 
-    # ------------------------------------------------------------------
-    # URL builder
-    # ------------------------------------------------------------------
+    # --- URL builder ---------------------------------------------------------
 
     def _build_url(self, job_id: str) -> str:
         """Construct the full CSV endpoint URL including query parameters."""

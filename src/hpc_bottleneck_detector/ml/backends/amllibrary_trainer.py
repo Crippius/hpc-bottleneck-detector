@@ -43,7 +43,7 @@ def _train_one(
     out_dir: str,
 ) -> object:
     """
-    Run one aMLLibrary campaign for *target_col* and return the MTSRegressor.
+    Run one aMLLibrary campaign for target_col and return the MTSRegressor.
     """
     _ensure_aml_on_path()
     import sequence_data_processing as sdp  # type: ignore[import]

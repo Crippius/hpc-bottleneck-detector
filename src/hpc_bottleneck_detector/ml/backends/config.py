@@ -26,9 +26,7 @@ def build_classifier(name: str, config_path: str | Path | None = None):
     from xgboost import XGBClassifier
     return XGBClassifier(**params)
 
-# ---------------------------------------------------------------------------
-# tsfresh feature-extraction parameter sets
-# ---------------------------------------------------------------------------
+# --- tsfresh feature-extraction parameter sets -------------------------------
 
 # 1. Basic - lightweight descriptive statistics
 BASIC_FC_PARAMETERS: dict = {
