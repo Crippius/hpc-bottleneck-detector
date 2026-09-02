@@ -1,10 +1,30 @@
 [project]
 name = "hpc-bottleneck-detector"
-version = "0.1.0"
-description = "Automated HPC job bottleneck detection"
+version = "1.0.0"
+description = "Automated performance-bottleneck diagnosis for HPC applications from system-wide monitoring data"
 readme = "README.md"
 license = { file = "LICENSE" }
 requires-python = ">=3.10"
+authors = [
+    { name = "Tommaso Crippa", email = "crippa.tommaso@gmail.com" },
+]
+keywords = [
+    "hpc",
+    "performance-analysis",
+    "bottleneck-detection",
+    "weak-supervision",
+    "hardware-performance-counters",
+]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: System :: Monitoring",
+]
 dependencies = [
     "pandas>=2.3,<3",
     "numpy>=2.2,<3",
@@ -16,19 +36,23 @@ dependencies = [
     "scikit-learn>=1.7,<2",
     "xgboost>=3.0,<4",
     "tsfresh>=0.21,<0.22",
-    "stumpy>=1.13,<2",
-    "numba>=0.60,<1",
 ]
+
+[project.urls]
+Repository = "https://github.com/Crippius/hpc-bottleneck-detector"
+Dataset = "https://doi.org/10.5281/zenodo.21679739"
 
 [project.scripts]
 bottleneck-detect = "hpc_bottleneck_detector.cli:main"
 
 [project.optional-dependencies]
+# Dependencies for the analysis / training scripts under scripts/ and the notebook.
 dev = [
     "matplotlib",
     "ipykernel",
-    "dvc",
-    "pytest",
+    "scipy",
+    "pyarrow>=25.0.0",
+    "shap>=0.49.1",
 ]
 
 [build-system]

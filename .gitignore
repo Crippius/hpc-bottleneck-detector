@@ -214,3 +214,6 @@ __marimo__/
 my_docs/
 
 logs/
+
+scripts/plots/
+results/archive/
