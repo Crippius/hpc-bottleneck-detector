@@ -1,11 +1,12 @@
 """
 Feature Importance Analysis
 
-Checks for the following things:
-  - Heuristic agreement of ML models
-  - RF vs XGBoost feature agreement (Ruzicka)
-  - Importance concentration
-  - Statistic-family importance
+Cross-model text analysis: heuristic agreement, RF-vs-XGBoost feature
+agreement (Ruzicka), importance concentration, and statistic-family importance.
+
+Usage
+-----
+    python scripts/analysis/feature_importance.py
 """
 
 from __future__ import annotations
@@ -27,9 +28,7 @@ MODEL_NAMES = ["rf", "xgboost"]
 TOP_K_MASS = 10
 
 
-# ---------------------------------------------------------------------------
-# Loading
-# ---------------------------------------------------------------------------
+# --- Loading -----------------------------------------------------------------
 
 def load_importance(model_name: str) -> dict:
     path = RESULTS_DIR / f"feature_importance_stats_{model_name}.json"
@@ -100,9 +99,7 @@ def short_stat_label(feature: str) -> str:
     return stat
 
 
-# ---------------------------------------------------------------------------
-# Heuristic tree -> bottleneck_type / required-metric mapping
-# ---------------------------------------------------------------------------
+# --- Heuristic tree -> bottleneck_type / required-metric mapping -------------
 
 def _leaf_bottlenecks(node: PropertyNode) -> set[BottleneckType]:
     if node.is_leaf():
@@ -134,9 +131,7 @@ def build_heuristic_map() -> dict[str, dict]:
     return result
 
 
-# ---------------------------------------------------------------------------
-# Analyses
-# ---------------------------------------------------------------------------
+# --- Analyses ----------------------------------------------------------------
 
 def heuristic_agreement(models: dict[str, dict], heuristic_map: dict[str, dict]) -> None:
     print("\n" + "=" * 78)

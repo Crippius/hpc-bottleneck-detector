@@ -1,9 +1,8 @@
 """
 Labeling Example
 
-Demonstrates how to use label_job() to produce a flat, labelled DataFrame
-where each row is a time interval and each bottleneck type has its own
-severity column.  The result is saved as a CSV file ready for ML training.
+Produces a flat, labelled DataFrame (one row per interval, one severity
+column per bottleneck type) and saves it as a CSV ready for ML training.
 
 Usage:
     python scripts/training/label_jobs.py [--job-ids JOB_ID [JOB_ID ...]]
@@ -39,7 +38,7 @@ def label_single_job(job_id: int, source: XBATDataSource, strategy: HeuristicStr
     print(f"       context         : {dm.job_context is not None}")
     print(f"       sampling_interval: {dm.sampling_interval}s")
 
-    # --- Label the job -------------------------------------------------------------------------------------
+    # --- Label the job -------------------------------------------------------
     print(f"\n[INFO] Labelling (window={WINDOW_SIZE}, step={STEP_SIZE}) ...")
     labelled = label_job(
         data_mgr=dm,
@@ -50,7 +49,7 @@ def label_single_job(job_id: int, source: XBATDataSource, strategy: HeuristicStr
     )
     print(f"       output shape : {labelled.shape}  (rows=intervals, cols=metrics+labels)")
 
-    # --- Inspect label columns -------------------------------------------------------------------------
+    # --- Inspect label columns -----------------------------------------------
     print("\n[INFO] Bottleneck label summary:")
     label_cols = [bt.value for bt in BOTTLENECK_COLUMNS]
     for col in label_cols:
@@ -65,12 +64,12 @@ def label_single_job(job_id: int, source: XBATDataSource, strategy: HeuristicStr
             f"mean_sev={mean_sev:.3f}"
         )
 
-    # --- Show a few labelled rows ---------------------------------------------------------------------
+    # --- Show a few labelled rows --------------------------------------------
     print("\n[INFO] First 5 rows (id, time, label columns):")
     preview_cols = ["id", "time"] + label_cols
     print(labelled[preview_cols].head().to_string(index=False))
 
-    # --- Save to CSV ----------------------------------------------------------------------------------------
+    # --- Save to CSV ---------------------------------------------------------
     base_dir = output_dir or (Path(__file__).parent.parent.parent / "data" / "training_corpus")
     out_path = base_dir / f"{dm.job_id}.csv"
     labelled.to_csv(out_path, index=False)
@@ -96,19 +95,19 @@ def main() -> None:
                              "Overrides auto-detection by CPU model pattern.")
     args = parser.parse_args()
 
-    # --- 1. Connect ------------------------------------------------------------------------------------------
+    # --- 1. Connect ----------------------------------------------------------
     print(f"[INFO] Connecting via XBATDataSource (env={args.env_file})")
     source = XBATDataSource.from_env(env_file=args.env_file)
     print(f"       api_base : {source.api_base}")
     print(f"       level    : {source.level}")
 
-    # --- 2. Load heuristic strategy ------------------------------------------------------------------
+    # --- 2. Load heuristic strategy ------------------------------------------
     print(f"\n[INFO] Loading strategy trees from {STRATEGY_FOLDER.name}/")
     strategy = HeuristicStrategy(str(STRATEGY_FOLDER))
     print(f"       trees loaded : {len(strategy._strategy_trees)}")
     print(f"       tree names   : {[t.tree_name for t in strategy._strategy_trees]}")
 
-    # --- 3. Build orchestrator ------------─
+    # --- 3. Build orchestrator -----------------------------------------------
     if args.hardware_profile:
         profile_path = Path(args.hardware_profile)
         if not profile_path.suffix:
@@ -124,7 +123,7 @@ def main() -> None:
 
     output_dir = Path(args.output_dir) if args.output_dir else None
 
-    # --- 4. Label each job -------------------------------------------------------------------------------
+    # --- 4. Label each job ---------------------------------------------------
     for job_id in args.job_ids:
         print("\n" + "=" * 70)
         label_single_job(job_id, source, strategy, orchestrator, output_dir=output_dir, sampling_interval=args.sampling_interval)

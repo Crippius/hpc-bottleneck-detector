@@ -1,7 +1,11 @@
 """
 Detector Scaling Benchmark
 
-Measures wall-clock time and peak RSS memory of different detectors
+Measures wall-clock time and peak RSS memory of each detector strategy.
+
+Usage
+-----
+    python scripts/evaluation/benchmark_scaling.py --manifest manifest.json
 """
 
 from __future__ import annotations

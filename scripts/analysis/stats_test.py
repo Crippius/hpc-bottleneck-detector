@@ -32,9 +32,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "src"))
 
 
-# ---------------------------------------------------------------------------
-# Core statistics
-# ---------------------------------------------------------------------------
+# --- Core statistics ---------------------------------------------------------
 
 def paired_wilcoxon(a: np.ndarray, b: np.ndarray) -> dict[str, float]:
     """
@@ -79,12 +77,10 @@ def bootstrap_ci(
     return lo, hi
 
 
-# ---------------------------------------------------------------------------
-# Comparison logic
-# ---------------------------------------------------------------------------
+# --- Comparison logic --------------------------------------------------------
 
 def _macro_per_app(df: pd.DataFrame, metric: str) -> pd.Series:
-    """Mean of *metric* per app, macro-averaged across bottleneck types."""
+    """Mean of metric per app, macro-averaged across bottleneck types."""
     return df.groupby("app")[metric].mean()
 
 
@@ -96,7 +92,7 @@ def compare(
     label_b: str = "B",
 ) -> dict:
     """
-    Full statistical comparison of two LOO result DataFrames on *metric*.
+    Full statistical comparison of two LOO result DataFrames on metric.
     Returns a dict with mean, std, Wilcoxon, Cohen's d, bootstrap CI.
     """
     scores_a = _macro_per_app(df_a, metric).dropna()
@@ -157,9 +153,7 @@ def compare_per_class(
     return pd.DataFrame(rows)
 
 
-# ---------------------------------------------------------------------------
-# Printing
-# ---------------------------------------------------------------------------
+# --- Printing ----------------------------------------------------------------
 
 def _print_result(r: dict, label_a: str, label_b: str) -> None:
     p = r["p_value"]
@@ -173,9 +167,7 @@ def _print_result(r: dict, label_a: str, label_b: str) -> None:
     print(f"  Cohen's d       : {r['cohens_d']:.3f}")
 
 
-# ---------------------------------------------------------------------------
-# CLI
-# ---------------------------------------------------------------------------
+# --- CLI ---------------------------------------------------------------------
 
 def _parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(

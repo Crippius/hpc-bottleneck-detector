@@ -1,33 +1,16 @@
 """
 Calibration Quality Analysis
 
-For each backend, collects predicted probability
-scores across all LOO folds and plots reliability
-diagrams per bottleneck type, plus computes per-class ECE.
+Plots reliability diagrams and per-class ECE from LOO fold predictions.
 
 Usage
 -----
-    # Collect predictions using a saved LOO scores file:
     python scripts/analysis/calibration.py \\
         --scores results/loo_scores_xgboost.parquet \\
         --label "XGBoost (Default)" \\
         --output results/calibration_xgboost.png
 
-    # Compare two backends side by side:
-    python scripts/analysis/calibration.py \\
-        --scores results/loo_scores_xgboost.parquet \\
-        --scores-b results/loo_scores_amllibrary.parquet \\
-        --label "XGBoost" --label-b "AMLLibrary" \\
-        --output results/calibration_compare.png
-
-Input format
-------------
-The --scores file must be a CSV or Parquet with columns:
-    bottleneck_type, y_true (0/1), score (predicted probability/severity)
-One row per window-fold-class observation.
-
-To generate this file from LOO CV, run loo_cross_validation.py with
---save-scores <path>.
+    # add --scores-b/--label-b to compare two backends side by side
 """
 
 from __future__ import annotations
@@ -42,10 +25,12 @@ import pandas as pd
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "src"))
 
+FIGURE_WIDTH_IN = 6.3  # canonical full-width, see docs/my_docs/plot_style_guide.md
+PANEL_HEIGHT_IN = 2.3
+DPI = 300
 
-# ---------------------------------------------------------------------------
-# ECE computation
-# ---------------------------------------------------------------------------
+
+# --- ECE computation ---------------------------------------------------------
 
 def expected_calibration_error(
     y_true: np.ndarray,
@@ -88,9 +73,7 @@ def reliability_data(
     return np.array(centers), np.array(pred_means), np.array(frac_pos)
 
 
-# ---------------------------------------------------------------------------
-# Per-class calibration summary
-# ---------------------------------------------------------------------------
+# --- Per-class calibration summary -------------------------------------------
 
 def calibration_summary(
     df: pd.DataFrame,
@@ -115,9 +98,7 @@ def calibration_summary(
     return pd.DataFrame(rows)
 
 
-# ---------------------------------------------------------------------------
-# Plotting
-# ---------------------------------------------------------------------------
+# --- Plotting ----------------------------------------------------------------
 
 def _plot_reliability(
     ax,
@@ -145,6 +126,11 @@ def plot_reliability_diagrams(
     try:
         import matplotlib
         matplotlib.use("Agg")
+        matplotlib.rcParams.update({
+            "text.usetex": True,
+            "font.family": "serif",
+            "text.latex.preamble": r"\usepackage[T1]{fontenc}",
+        })
         import matplotlib.pyplot as plt
     except ImportError:
         print("[WARN] matplotlib not available - skipping plot.")
@@ -155,8 +141,8 @@ def plot_reliability_diagrams(
     ncols = min(3, n_types)
     nrows = (n_types + ncols - 1) // ncols
 
-    fig, axes = plt.subplots(nrows, ncols, figsize=(5 * ncols, 4 * nrows), squeeze=False)
-    fig.suptitle("Reliability Diagrams (Calibration)", fontsize=13, fontweight="bold")
+    fig, axes = plt.subplots(nrows, ncols, figsize=(FIGURE_WIDTH_IN, PANEL_HEIGHT_IN * nrows), squeeze=False)
+    fig.suptitle("Reliability Diagrams (Calibration)", fontsize=12, fontweight="bold")
 
     for idx, bt in enumerate(bt_types):
         ax = axes[idx // ncols][idx % ncols]
@@ -173,24 +159,25 @@ def plot_reliability_diagrams(
                 _plot_reliability(ax, grp_b["y_true"].values, grp_b["score"].values,
                                   label_b, "darkorange", n_bins)
 
-        ax.set_title(bt.replace("_", " "), fontsize=9)
-        ax.set_xlabel("Mean predicted score")
-        ax.set_ylabel("Fraction positive")
+        ax.set_title(bt.replace("_", " "), fontsize=9, fontweight="bold")
+        ax.set_xlabel("Mean predicted score", fontsize=9)
+        ax.set_ylabel("Fraction positive", fontsize=9)
+        ax.tick_params(labelsize=7)
         ax.set_xlim(0, 1)
         ax.set_ylim(0, 1)
-        ax.legend(fontsize=7)
-        ax.grid(True, alpha=0.3)
+        ax.legend(fontsize=6)
+        ax.grid(True, linestyle=":", alpha=0.45)
 
     # Hide unused axes
     for idx in range(n_types, nrows * ncols):
         axes[idx // ncols][idx % ncols].set_visible(False)
 
-    plt.tight_layout(rect=[0, 0, 1, 0.95])
+    fig.subplots_adjust(left=0.08, right=0.98, top=0.88, bottom=0.10, hspace=0.55, wspace=0.35)
 
     if output_path:
         out = Path(output_path)
         out.parent.mkdir(parents=True, exist_ok=True)
-        plt.savefig(out, dpi=150, bbox_inches="tight")
+        plt.savefig(out, dpi=DPI)
         print(f"[INFO] Reliability diagram saved to: {out}")
     else:
         plt.show()
@@ -198,9 +185,7 @@ def plot_reliability_diagrams(
     plt.close(fig)
 
 
-# ---------------------------------------------------------------------------
-# CLI
-# ---------------------------------------------------------------------------
+# --- CLI ---------------------------------------------------------------------
 
 def _load_scores(path: str) -> pd.DataFrame:
     p = Path(path)

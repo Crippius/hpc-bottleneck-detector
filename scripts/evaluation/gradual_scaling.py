@@ -6,9 +6,8 @@ to entirely unseen code.
 
 Usage
 -----
-    python examples/ml/gradual_scaling.py
-    python examples/ml/gradual_scaling.py --steps 2 4 6 8 10 --test-size 3
-    python examples/ml/gradual_scaling.py --output-csv results/lc_results.csv
+    python scripts/evaluation/gradual_scaling.py
+    python scripts/evaluation/gradual_scaling.py --steps 2 4 6 8 10 --test-size 3
 """
 
 from __future__ import annotations
@@ -68,9 +67,7 @@ _BT_SHORT: dict[str, str] = {
 }
 
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
+# --- Helpers -----------------------------------------------------------------
 
 def _count_windows(csv_path: Path, window_size: int, step_size: int) -> int:
     df = pd.read_csv(csv_path, usecols=["id", "time"])
@@ -108,9 +105,7 @@ def _metrics_from_arrays(y_true: np.ndarray, y_pred: np.ndarray) -> dict[str, fl
             "tp": tp, "fp": fp, "fn": fn, "tn": tn}
 
 
-# ---------------------------------------------------------------------------
-# Per-combo CV threshold calibration
-# ---------------------------------------------------------------------------
+# --- Per-combo CV threshold calibration --------------------------------------
 
 def _merge_y_dicts(
     y_dicts: list[dict[str, pd.Series]],
@@ -131,7 +126,7 @@ def cv_calibrate_thresholds(
     default_threshold: float = 0.5,
 ) -> dict[str, float]:
     """
-    Calibrate per-class probability thresholds for a combo of *k* apps using
+    Calibrate per-class probability thresholds for a combo of k apps using
     GroupKFold(min(n_splits, k)) CV.
 
     For k >= n_splits this is standard n_splits-fold CV; for k < n_splits it
@@ -174,9 +169,7 @@ def cv_calibrate_thresholds(
     return result
 
 
-# ---------------------------------------------------------------------------
-# Exhaustive gradual scaling driver
-# ---------------------------------------------------------------------------
+# --- Exhaustive gradual scaling driver ---------------------------------------
 
 def run_gradual_scaling(
     app_features: list[tuple[pd.DataFrame, dict[str, pd.Series]]],
@@ -304,9 +297,7 @@ def run_gradual_scaling(
     return pd.DataFrame(records)
 
 
-# ---------------------------------------------------------------------------
-# CLI
-# ---------------------------------------------------------------------------
+# --- CLI ---------------------------------------------------------------------
 
 def _parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(
@@ -362,9 +353,7 @@ def _parse_args() -> argparse.Namespace:
     return p.parse_args()
 
 
-# ---------------------------------------------------------------------------
-# Entry point
-# ---------------------------------------------------------------------------
+# --- Entry point -------------------------------------------------------------
 
 def run_gradual_scaling_amllibrary(
     all_paths: list[Path],
@@ -492,7 +481,7 @@ if __name__ == "__main__":
             seed              = args.seed,
         )
     else:
-        # --- Pre-extract features once per app ---
+        # --- Pre-extract features once per app -------------------------------
         print(f"\n[INFO] Pre-extracting features for {n_total} apps ...")
         app_features: list[tuple[pd.DataFrame, dict[str, pd.Series]]] = []
         for i, p in enumerate(all_paths):
@@ -504,7 +493,7 @@ if __name__ == "__main__":
             app_features.append((X_app, y_app))
             print(f"{X_app.shape[0]} windows")
 
-        # --- Optional joint CV hyperparam + threshold tuning ---
+        # --- Optional joint CV hyperparam + threshold tuning -----------------
         classifier = build_classifier(args.classifier, args.classifier_config)
         if args.tune_hyperparams:
             print(f"\n[INFO] Running joint CV tuning (n_iter={args.n_iter}) ...")
@@ -512,7 +501,7 @@ if __name__ == "__main__":
                 app_features, classifier, n_iter=args.n_iter, seed=args.seed
             )
 
-        # --- Run exhaustive scaling ---
+        # --- Run exhaustive scaling ------------------------------------------
         results = run_gradual_scaling(
             app_features   = app_features,
             all_paths      = all_paths,
@@ -529,7 +518,7 @@ if __name__ == "__main__":
         print("[ERROR] No results collected.")
         sys.exit(1)
 
-    # --- Summary ---
+    # --- Summary -------------------------------------------------------------
     print(f"\n{'='*65}")
     print("  GRADUAL SCALING SUMMARY - Macro-Average F1 per Step")
     print(f"{'='*65}")

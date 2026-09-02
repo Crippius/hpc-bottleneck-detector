@@ -1,11 +1,9 @@
 #!/usr/bin/env python3
 """
 Threshold Calibration Script - Pareto Rule
-==========================================
 
 Calculates statistically-derived thresholds for the persyst strategy trees
-using the 80/20 Pareto rule across a diverse set of HPC mini-application jobs.
-
+using the 80/20 Pareto rule.
 
 Usage
 -----
@@ -27,7 +25,7 @@ import numpy as np
 import pandas as pd
 import yaml
 
-# -- path setup ----------------------------------------------------------------
+# --- path setup --------------------------------------------------------------
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 
 from hpc_bottleneck_detector.data.manager import DataManager
@@ -39,9 +37,7 @@ logging.basicConfig(level=logging.INFO, format="%(levelname)s  %(message)s")
 log = logging.getLogger(__name__)
 
 
-# =============================================================================
-# Configuration
-# =============================================================================
+# --- Configuration -----------------------------------------------------------
 
 DEFAULT_JOB_IDS: List[str] = []
 
@@ -58,9 +54,7 @@ PROFILES_DIR: Path = (
 OUTPUT_CSV: Path = Path("calibration_results.csv")
 
 
-# =============================================================================
-# YAML parsing
-# =============================================================================
+# --- YAML parsing ------------------------------------------------------------
 
 
 def _dedup_key(metric_cfg: dict, operator: str) -> str:
@@ -76,7 +70,7 @@ def _walk_node(
     """
     Recursively walk a strategy tree node.
 
-    For every *decision* node, extract the metric definition and add it to
+    For every decision node, extract the metric definition and add it to
     ``collected`` (keyed by dedup key).  Leaf nodes are skipped.
     """
     if node is None or "diagnosis" in node:
@@ -131,7 +125,7 @@ def _walk_node(
 
 def load_metric_definitions(strategy_dir: Path) -> List[dict]:
     """
-    Parse all ``*.yaml`` files in *strategy_dir* and return a deduplicated
+    Parse all ``*.yaml`` files in strategy_dir and return a deduplicated
     list of metric definitions, one per unique (metric_cfg, operator) pair.
     """
     collected: Dict[str, dict] = {}
@@ -152,9 +146,7 @@ def load_metric_definitions(strategy_dir: Path) -> List[dict]:
     return metric_defs
 
 
-# =============================================================================
-# Core computation helpers
-# =============================================================================
+# --- Core computation helpers ------------------------------------------------
 
 def _compute_window_values(
     data_mgr: DataManager,
@@ -275,9 +267,7 @@ def _pareto_threshold(values: List[float], direction: str) -> float:
     return float(np.percentile(values, pct))
 
 
-# =============================================================================
-# Output helpers
-# =============================================================================
+# --- Output helpers ----------------------------------------------------------
 
 def _print_summary_table(results: List[dict]) -> None:
     W = 42
@@ -355,9 +345,7 @@ def _print_yaml_suggestions(results: List[dict]) -> None:
     print()
 
 
-# =============================================================================
-# Entry point
-# =============================================================================
+# --- Entry point -------------------------------------------------------------
 
 # python scripts/calibrate_thresholds.py 43325 43319 43298 43290 43272 43260 43236 43195 43141 43129 43118
 
@@ -368,18 +356,18 @@ def main(job_ids: List[str]) -> None:
         print("  python scripts/calibrate_thresholds.py 43081 43082 ...")
         sys.exit(1)
 
-    # -- Load metric definitions from the YAML trees --------------------------
+    # --- Load metric definitions from the YAML trees -------------------------
     log.info("Loading metric definitions from %s ...", STRATEGY_DIR)
     metric_defs = load_metric_definitions(STRATEGY_DIR)
 
-    # -- Connect to XBAT -------------------------------------------------------
+    # --- Connect to XBAT -----------------------------------------------------
     log.info("Connecting to XBAT (reading .env) ...")
     data_source = XBATDataSource.from_env(env_file=".env")
 
-    # -- Load hardware profiles --
+    # --- Load hardware profiles ----------------------------------------------
     hw_loader = HardwareProfileLoader(PROFILES_DIR)
 
-    # -- Calibrate each metric -------------------------------------------------
+    # --- Calibrate each metric -----------------------------------------------
     all_results: List[dict] = []
     all_rows:    List[dict] = []
 
@@ -411,11 +399,11 @@ def main(job_ids: List[str]) -> None:
         for job_id, stats in job_stats.items():
             all_rows.append({"metric": metric_def["name"], "job_id": job_id, **stats})
 
-    # -- Print results ---------------------------------------------------------
+    # --- Print results -------------------------------------------------------
     _print_summary_table(all_results)
     _print_yaml_suggestions(all_results)
 
-    # -- Save per-job CSV ------------------------------------------------------
+    # --- Save per-job CSV ----------------------------------------------------
     if all_rows:
         pd.DataFrame(all_rows).to_csv(OUTPUT_CSV, index=False)
         log.info("Per-job statistics saved to %s", OUTPUT_CSV)

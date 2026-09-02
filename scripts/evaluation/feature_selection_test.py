@@ -1,12 +1,8 @@
 """
-Nested CV: Feature Selection Variant Comparison
+Feature Selection Variant Comparison
 
 Compares 4 feature-selection strategies (fdr+imp, fdr_only, imp_only, none)
-using an outer K-fold (default: 4) with threshold calibration via an inner
-K-fold (default: 5) on the training apps of each outer fold.
-
-Classifier hyperparameters are fixed; only the probability threshold is tuned
-in the inner loop via calibrate_thresholds_cv().
+via nested K-fold CV with inner-loop threshold calibration.
 
 Usage:
     python scripts/evaluation/feature_selection_test.py --classifier xgboost
@@ -62,9 +58,7 @@ VARIANTS: list[tuple[str, bool, bool]] = [
 ]
 
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
+# --- Helpers -----------------------------------------------------------------
 
 def _find_labelled_csvs(data_dir: Path) -> list[Path]:
     paths = sorted(data_dir.rglob("*.csv"))
@@ -149,9 +143,7 @@ def _metrics_from_arrays(y_true: np.ndarray, y_pred: np.ndarray) -> dict[str, fl
     }
 
 
-# ---------------------------------------------------------------------------
-# Main evaluation loop
-# ---------------------------------------------------------------------------
+# --- Main evaluation loop ----------------------------------------------------
 
 def run(
     csv_paths: list[Path],
@@ -270,9 +262,7 @@ def run(
     return pd.DataFrame(records)
 
 
-# ---------------------------------------------------------------------------
-# Summary
-# ---------------------------------------------------------------------------
+# --- Summary -----------------------------------------------------------------
 
 def _print_summary(
     results: pd.DataFrame,
@@ -314,9 +304,7 @@ def _print_summary(
     print()
 
 
-# ---------------------------------------------------------------------------
-# CLI
-# ---------------------------------------------------------------------------
+# --- CLI ---------------------------------------------------------------------
 
 def _parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(
@@ -345,9 +333,7 @@ def _parse_args() -> argparse.Namespace:
     return p.parse_args()
 
 
-# ---------------------------------------------------------------------------
-# Entry point
-# ---------------------------------------------------------------------------
+# --- Entry point -------------------------------------------------------------
 
 if __name__ == "__main__":
     args = _parse_args()

@@ -69,9 +69,7 @@ FIXED_SCENARIOS: dict[str, list[str]] = {
 }
 
 
-# ---------------------------------------------------------------------------
-# Feature extraction
-# ---------------------------------------------------------------------------
+# --- Feature extraction ------------------------------------------------------
 
 def _extract_app_features(
     csv_path: str,
@@ -118,9 +116,7 @@ def _extract_app_features(
     return X, metric_cols
 
 
-# ---------------------------------------------------------------------------
-# Prediction helpers
-# ---------------------------------------------------------------------------
+# --- Prediction helpers ------------------------------------------------------
 
 def _tsfresh_cols_for_metrics(X: pd.DataFrame, metric_patterns: list[str]) -> list[str]:
     if not metric_patterns:
@@ -157,9 +153,7 @@ def _blank_and_predict(
     return _predict_all(backend, Xc)
 
 
-# ---------------------------------------------------------------------------
-# Report helpers
-# ---------------------------------------------------------------------------
+# --- Report helpers ----------------------------------------------------------
 
 def _stability(full_preds: pd.DataFrame, drop_preds: pd.DataFrame) -> dict[str, float]:
     """Per-class fraction of windows where prediction is unchanged."""
@@ -178,9 +172,7 @@ def _overall_stability(full_preds: pd.DataFrame, drop_preds: pd.DataFrame) -> fl
     return float(same.mean())
 
 
-# ---------------------------------------------------------------------------
-# Main logic
-# ---------------------------------------------------------------------------
+# --- Main logic --------------------------------------------------------------
 
 def run(args: argparse.Namespace) -> None:
     backend = DefaultBackend.load(str(ROOT / args.model))
@@ -190,7 +182,7 @@ def run(args: argparse.Namespace) -> None:
     csv_paths = sorted(Path(DATA_DIR).rglob("*.csv"))
     logger.info("Found %d CSVs in %s", len(csv_paths), DATA_DIR)
 
-    # --- Pre-extract features once per app ------------------------------------------------------
+    # --- Pre-extract features once per app -----------------------------------
     window_size = backend._window_size or args.window_size
     all_X: list[pd.DataFrame] = []
     all_metric_cols: list[str] = []
@@ -210,11 +202,11 @@ def run(args: argparse.Namespace) -> None:
     n_windows = len(X_all)
     logger.info("Total windows: %d", n_windows)
 
-    # --- Full-metric baseline predictions -------------------------------------------------------
+    # --- Full-metric baseline predictions ------------------------------------
     full_preds = _predict_all(backend, X_all)
     bt_cols = list(full_preds.columns)
 
-    # --- Fixed scenarios ----------------------------------------------------------------------------------
+    # --- Fixed scenarios -----------------------------------------------------
     print(f"\n{'='*80}")
     print(f"  FIXED METRIC-DROP SCENARIOS  ({args.classifier.upper()}, {n_windows} windows)")
     print(f"  Stability = fraction of windows where prediction is unchanged vs full")
@@ -253,9 +245,7 @@ def run(args: argparse.Namespace) -> None:
         print(f"\n[INFO] Results saved to: {out_path}")
 
 
-# ---------------------------------------------------------------------------
-# AMLLibrary robustness helpers
-# ---------------------------------------------------------------------------
+# --- AMLLibrary robustness helpers -------------------------------------------
 
 def _aml_metric_cols(df: pd.DataFrame) -> list[str]:
     return [
@@ -322,7 +312,7 @@ def run_amllibrary(args: argparse.Namespace) -> None:
     n_metrics = len(all_metric_cols)
     logger.info("Total metric columns: %d", n_metrics)
 
-    # --- Full-metric baseline ---
+    # --- Full-metric baseline ------------------------------------------------
     full_frames: list[pd.DataFrame] = []
     for df in dfs:
         mc = _aml_metric_cols(df)

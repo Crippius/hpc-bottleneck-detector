@@ -6,17 +6,8 @@ and saves the result to disk.
 
 Usage
 -----
-    python scripts/training/train_ml_model.py
     python scripts/training/train_ml_model.py \\
-        --data-dir data/training_corpus/ \\
-        --window-size 12 \\
-        --step-size 12 \\
-        --output models/default.pkl
-
-Output
-------
-- A .pkl file loadable with DefaultBackend.load(path).
-- A per-type classification report printed to stdout.
+        --data-dir data/training_corpus/ --output models/default.pkl
 """
 
 from __future__ import annotations
@@ -102,11 +93,9 @@ def _build_windows_from_csvs(
     fc_params: dict,
 ) -> tuple[pd.DataFrame, dict[str, pd.Series]]:
     """
-    Load all CSVs, build tsfresh long-format DataFrame + label Series per type.
-
-    Returns:
-        X_full:  tsfresh feature matrix (rows = windows, indexed by window id).
-        y_all:   ``{bt_name: pd.Series(label, index=window_id)}``
+    Load all CSVs and build a tsfresh feature matrix (X_full, rows = windows,
+    indexed by window id) plus per-type label series
+    (y_all: ``{bt_name: pd.Series(label, index=window_id)}``).
     """
     all_fragments: list[pd.DataFrame] = []
     all_window_ids: list[str] = []
@@ -157,7 +146,7 @@ def _build_windows_from_csvs(
 
 
 def main() -> None:
-    # --- Config + args -------------------------------------------------------------------------------------
+    # --- Config + args -------------------------------------------------------
     args = _parse_args()
 
     logger.info("=" * 60)
@@ -169,11 +158,11 @@ def main() -> None:
     logger.info("  output        : %s", args.output)
     logger.info("=" * 60)
 
-    # --- Collect CSV paths ---------------------------------------------------------------------------------
+    # --- Collect CSV paths ---------------------------------------------------
     csv_paths = _collect_csv_paths(args.data_dir)
     logger.info("Found %d labelled CSV(s): %s", len(csv_paths), csv_paths)
 
-    # --- Split: test_size=0 or --no-eval -> no held-out test set ------------------------
+    # --- Split: test_size=0 or --no-eval -> no held-out test set -------------
     if args.no_eval or args.test_size == 0.0:
         train_paths, test_paths = csv_paths, []
     else:
@@ -182,11 +171,11 @@ def main() -> None:
         )
     logger.info("Train: %d CSVs, Test: %d CSVs", len(train_paths), len(test_paths))
 
-    # --- Train -------------------------------------------------------------------------------------------------
+    # --- Train ---------------------------------------------------------------
     trainer = DefaultTrainer(classifier=build_classifier(args.classifier, args.classifier_config))
 
     if args.calibrate:
-        # --- Per-app feature extraction -------------------------------------------------------------
+        # --- Per-app feature extraction --------------------------------------
         logger.info("Extracting features per app for CV threshold calibration...")
         app_features: list[tuple[pd.DataFrame, dict[str, pd.Series]]] = []
         for path in train_paths:
@@ -202,12 +191,12 @@ def main() -> None:
             }
             app_features.append((X_i, y_dict_clean))
 
-        # --- GroupKFold CV to calibrate per-class thresholds ----------------------------
+        # --- GroupKFold CV to calibrate per-class thresholds -----------------
         logger.info("Running GroupKFold(n_splits=%d) threshold calibration...", args.n_splits)
         calibrated = trainer.calibrate_thresholds_cv(app_features, n_splits=args.n_splits)
         logger.info("Calibrated thresholds (mean over folds): %s", calibrated)
 
-        # --- Final model: train on all training apps ------------------------------------------
+        # --- Final model: train on all training apps -------------------------
         X_train_all = pd.concat([X for X, _ in app_features]).fillna(0.0)
         y_train_all = _merge_app_y([y for _, y in app_features])
         backend = trainer.from_preextracted_features(X_train_all, y_train_all)
@@ -221,7 +210,7 @@ def main() -> None:
             severity_threshold=args.severity_threshold,
         )
 
-    # --- Evaluate (skipped when test_paths is empty) ------------------------------------------
+    # --- Evaluate (skipped when test_paths is empty) -------------------------
     if test_paths:
         logger.info("Extracting test features from %d CSVs...", len(test_paths))
         X_test, y_test = _build_windows_from_csvs(
@@ -254,7 +243,7 @@ def main() -> None:
             print(f"\n{col} (thr={thr:.2f}, {len(backend._feature_cols[col])} features, {n_pos} pos / {n_neg} neg)")
             print(classification_report(y_clean, y_pred, zero_division=0))
 
-    # --- Save ---------------------------------------------------------------------------------------------------
+    # --- Save ----------------------------------------------------------------
     backend.save(args.output)
     logger.info("Done. Model saved to: %s", args.output)
 

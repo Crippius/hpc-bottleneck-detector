@@ -1,24 +1,8 @@
 """
 Disagreement Analysis — Per-Window Agreement Between Two Backends
 
-Compares per-window binary predictions from DefaultBackend and AMLLibraryBackend
-to determine:
-  - Overall agreement fraction (both correct, both wrong)
-  - Error overlap: errors unique to Default, unique to AML, shared
-  - Complementarity: fraction of total windows where an oracle ensemble
-    (correct if at least one is correct) would be right
-  - Cohen's kappa inter-rater agreement
-
-Alignment: windows are matched by (fold, app, bottleneck_type) group, position-
-within-group. Both backends must use the same windowing parameters so windows
-within a group are in the same order. Groups with mismatched row counts are
-skipped with a warning.
-
-Input format (--scores-a, --scores-b)
---------------------------------------
-CSV or Parquet with columns: fold, app, bottleneck_type, y_true, score
-
-This is the format produced by loo_cross_validation.py --save-scores.
+Compares per-window predictions from two backends: agreement, error overlap,
+complementarity, and Cohen's kappa.
 
 Usage
 -----
@@ -44,10 +28,11 @@ import pandas as pd
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "src"))
 
+FIGURE_WIDTH_IN = 6.3  # canonical full-width, see docs/my_docs/plot_style_guide.md
+DPI = 300
 
-# ---------------------------------------------------------------------------
-# Alignment + binarisation
-# ---------------------------------------------------------------------------
+
+# --- Alignment + binarisation ------------------------------------------------
 
 def _load(path: str) -> pd.DataFrame:
     p = Path(path)
@@ -113,9 +98,7 @@ def align(
     return pd.DataFrame(merged_rows)
 
 
-# ---------------------------------------------------------------------------
-# Agreement metrics
-# ---------------------------------------------------------------------------
+# --- Agreement metrics -------------------------------------------------------
 
 def _cohens_kappa(a: np.ndarray, b: np.ndarray) -> float:
     """Cohen's kappa for binary inter-rater agreement."""
@@ -199,9 +182,7 @@ def disagreement_summary(
     return pd.DataFrame(rows)
 
 
-# ---------------------------------------------------------------------------
-# Printing
-# ---------------------------------------------------------------------------
+# --- Printing ----------------------------------------------------------------
 
 def print_report(
     summary: pd.DataFrame,
@@ -277,9 +258,7 @@ def print_report(
     print()
 
 
-# ---------------------------------------------------------------------------
-# Plotting
-# ---------------------------------------------------------------------------
+# --- Plotting ----------------------------------------------------------------
 
 def plot_disagreement(
     summary: pd.DataFrame,
@@ -290,6 +269,11 @@ def plot_disagreement(
     try:
         import matplotlib
         matplotlib.use("Agg")
+        matplotlib.rcParams.update({
+            "text.usetex": True,
+            "font.family": "serif",
+            "text.latex.preamble": r"\usepackage[T1]{fontenc}",
+        })
         import matplotlib.pyplot as plt
     except ImportError:
         print("[WARN] matplotlib not available - skipping plot.")
@@ -300,7 +284,7 @@ def plot_disagreement(
     a_col = f"only_{label_a.split()[0].lower()}_wrong"
     b_col = f"only_{label_b.split()[0].lower()}_wrong"
 
-    fig, axes = plt.subplots(1, 2, figsize=(16, max(5, n * 0.55 + 1)))
+    fig, axes = plt.subplots(1, 2, figsize=(FIGURE_WIDTH_IN, max(2.4, n * 0.3 + 0.6)))
 
     # Left: stacked bar chart (error breakdown)
     ax = axes[0]
@@ -317,12 +301,13 @@ def plot_disagreement(
     ax.barh(y_pos, both_w, left=both_c + only_b + only_a, color="#F44336", label="Both wrong (shared)", height=0.6)
 
     ax.set_yticks(y_pos)
-    ax.set_yticklabels([bt.replace("_", " ") for bt in bt_types], fontsize=8)
-    ax.set_xlabel("Fraction of windows")
+    ax.set_yticklabels([bt.replace("_", " ") for bt in bt_types], fontsize=7)
+    ax.tick_params(axis="x", labelsize=7)
+    ax.set_xlabel("Fraction of windows", fontsize=9)
     ax.set_title("Error Breakdown per Class", fontsize=10, fontweight="bold")
-    ax.legend(fontsize=7, loc="lower right")
+    ax.legend(fontsize=6, loc="lower right")
     ax.set_xlim(0, 1)
-    ax.grid(axis="x", alpha=0.3)
+    ax.grid(axis="x", linestyle=":", alpha=0.45)
 
     # Right: agreement + oracle accuracy
     ax2 = axes[1]
@@ -334,27 +319,28 @@ def plot_disagreement(
     ax2.barh(y_pos + 0.2, oracle, height=0.35, color="darkorange", label="Oracle accuracy")
     for i, k in enumerate(kappa):
         if not np.isnan(k):
-            ax2.text(0.02, i, f"κ={k:.2f}", va="center", fontsize=7, color="dimgray")
+            ax2.text(0.02, i, f"$\\kappa$={k:.2f}", va="center", fontsize=7, color="dimgray")
 
     ax2.set_yticks(y_pos)
-    ax2.set_yticklabels([bt.replace("_", " ") for bt in bt_types], fontsize=8)
-    ax2.set_xlabel("Fraction of windows")
-    ax2.set_title("Agreement & Oracle Accuracy per Class", fontsize=10, fontweight="bold")
-    ax2.legend(fontsize=8)
+    ax2.set_yticklabels([bt.replace("_", " ") for bt in bt_types], fontsize=7)
+    ax2.tick_params(axis="x", labelsize=7)
+    ax2.set_xlabel("Fraction of windows", fontsize=9)
+    ax2.set_title("Agreement \\& Oracle Accuracy per Class", fontsize=10, fontweight="bold")
+    ax2.legend(fontsize=7)
     ax2.set_xlim(0, 1)
     ax2.axvline(0.5, color="gray", linestyle="--", linewidth=0.8, alpha=0.5)
-    ax2.grid(axis="x", alpha=0.3)
+    ax2.grid(axis="x", linestyle=":", alpha=0.45)
 
     fig.suptitle(
         f"Disagreement Analysis: {label_a} vs. {label_b}",
         fontsize=12, fontweight="bold"
     )
-    plt.tight_layout(rect=[0, 0, 1, 0.95])
+    fig.subplots_adjust(left=0.20, right=0.98, top=0.84, bottom=0.16, wspace=0.5)
 
     if output_path:
         out = Path(output_path)
         out.parent.mkdir(parents=True, exist_ok=True)
-        plt.savefig(out, dpi=150, bbox_inches="tight")
+        plt.savefig(out, dpi=DPI)
         print(f"[INFO] Disagreement plot saved to: {out}")
     else:
         plt.show()
@@ -362,9 +348,7 @@ def plot_disagreement(
     plt.close(fig)
 
 
-# ---------------------------------------------------------------------------
-# CLI
-# ---------------------------------------------------------------------------
+# --- CLI ---------------------------------------------------------------------
 
 def _parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(

@@ -5,7 +5,12 @@ A tool for detecting performance bottlenecks in HPC applications using
 machine learning and heuristic approaches on time series metrics.
 """
 
-__version__ = "1.0.0"
+from importlib.metadata import PackageNotFoundError, version as _pkg_version
+
+try:
+    __version__ = _pkg_version("hpc-bottleneck-detector")
+except PackageNotFoundError:  # package not installed (e.g. run from a source checkout)
+    __version__ = "1.0.0"
 
 from .orchestrator import AnalysisOrchestrator
 from .output.models import (

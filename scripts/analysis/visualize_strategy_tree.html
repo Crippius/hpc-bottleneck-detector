@@ -414,6 +414,36 @@ function renderTree(idx) {
         .style('pointer-events', 'none')
         .text(line);
     });
+
+    // Subtree-name tag: identifies which YAML strategy tree this branch comes from
+    if (d.data.group_label) {
+      const tagText = d.data.group_label;
+      const tagW    = tagText.length * 6.1 + 12;
+      const tagH    = 16;
+      const tagY    = -tagH - 6;
+      const tagCx   = NODE_W / 2;
+
+      g2.append('rect')
+        .attr('class', 'group-tag')
+        .attr('x', tagCx - tagW / 2)
+        .attr('y', tagY)
+        .attr('width', tagW)
+        .attr('height', tagH)
+        .attr('rx', 4)
+        .attr('fill', '#eff6ff')
+        .attr('stroke', '#bfdbfe')
+        .attr('stroke-width', 1);
+
+      g2.append('text')
+        .attr('x', tagCx)
+        .attr('y', tagY + tagH / 2 + 3.5)
+        .attr('text-anchor', 'middle')
+        .attr('fill', '#1d4ed8')
+        .attr('font-size', 10)
+        .attr('font-family', "'Cascadia Code','Fira Mono',monospace")
+        .style('pointer-events', 'none')
+        .text(tagText);
+    }
   });
 
   // Click on blank SVG → deselect

@@ -1,12 +1,12 @@
 """
-LOO cross-validation for all 4 feature-selection variants.
+LOO Cross-Validation for All Feature-Selection Variants
 
-Runs the full Leave-One-Out rotation for each combination of
-use_fdr x use_importance_pruning and prints a side-by-side comparison.
+Runs the full LOO rotation for each use_fdr x use_importance_pruning
+combination and prints a side-by-side comparison.
 
-Usage:
-    python scripts/loo_variants.py
-    python scripts/loo_variants.py --data-dir data/training_corpus --output-csv results/loo_variants.csv
+Usage
+-----
+    python scripts/evaluation/loo_variants.py
 """
 
 from __future__ import annotations

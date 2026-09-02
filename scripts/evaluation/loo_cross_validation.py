@@ -1,8 +1,11 @@
 """
 Leave-One-Out (LOO) Cross-Validation
 
-Evaluates how well ML models generalise to unseen applications
+Evaluates how well ML models generalise to unseen applications.
 
+Usage
+-----
+    python scripts/evaluation/loo_cross_validation.py --classifier xgboost
 """
 
 from __future__ import annotations
@@ -46,9 +49,7 @@ REPO_ROOT = Path(__file__).parent.parent.parent
 DATA_DIR  = REPO_ROOT / "data" / "training_corpus"
 
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
+# --- Helpers -----------------------------------------------------------------
 
 def _find_labelled_csvs(data_dir: Path) -> list[Path]:
     paths = sorted(data_dir.rglob("*.csv"))
@@ -236,13 +237,9 @@ def _score_metrics(y_true: np.ndarray, scores: np.ndarray) -> dict[str, float]:
     return {"roc_auc": roc, "pr_auc": pr}
 
 
-# ---------------------------------------------------------------------------
-# Calibration helpers
-# ---------------------------------------------------------------------------
+# --- Calibration helpers -----------------------------------------------------
 
-# ---------------------------------------------------------------------------
-# LOO driver
-# ---------------------------------------------------------------------------
+# --- LOO driver --------------------------------------------------------------
 
 def run_loo(
     csv_paths: list[Path],
@@ -292,7 +289,7 @@ def run_loo(
         print(f"{'='*70}")
         print(f"  Training on: {[csv_paths[i].stem for i in train_indices]}")
 
-        # ----- Train -----
+        # --- Train -----------------------------------------------------------
         X_tr = pd.concat([f[0] for f in train_app_features]).fillna(0.0)
         y_tr = _merge_app_y([f[1] for f in train_app_features])
         backend = trainer.from_preextracted_features(X_tr, y_tr)
@@ -301,13 +298,13 @@ def run_loo(
             logger.warning("  No classifiers trained for fold %d - skipping.", fold_idx + 1)
             continue
 
-        # ----- Calibrate thresholds (optional) -----
+        # --- Calibrate thresholds (optional) ---------------------------------
         if calibrate:
             thresholds = trainer.calibrate_thresholds_cv(train_app_features, n_splits, default_threshold=prob_threshold)
         else:
             thresholds = {col: prob_threshold for col in _LABEL_COLS}
 
-        # ----- Predict & evaluate per BottleneckType -----
+        # --- Predict & evaluate per BottleneckType ---------------------------
         X_test, y_dict = all_app_features[fold_idx]
         print(f"\n  Evaluating on {test_csv.name} ...")
 
@@ -426,9 +423,7 @@ def run_loo(
     return pd.DataFrame(records)
 
 
-# ---------------------------------------------------------------------------
-# LOO driver — AMLLibrary backend
-# ---------------------------------------------------------------------------
+# --- LOO driver — AMLLibrary backend -----------------------------------------
 
 def run_loo_amllibrary(
     csv_paths: list[Path],
@@ -562,9 +557,7 @@ def run_loo_amllibrary(
     return pd.DataFrame(records)
 
 
-# ---------------------------------------------------------------------------
-# Summary
-# ---------------------------------------------------------------------------
+# --- Summary -----------------------------------------------------------------
 
 def _print_summary(results: pd.DataFrame) -> None:
     """Print per-BottleneckType averages and a grand average across all types."""
@@ -618,9 +611,7 @@ def _print_summary(results: pd.DataFrame) -> None:
     print()
 
 
-# ---------------------------------------------------------------------------
-# CLI
-# ---------------------------------------------------------------------------
+# --- CLI ---------------------------------------------------------------------
 
 def _parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(
@@ -653,9 +644,7 @@ def _parse_args() -> argparse.Namespace:
     return p.parse_args()
 
 
-# ---------------------------------------------------------------------------
-# Entry point
-# ---------------------------------------------------------------------------
+# --- Entry point -------------------------------------------------------------
 
 if __name__ == "__main__":
     args = _parse_args()

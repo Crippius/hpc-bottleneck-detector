@@ -1,5 +1,12 @@
 """
-Holdout Evaluation - Test a pretrained model against a labelled test set.
+Holdout Evaluation
+
+Tests a pretrained model against a labelled test set.
+
+Usage
+-----
+    python scripts/evaluation/holdout_evaluation.py \\
+        --model models/default.pkl --data-dir data/holdout/
 """
 
 from __future__ import annotations

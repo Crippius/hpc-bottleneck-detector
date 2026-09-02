@@ -1,22 +1,13 @@
 """
 Training Script - AMLLibrary Backend
 
-Trains an :class:`AMLLibraryBackend` on labelled CSVs produced by label_jobs.py.
-aMLLibrary runs an automated model selection campaign per BottleneckType,
-comparing RandomForest and XGBoost with HoldOut validation.
+Trains an :class:`AMLLibraryBackend` on labelled CSVs produced by
+label_jobs.py, via an aMLLibrary model-selection campaign per BottleneckType.
 
 Usage
 -----
-    conda run -n thesisEnv python scripts/training/train_amllibrary_model.py
     conda run -n thesisEnv python scripts/training/train_amllibrary_model.py \\
-        --data-dir data/training_corpus/ \\
-        --window-size 12 \\
-        --step-size 12 \\
-        --output models/amllibrary.pkl
-
-Output
-------
-- A .pkl file loadable with AMLLibraryBackend.load(path).
+        --data-dir data/training_corpus/ --output models/amllibrary.pkl
 """
 
 from __future__ import annotations

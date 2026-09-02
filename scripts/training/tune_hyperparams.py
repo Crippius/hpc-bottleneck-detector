@@ -72,7 +72,7 @@ def main() -> None:
     with open(PARAM_GRIDS_PATH) as f:
         param_grids: dict = yaml.safe_load(f)
 
-    # --- Feature extraction ---
+    # --- Feature extraction --------------------------------------------------
     csv_paths = find_labelled_csvs(args.data_dir)
     logger.info("Found %d labelled CSVs in %s", len(csv_paths), args.data_dir)
 
@@ -88,7 +88,7 @@ def main() -> None:
             )
         )
 
-    # --- Tuning ---
+    # --- Tuning --------------------------------------------------------------
     clf = _build_classifier(args.classifier)
     clf_class = type(clf).__name__
     grid_keys = list(param_grids.get(clf_class, {}).keys())
@@ -109,7 +109,7 @@ def main() -> None:
 
     best_params = {k: tuned_clf.get_params()[k] for k in grid_keys}
 
-    # --- Report ---
+    # --- Report --------------------------------------------------------------
     col_w = max(len(k) for k in grid_keys) if grid_keys else 20
     print(f"\n{'='*60}")
     print(f"  {clf_class}  —  Tuning results")
@@ -124,7 +124,7 @@ def main() -> None:
         print(f"    {bt:<35}  {thr:.4f}")
     print()
 
-    # --- Save JSON ---
+    # --- Save JSON -----------------------------------------------------------
     result = {
         "classifier": args.classifier,
         "default_params": default_params,

@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
 """
-visualize_strategy_tree.py
-==========================
-Interactive GUI visualiser for HPC Bottleneck Detector strategy-tree YAML files.
+Strategy Tree Visualiser
 
-Generates a self-contained HTML file and opens it in the default browser.
+Renders strategy-tree YAML files as a self-contained HTML file and opens it
+in the default browser.
 
 Usage
 -----
@@ -39,9 +38,7 @@ except ImportError:
         "PyYAML is required: run  pip install pyyaml  then retry."
     )
 
-# ---------------------------------------------------------------------------
-# YAML parsing
-# ---------------------------------------------------------------------------
+# --- YAML parsing ------------------------------------------------------------
 
 _REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent.parent
 
@@ -69,14 +66,14 @@ def _simple_edge_label(operator: str, is_true: bool) -> str:
 
 def _parse_node(raw: dict, parent_id: str | None, edge_label: str,
                 nodes: list, edges: list, prefix: str = "") -> None:
-    """Recursively walk a raw YAML node and populate *nodes* and *edges*."""
+    """Recursively walk a raw YAML node and populate nodes and edges."""
 
     node_id = prefix + raw.get("node_id", f"node_{len(nodes)}")
 
     diagnosis  = raw.get("diagnosis")
     is_leaf    = diagnosis is not None
 
-    # ---- build the node record ----
+    # --- build the node record -----------------------------------------------
     record: dict = {"id": node_id}
 
     # Raw node_id (without prefix) used as display label
@@ -205,9 +202,7 @@ def parse_tree_yaml(path: pathlib.Path) -> dict:
     }
 
 
-# ---------------------------------------------------------------------------
-# Tree grouping
-# ---------------------------------------------------------------------------
+# --- Tree grouping -----------------------------------------------------------
 
 _GROUP_META: dict[str, tuple[str, str]] = {
     "memory_bound":   ("Memory Bound Analysis",   "virtual_memory_bound_root"),
@@ -217,7 +212,7 @@ _GROUP_META: dict[str, tuple[str, str]] = {
 
 
 def _load_family_gate(families_yaml: pathlib.Path, family_name: str) -> dict | None:
-    """Load the gate definition for *family_name* from *families_yaml*, or None."""
+    """Load the gate definition for family_name from families_yaml, or None."""
     if not families_yaml.is_file():
         return None
     with open(families_yaml, encoding="utf-8") as fh:
@@ -273,7 +268,7 @@ def group_and_merge_trees(
         fam_def = _load_family_gate(families_yaml, group_key)
 
         if fam_def:
-            # --- Shared gate: one node for the whole group ---------------------
+            # --- Shared gate: one node for the whole group -------------------
             gate_raw  = fam_def["gate"]
             gate_id   = f"{group_key}__family_gate"
             gate_op   = gate_raw.get("operator", ">")
@@ -304,6 +299,7 @@ def group_and_merge_trees(
                 merged_edges.extend(tree["edges"])
 
                 for sub_root in sub_roots:
+                    sub_root["group_label"] = _path.stem
                     merged_edges.append({
                         "source": gate_id,
                         "target": sub_root["id"],
@@ -311,7 +307,7 @@ def group_and_merge_trees(
                     })
 
         else:
-            # --- No family gate: original behaviour ------------------------------
+            # --- No family gate: original behaviour --------------------------
             for _path, tree in items:
                 targets_in_tree = {e["target"] for e in tree["edges"]}
                 sub_roots = [n for n in tree["nodes"] if n["id"] not in targets_in_tree]
@@ -320,6 +316,7 @@ def group_and_merge_trees(
                 merged_edges.extend(tree["edges"])
 
                 for sub_root in sub_roots:
+                    sub_root["group_label"] = _path.stem
                     merged_edges.append({
                         "source": root_id,
                         "target": sub_root["id"],
@@ -339,9 +336,7 @@ def group_and_merge_trees(
     return result
 
 
-# ---------------------------------------------------------------------------
-# HTML template loader
-# ---------------------------------------------------------------------------
+# --- HTML template loader ----------------------------------------------------
 
 _HTML_TEMPLATE_PATH = pathlib.Path(__file__).with_suffix(".html")
 
@@ -359,9 +354,7 @@ def _load_html_template() -> str:
 # Keep a sentinel we can find-and-replace for legacy reference
 _TREES_PLACEHOLDER = "/*TREES_JSON*/null/*END*/"
 
-# ---------------------------------------------------------------------------
-# Main
-# ---------------------------------------------------------------------------
+# --- Main --------------------------------------------------------------------
 
 def collect_yaml_files(args: list[str]) -> list[pathlib.Path]:
     """Resolve CLI args to a sorted list of YAML paths."""

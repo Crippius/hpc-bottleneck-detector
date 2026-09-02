@@ -1,13 +1,8 @@
 #!/usr/bin/env python3
 """
-export_trees_pdf.py
-===================
-Export HPC Bottleneck Detector strategy trees as PDFs using headless Chrome.
-Renders the existing HTML viewer as-is (same style, same LR layout).
-Produces one PDF per group:
-  memory_bound_analysis.pdf
-  compute_bound_analysis.pdf
-  load_imbalance_analysis.pdf
+Export Strategy Trees to PDF
+
+Renders the HTML strategy-tree viewer via headless Chrome, one PDF per group.
 
 Usage
 -----
@@ -47,7 +42,7 @@ _PRINT_CSS = f"""
 </style>
 <script id="print-fit">
 window.addEventListener('load', function() {{
-  var pad = 20;
+  var pad = 32;
   var svgEl = document.getElementById('tree-svg');
   var W = svgEl.clientWidth, H = svgEl.clientHeight;
   var nodeEls = Array.from(document.querySelectorAll('g.canvas g.node'));
