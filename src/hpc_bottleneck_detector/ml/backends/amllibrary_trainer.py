@@ -43,7 +43,7 @@ def _train_one(
     out_dir: str,
 ) -> object:
     """
-    Run one aMLLibrary campaign for target_col and return the MTSRegressor.
+    Run one aMLLibrary campaign for target_col and return the trained classifier.
     """
     _ensure_aml_on_path()
     import sequence_data_processing as sdp  # type: ignore[import]
@@ -51,12 +51,13 @@ def _train_one(
     config: dict = {
         "General": {
             "run_num": 1,
+            "task": "classification",
             "techniques": list(_TECHNIQUES),
             "hp_selection": "All",
             "validation": "KFold",
             "folds": 5,
             "y": target_col,
-            "metric": "MAE",
+            "metric": "F1",
         },
         "DataPreparation": {
             "input_path": merged_df,
@@ -67,7 +68,7 @@ def _train_one(
         },
         "WindowFeatures": {
             "features": _WINDOW_FEATURES,
-            "y_window_position": "mean",
+            "y_window_position": "last",
         },
         "FeatureSelection": {
             "method": "XGBoost",
@@ -85,8 +86,8 @@ class AMLLibraryTrainer(IMLTrainer):
     """
     Trainer for :class:`AMLLibraryBackend`.
 
-    Runs an aMLLibrary campaign per ``BottleneckType`` (LRRidge, RandomForest,
-    XGBoost with HoldOut validation) and returns a fitted backend.
+    Runs an aMLLibrary campaign per ``BottleneckType`` (RandomForestClassifier,
+    XGBoostClassifier with KFold validation) and returns a fitted backend.
     """
 
     def train(
@@ -96,7 +97,7 @@ class AMLLibraryTrainer(IMLTrainer):
         step_size: int,
         severity_threshold: float = 0.0,
     ) -> AMLLibraryBackend:
-        """Train one MTSRegressor per BottleneckType and return a fitted backend."""
+        """Train one classifier per BottleneckType and return a fitted backend."""
         t_total_start = time.perf_counter()
         frames = [pd.read_csv(p) for p in labelled_csv_paths]
         if not frames:
@@ -128,6 +129,7 @@ class AMLLibraryTrainer(IMLTrainer):
                 "Training %s - %d labelled intervals (%d positive at threshold=%.2f).",
                 col, n_total, n_pos, severity_threshold,
             )
+            train_df[col] = (train_df[col] > severity_threshold).astype(int)
 
             if n_total < window_size:
                 logger.warning(
@@ -143,16 +145,16 @@ class AMLLibraryTrainer(IMLTrainer):
                 reg = _train_one(train_df, col, window_size, step_size, out_dir)
                 backend._regressors[col] = reg
                 per_type_times[col] = time.perf_counter() - t_type_start
-                logger.info("MTSRegressor trained for %s.", col)
+                logger.info("Classifier trained for %s.", col)
             except Exception as exc:
-                logger.warning("Failed to train regressor for %s: %s", col, exc, exc_info=True)
+                logger.warning("Failed to train classifier for %s: %s", col, exc, exc_info=True)
             finally:
                 shutil.rmtree(tmp_root, ignore_errors=True)
 
         backend._window_size = window_size
         if not backend._regressors:
             raise RuntimeError(
-                "No regressors were trained. "
+                "No classifiers were trained. "
                 "Check that the labelled CSVs contain enough data per BottleneckType."
             )
         backend._training_meta = {

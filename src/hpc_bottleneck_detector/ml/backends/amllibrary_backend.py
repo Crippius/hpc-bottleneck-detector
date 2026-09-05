@@ -1,9 +1,9 @@
 """
 AMLLibrary Backend
 
-Implements :class:`IMLBackend` using aMLLibrary's MTS regression pipeline.
-One MTSRegressor is stored per BottleneckType; predicted severity (0-1) is
-used directly as a probability.
+Implements :class:`IMLBackend` using aMLLibrary's classification pipeline.
+One classifier is stored per BottleneckType; the predicted hard label (0/1)
+is used directly as the probability.
 
 Use :class:`~hpc_bottleneck_detector.ml.backends.AMLLibraryTrainer` to build
 a backend from labelled data.
@@ -51,25 +51,18 @@ _WINDOW_FEATURES: list = [
     "absolute_sum_of_changes",
 ]
 
-_TECHNIQUES: list[str] = ["RandomForest", "XGBoost"]
+_TECHNIQUES: list[str] = ["RandomForestClassifier", "XGBoostClassifier"]
 
 _TECHNIQUE_HPARAMS: dict = {
-    "RandomForest": {
+    "RandomForestClassifier": {
         "n_estimators": [100, 200],
-        "criterion": ["squared_error"],
+        "criterion": ["gini", "entropy"],
         "max_depth": [None, 10, 20],
-        "max_features": ["sqrt"],
-        "min_samples_split": [2],
-        "min_samples_leaf": [1, 2],
     },
-    "XGBoost": {
+    "XGBoostClassifier": {
         "n_estimators": [100, 200],
         "learning_rate": [0.05, 0.1],
         "max_depth": [3, 5, 8],
-        "gamma": [0],
-        "min_child_weight": [1],
-        "lambda": [1],
-        "alpha": [0],
     },
 }
 
@@ -95,7 +88,7 @@ def _fill_metric_nans(df: pd.DataFrame) -> pd.DataFrame:
 
 class AMLLibraryBackend(IMLBackend):
     """
-    Fitted inference backend using aMLLibrary regressors.
+    Fitted inference backend using aMLLibrary classifiers.
 
     Build with :class:`~hpc_bottleneck_detector.ml.backends.AMLLibraryTrainer`,
     or restore a saved one with :meth:`load`.
@@ -109,7 +102,7 @@ class AMLLibraryBackend(IMLBackend):
 
     def predict_probabilities(self, window_df: pd.DataFrame) -> dict[str, float]:
         """
-        Return per-bottleneck severity estimates clipped to [0, 1] (window_df
+        Return per-bottleneck hard labels (0/1) as probabilities (window_df
         is the raw window DataFrame from DataManager.get_flat_dataframe()), as
         ``{BottleneckType.value: probability}`` for every trained type.
         """
