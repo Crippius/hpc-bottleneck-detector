@@ -8,9 +8,9 @@ Usage
 -----
     python scripts/analysis/disagreement_analysis.py \\
         --scores-a results/loo_scores_xgboost.parquet \\
-        --scores-b results/loo_scores_amllibrary.parquet \\
+        --scores-b results/loo_scores_rf.parquet \\
         --label-a "XGBoost (Default)" \\
-        --label-b "AMLLibrary" \\
+        --label-b "RF (Default)" \\
         --output results/disagreement.png \\
         --threshold 0.5
 """

@@ -53,22 +53,6 @@ classDiagram
         -_select_features(X_clean: DataFrame, y_clean: Series, col: str) Optional~DataFrame~
     }
 
-    class AMLLibraryBackend {
-        -_regressors: dict~str, MTSRegressor~
-        -_window_size: int
-        -_thresholds: dict~str, float~
-        -_training_meta: dict
-        +__init__()
-        +predict_probabilities(window_df: DataFrame) dict~str, float~
-        +save(path: str) None
-        +load(path: str) AMLLibraryBackend$
-    }
-
-    class AMLLibraryTrainer {
-        +train(labelled_csv_paths: List~str~, window_size: int, step_size: int, severity_threshold: float) AMLLibraryBackend
-        +calibrate_thresholds_cv(backend: AMLLibraryBackend, labelled_csv_paths: List~str~, window_size: int, step_size: int, severity_threshold: float, n_splits: int) dict~str, float~
-    }
-
     class DataManager {
         +job_data: DataFrame
         +job_id: str
@@ -107,14 +91,10 @@ classDiagram
     SupervisedMLStrategy --> Diagnosis : produces
 
     IMLBackend <|.. DefaultBackend : implements
-    IMLBackend <|.. AMLLibraryBackend : implements
     IMLTrainer <|.. DefaultTrainer : implements
-    IMLTrainer <|.. AMLLibraryTrainer : implements
 
     DefaultTrainer ..> DefaultBackend : produces (offline)
-    AMLLibraryTrainer ..> AMLLibraryBackend : produces (offline)
 
     DataManager --> DefaultBackend : window_df via get_flat_dataframe
-    DataManager --> AMLLibraryBackend : window_df via get_flat_dataframe
 
     Diagnosis --> BottleneckType : has

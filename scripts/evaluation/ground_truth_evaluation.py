@@ -23,7 +23,6 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "src"))
 
 from hpc_bottleneck_detector.ml.backends.default_backend import DefaultBackend
-from hpc_bottleneck_detector.ml.backends.amllibrary_backend import AMLLibraryBackend
 from hpc_bottleneck_detector.data.manager import DataManager
 from hpc_bottleneck_detector.data.job_context import JobContext
 from hpc_bottleneck_detector.data.hardware_profiles import HardwareProfileLoader
@@ -35,10 +34,7 @@ HW_PROFILES_DIR = ROOT / "configs" / "hardware_profiles"
 
 
 def _load_backend(path: str):
-    try:
-        return DefaultBackend.load(path)
-    except Exception:
-        return AMLLibraryBackend.load(path)
+    return DefaultBackend.load(path)
 
 
 def _collect_required_specs(strategy: HeuristicStrategy) -> list[dict]:

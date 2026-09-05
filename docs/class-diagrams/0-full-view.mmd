@@ -222,27 +222,9 @@ classDiagram
         +tune(app_features: List~Tuple~, classifier: ClassifierMixin, param_grid: Optional~dict~) Tuple~ClassifierMixin, dict~str, float~~$
     }
 
-    class AMLLibraryBackend {
-        -_regressors: dict~str, MTSRegressor~
-        -_window_size: int
-        -_thresholds: dict~str, float~
-        +__init__()
-        +predict_probabilities(window_df: DataFrame) dict~str, float~
-        +save(path: str) None
-        +load(path: str) AMLLibraryBackend$
-    }
-
-    class AMLLibraryTrainer {
-        +train(labelled_csv_paths: List~str~, window_size: int, step_size: int, severity_threshold: float) AMLLibraryBackend
-        +calibrate_thresholds_cv(backend: AMLLibraryBackend, labelled_csv_paths: List~str~, window_size: int, step_size: int) dict~str, float~
-    }
-
     IMLBackend <|.. DefaultBackend : implements
-    IMLBackend <|.. AMLLibraryBackend : implements
     IMLTrainer <|.. DefaultTrainer : implements
-    IMLTrainer <|.. AMLLibraryTrainer : implements
     DefaultTrainer ..> DefaultBackend : produces (offline)
-    AMLLibraryTrainer ..> AMLLibraryBackend : produces (offline)
     SupervisedMLStrategy *-- IMLBackend : backend
 
     %% ============================================

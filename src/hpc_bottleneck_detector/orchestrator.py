@@ -296,13 +296,9 @@ class AnalysisOrchestrator:
             backend_type = cfg.get("backend", "default").lower()
             if backend_type == "default":
                 backend = DefaultBackend.load(model_path)
-            elif backend_type == "amllibrary":
-                from .ml.backends.amllibrary_backend import AMLLibraryBackend
-                backend = AMLLibraryBackend.load(model_path)
             else:
                 raise ValueError(
-                    f"Unsupported ML backend: '{backend_type}'. "
-                    "Expected 'default' or 'amllibrary'."
+                    f"Unsupported ML backend: '{backend_type}'. Expected 'default'."
                 )
             return SupervisedMLStrategy(
                 backend=backend,

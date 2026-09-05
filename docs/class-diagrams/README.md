@@ -25,8 +25,8 @@ Shows how data flows through the system:
 
 Details the machine learning pipeline:
 
-- **Inference Backends** (IMLBackend, DefaultBackend, AMLLibraryBackend) - hold fitted state, used at analysis time
-- **Offline Trainers** (IMLTrainer, DefaultTrainer, AMLLibraryTrainer) - produce a fitted backend from labelled CSVs
+- **Inference Backends** (IMLBackend, DefaultBackend) - hold fitted state, used at analysis time
+- **Offline Trainers** (IMLTrainer, DefaultTrainer) - produce a fitted backend from labelled CSVs
 - **Supervised Learning Strategy** (SupervisedMLStrategy)
 
 ### 4. Heuristic Components View

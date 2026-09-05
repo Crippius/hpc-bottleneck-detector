@@ -9,12 +9,12 @@ Usage
 -----
     python scripts/analysis/stats_test.py \\
         --a results/loo_xgboost.csv \\
-        --b results/loo_amllibrary.csv \\
+        --b results/loo_rf.csv \\
         --metric f1
 
     python scripts/analysis/stats_test.py \\
         --a results/loo_xgboost.csv \\
-        --b results/loo_amllibrary.csv \\
+        --b results/loo_rf.csv \\
         --metric f1 --per-class
 """
 
