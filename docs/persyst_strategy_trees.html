@@ -99,7 +99,8 @@ const TREES = /*TREES_JSON*/[
         "aggregation": "mean",
         "operator": ">",
         "threshold": "0.741",
-        "label": "Check L3 Miss Ratio"
+        "label": "Check L3 Miss Ratio",
+        "group_label": "memory_bound_data_locality"
       },
       {
         "id": "memory_bound_data_locality__data_locality_l3_misses",
@@ -108,7 +109,7 @@ const TREES = /*TREES_JSON*/[
         "severity_formula": "INCREASING",
         "threshold": "0.741",
         "confidence": 1.0,
-        "recommendation": "High L3 miss ratio: most L3 accesses are misses (hits-to-misses below 0.35), indicating poor spatial or temporal data locality. Actions:\n  - Improve spatial locality: prefer sequential access; restructure data (AoS → SoA).\n  - Improve temporal locality: use loop tiling/blocking to keep working sets in L2/L3.\n  - Review first-touch NUMA policy in multi-socket codes.\n  - Check for strided or irregular access patterns.",
+        "recommendation": "High L3 miss ratio: most L3 accesses are misses (hits-to-misses below 0.35), indicating poor spatial or temporal data locality. Actions:\n  - Improve spatial locality: prefer sequential access; restructure data (AoS -> SoA).\n  - Improve temporal locality: use loop tiling/blocking to keep working sets in L2/L3.\n  - Review first-touch NUMA policy in multi-socket codes.\n  - Check for strided or irregular access patterns.",
         "label": "Cache Pressure",
         "description": ""
       },
@@ -132,7 +133,8 @@ const TREES = /*TREES_JSON*/[
         "aggregation": "mean",
         "operator": ">",
         "threshold": "15.0",
-        "label": "Check Loads To Stores"
+        "label": "Check Loads To Stores",
+        "group_label": "memory_bound_loads_stores"
       },
       {
         "id": "memory_bound_loads_stores__data_locality_loads_stores",
@@ -141,7 +143,7 @@ const TREES = /*TREES_JSON*/[
         "severity_formula": "INCREASING",
         "threshold": "15.0",
         "confidence": 1.0,
-        "recommendation": "High loads-to-stores ratio: data is loaded many more times than stored, suggesting poor temporal reuse (data loaded multiple times before being consumed). Actions:\n  - Improve temporal reuse: tile/block loops so data is consumed before eviction.\n  - Check for strided or irregular access patterns; restructure to sequential (AoS → SoA).\n  - In OpenMP codes, verify first-touch allocation so threads work on their NUMA domain.",
+        "recommendation": "High loads-to-stores ratio: data is loaded many more times than stored, suggesting poor temporal reuse (data loaded multiple times before being consumed). Actions:\n  - Improve temporal reuse: tile/block loops so data is consumed before eviction.\n  - Check for strided or irregular access patterns; restructure to sequential (AoS -> SoA).\n  - In OpenMP codes, verify first-touch allocation so threads work on their NUMA domain.",
         "label": "Cache Pressure",
         "description": ""
       },
@@ -165,7 +167,8 @@ const TREES = /*TREES_JSON*/[
         "aggregation": "mean",
         "operator": "<",
         "threshold": "0.035",
-        "label": "Check Sp Dp Ratio"
+        "label": "Check Sp Dp Ratio",
+        "group_label": "memory_bound_precision"
       },
       {
         "id": "memory_bound_precision__use_single_precision_mem",
@@ -198,7 +201,8 @@ const TREES = /*TREES_JSON*/[
         "aggregation": "mean",
         "operator": ">",
         "threshold": "5% of benchmark(bandwidth_upi)",
-        "label": "Check Upi Bandwidth"
+        "label": "Check Upi Bandwidth",
+        "group_label": "memory_bound_upi"
       },
       {
         "id": "memory_bound_upi__high_upi_bandwidth",
@@ -312,7 +316,8 @@ const TREES = /*TREES_JSON*/[
         "aggregation": "mean",
         "operator": ">",
         "threshold": "1.5",
-        "label": "Check Branch Mis Rate"
+        "label": "Check Branch Mis Rate",
+        "group_label": "compute_bound_branch"
       },
       {
         "id": "compute_bound_branch__check_branch_mis_ratio",
@@ -367,7 +372,8 @@ const TREES = /*TREES_JSON*/[
         "aggregation": "mean",
         "operator": ">",
         "threshold": "20% of benchmark(bandwidth_l3)",
-        "label": "Check L3 Bandwidth"
+        "label": "Check L3 Bandwidth",
+        "group_label": "compute_bound_cache"
       },
       {
         "id": "compute_bound_cache__check_l3_miss_rate",
@@ -444,7 +450,8 @@ const TREES = /*TREES_JSON*/[
         "aggregation": "mean",
         "operator": ">",
         "threshold": "10.0",
-        "label": "Check Cpi"
+        "label": "Check Cpi",
+        "group_label": "compute_bound_cpi"
       },
       {
         "id": "compute_bound_cpi__high_cpi",
@@ -477,7 +484,8 @@ const TREES = /*TREES_JSON*/[
         "aggregation": "mean",
         "operator": "<",
         "threshold": "0.035",
-        "label": "Check Sp To Dp Ratio"
+        "label": "Check Sp To Dp Ratio",
+        "group_label": "compute_bound_flops_precision"
       },
       {
         "id": "compute_bound_flops_precision__dp_only_code",
@@ -510,7 +518,8 @@ const TREES = /*TREES_JSON*/[
         "aggregation": "mean",
         "operator": "<",
         "threshold": "0.01",
-        "label": "Check Vec To Scalar"
+        "label": "Check Vec To Scalar",
+        "group_label": "compute_bound_flops_vectorization"
       },
       {
         "id": "compute_bound_flops_vectorization__no_vectorization",
@@ -565,7 +574,8 @@ const TREES = /*TREES_JSON*/[
         "aggregation": "mean",
         "operator": ">",
         "threshold": "85.0",
-        "label": "Check Stall Rate"
+        "label": "Check Stall Rate",
+        "group_label": "compute_bound_stall_cycles"
       },
       {
         "id": "compute_bound_stall_cycles__pipeline_stall_smt",
@@ -744,7 +754,8 @@ const TREES = /*TREES_JSON*/[
         "aggregation": "mean",
         "operator": ">",
         "threshold": "0.5",
-        "label": "Check Inter Node Imbalance"
+        "label": "Check Inter Node Imbalance",
+        "group_label": "load_imbalance_inter_node"
       },
       {
         "id": "load_imbalance_inter_node__inter_node_load_imbalance_detected",
@@ -777,7 +788,8 @@ const TREES = /*TREES_JSON*/[
         "aggregation": "mean",
         "operator": ">",
         "threshold": "0.5",
-        "label": "Check Intra Node Imbalance"
+        "label": "Check Intra Node Imbalance",
+        "group_label": "load_imbalance_intra_node"
       },
       {
         "id": "load_imbalance_intra_node__intra_node_load_imbalance_detected",
@@ -841,9 +853,9 @@ const TREES = /*TREES_JSON*/[
 // Layout constants
 // ============================================================
 const NODE_W  = 170;
-const NODE_H  = 52;
-const H_GAP   = 230;
-const V_GAP   = 68;
+const NODE_H  = 46;
+const H_GAP   = 110;
+const V_GAP   = 18;
 const CORNER  = 8;
 
 // Node visual styles
@@ -1095,7 +1107,7 @@ function renderTree(idx) {
     .data(root.links())
     .join('text')
     .attr('class', 'el')
-    .attr('font-size', 10.5)
+    .attr('font-size', 14)
     .attr('font-family', "'Computer Modern', 'CMU Serif', Georgia, serif")
     .attr('fill', '#475569')
     .attr('font-weight', 600)
@@ -1154,7 +1166,7 @@ function renderTree(idx) {
     // Word-wrap label
     const label = d.data.label || cleanId(d.data.id).replace(/_/g, ' ');
     const words = label.split(/\s+/);
-    const maxCpl = 20;
+    const maxCpl = 18;
     const lines = [];
     let cur = '';
     for (const w of words) {
@@ -1167,7 +1179,7 @@ function renderTree(idx) {
     }
     if (cur) lines.push(cur);
 
-    const lineH  = 14;
+    const lineH  = 16;
     const totalH = lines.length * lineH;
     const startY = (NODE_H - totalH) / 2 + lineH * 0.85;
     const isOk   = d.data.kind === 'leaf' && d.data.bottleneck_type === 'NONE';
@@ -1178,12 +1190,42 @@ function renderTree(idx) {
         .attr('y', startY + i * lineH)
         .attr('text-anchor', 'middle')
         .attr('fill', '#1a202c')
-        .attr('font-size', isOk ? 13 : 11.5)
+        .attr('font-size', isOk ? 16 : 14.5)
         .attr('font-weight', st.fw)
         .attr('font-family', "'Computer Modern', 'CMU Serif', Georgia, serif")
         .style('pointer-events', 'none')
         .text(line);
     });
+
+    // Subtree-name tag: identifies which YAML strategy tree this branch comes from
+    if (d.data.group_label) {
+      const tagText = d.data.group_label;
+      const tagW    = tagText.length * 8 + 12;
+      const tagH    = 20;
+      const tagY    = -tagH - 6;
+      const tagCx   = NODE_W / 2;
+
+      g2.append('rect')
+        .attr('class', 'group-tag')
+        .attr('x', tagCx - tagW / 2)
+        .attr('y', tagY)
+        .attr('width', tagW)
+        .attr('height', tagH)
+        .attr('rx', 4)
+        .attr('fill', '#eff6ff')
+        .attr('stroke', '#bfdbfe')
+        .attr('stroke-width', 1);
+
+      g2.append('text')
+        .attr('x', tagCx)
+        .attr('y', tagY + tagH / 2 + 3.5)
+        .attr('text-anchor', 'middle')
+        .attr('fill', '#1d4ed8')
+        .attr('font-size', 13)
+        .attr('font-family', "'Cascadia Code','Fira Mono',monospace")
+        .style('pointer-events', 'none')
+        .text(tagText);
+    }
   });
 
   // Click on blank SVG → deselect

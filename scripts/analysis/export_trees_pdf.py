@@ -29,15 +29,17 @@ _REPO_ROOT      = pathlib.Path(__file__).resolve().parent.parent.parent
 _DEFAULT_OUTPUT = _REPO_ROOT / "results" / "trees"
 _HTML_TEMPLATE  = pathlib.Path(__file__).with_name("visualize_strategy_tree.html")
 
-# A3 landscape in pixels at 96 dpi: 420mm x 297mm
-_PAGE_W_PX = 1587
-_PAGE_H_PX = 1122
+_PAGE_W_PX = 6000
+_PAGE_H_PX = 4000
+
+_CROP_MARGIN_PT = 10
 
 _PRINT_CSS = f"""
 <style id="print-overrides">
-  @page {{ size: A3 landscape; margin: 0mm; }}
+  @page {{ size: {_PAGE_W_PX * 0.75:.0f}pt {_PAGE_H_PX * 0.75:.0f}pt; margin: 0mm; }}
   #tab-bar, #detail {{ display: none !important; }}
   #main {{ height: 100vh !important; }}
+  html, body, svg#tree-svg {{ background: none !important; }}
   html, body {{ overflow: hidden !important; }}
 </style>
 <script id="print-fit">
@@ -61,9 +63,9 @@ window.addEventListener('load', function() {{
   var maxX = Math.max.apply(null, xs) + NODE_W;
   var minY = Math.min.apply(null, ys);
   var maxY = Math.max.apply(null, ys) + NODE_H;
-  var sc = Math.min((W - pad * 2) / (maxX - minX), (H - pad * 2) / (maxY - minY));
-  var tx = pad - minX * sc + (W - pad * 2 - (maxX - minX) * sc) / 2;
-  var ty = pad - minY * sc + (H - pad * 2 - (maxY - minY) * sc) / 2;
+  var sc = Math.min(1, (W - pad * 2) / (maxX - minX), (H - pad * 2) / (maxY - minY));
+  var tx = pad - minX * sc;
+  var ty = pad - minY * sc;
   d3.select('g.canvas').attr('transform', 'translate(' + tx + ',' + ty + ') scale(' + sc + ')');
 }});
 </script>"""
@@ -108,6 +110,16 @@ def export_pdf(tree: dict, out_dir: pathlib.Path) -> pathlib.Path | None:
     if r.returncode != 0:
         print(f"  ERROR ({tree['tree_name']}): {r.stderr.strip()}", file=sys.stderr)
         return None
+
+    cropped_path = pdf_path.with_suffix(".cropped.pdf")
+    crop = subprocess.run(
+        ["pdfcrop", f"--margins={_CROP_MARGIN_PT}", str(pdf_path), str(cropped_path)],
+        capture_output=True, text=True, timeout=60,
+    )
+    if crop.returncode != 0:
+        print(f"  ERROR (pdfcrop {tree['tree_name']}): {crop.stderr.strip()}", file=sys.stderr)
+        return None
+    cropped_path.replace(pdf_path)
     return pdf_path
 
 

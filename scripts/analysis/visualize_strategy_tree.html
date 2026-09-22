@@ -71,9 +71,9 @@ const TREES = /*TREES_JSON*/null/*END*/;
 // Layout constants
 // ============================================================
 const NODE_W  = 170;
-const NODE_H  = 52;
-const H_GAP   = 230;
-const V_GAP   = 68;
+const NODE_H  = 46;
+const H_GAP   = 110;
+const V_GAP   = 18;
 const CORNER  = 8;
 
 // Node visual styles
@@ -325,7 +325,7 @@ function renderTree(idx) {
     .data(root.links())
     .join('text')
     .attr('class', 'el')
-    .attr('font-size', 10.5)
+    .attr('font-size', 14)
     .attr('font-family', "'Computer Modern', 'CMU Serif', Georgia, serif")
     .attr('fill', '#475569')
     .attr('font-weight', 600)
@@ -384,7 +384,7 @@ function renderTree(idx) {
     // Word-wrap label
     const label = d.data.label || cleanId(d.data.id).replace(/_/g, ' ');
     const words = label.split(/\s+/);
-    const maxCpl = 20;
+    const maxCpl = 18;
     const lines = [];
     let cur = '';
     for (const w of words) {
@@ -397,7 +397,7 @@ function renderTree(idx) {
     }
     if (cur) lines.push(cur);
 
-    const lineH  = 14;
+    const lineH  = 16;
     const totalH = lines.length * lineH;
     const startY = (NODE_H - totalH) / 2 + lineH * 0.85;
     const isOk   = d.data.kind === 'leaf' && d.data.bottleneck_type === 'NONE';
@@ -408,7 +408,7 @@ function renderTree(idx) {
         .attr('y', startY + i * lineH)
         .attr('text-anchor', 'middle')
         .attr('fill', '#1a202c')
-        .attr('font-size', isOk ? 13 : 11.5)
+        .attr('font-size', isOk ? 16 : 14.5)
         .attr('font-weight', st.fw)
         .attr('font-family', "'Computer Modern', 'CMU Serif', Georgia, serif")
         .style('pointer-events', 'none')
@@ -418,8 +418,8 @@ function renderTree(idx) {
     // Subtree-name tag: identifies which YAML strategy tree this branch comes from
     if (d.data.group_label) {
       const tagText = d.data.group_label;
-      const tagW    = tagText.length * 6.1 + 12;
-      const tagH    = 16;
+      const tagW    = tagText.length * 8 + 12;
+      const tagH    = 20;
       const tagY    = -tagH - 6;
       const tagCx   = NODE_W / 2;
 
@@ -439,7 +439,7 @@ function renderTree(idx) {
         .attr('y', tagY + tagH / 2 + 3.5)
         .attr('text-anchor', 'middle')
         .attr('fill', '#1d4ed8')
-        .attr('font-size', 10)
+        .attr('font-size', 13)
         .attr('font-family', "'Cascadia Code','Fira Mono',monospace")
         .style('pointer-events', 'none')
         .text(tagText);
